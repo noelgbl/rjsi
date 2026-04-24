@@ -12,7 +12,7 @@ mod value;
 pub mod engine {
     pub use crate::class::JsClassExt;
     pub use crate::context::{JsContextImpl, JsRawContext};
-    pub use crate::runtime::{JsEngine, JsIsolate, JsRuntime};
+    pub use crate::runtime::{JsEngine, JsRuntime};
     pub use crate::value::{
         JsArrayBufferOps, JsArrayOps, JsErrorFactory, JsExceptionThrower, JsObjectOps, JsProxyOps,
         JsTypeOf, JsTypedArrayKind, JsTypedArrayOps, JsValueConversion, JsValueImpl, JsValueType,
@@ -28,7 +28,7 @@ pub use iterator::{
     IntoJsIteratorExt, JsIterator, install_iterator_symbol,
 };
 pub use promise::Promise;
-pub use runtime::{JsEngine, JsIsolate, JsRuntime};
+pub use runtime::{JsEngine, JsRuntime};
 pub use source::{Source, SourceKind};
 pub use value::{
     AnyJsTypedArray, FromJsValue, IntoJsValue, JsArray, JsArrayBuffer, JsBytes, JsDate,
@@ -50,7 +50,7 @@ pub mod prelude {
         IntoJsIteratorExt, IntoJsValue, JsArray, JsArrayBuffer, JsArrayBufferOps, JsArrayOps,
         JsBytes, JsClass, JsContext, JsContextImpl, JsDate, JsEngine, JsErrorFactory, JsException,
         JsExceptionThrower, JsFunc, JsIterator, JsNativeAsyncContext, JsObject, JsObjectOps,
-        JsProxy, JsProxyOps, JsRawContext, JsResult, JsRuntime, JsIsolate, JsSymbol,
+        JsProxy, JsProxyOps, JsRawContext, JsResult, JsRuntime, JsSymbol,
         JsTypedArray, JsTypedArrayOps, JsTypeOf, JsValue, JsValueConversion, JsValueImpl,
         JsValueMapper, Promise, RjsiJSError, Source, SourceKind, install_iterator_symbol,
     };

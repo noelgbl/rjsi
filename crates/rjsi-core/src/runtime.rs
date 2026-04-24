@@ -7,23 +7,6 @@
 
 use crate::{JsContextImpl, JsResult, JsValueImpl};
 
-/// Native isolate / runtime handle.
-pub trait JsIsolate: Sized + 'static {
-    type RawRuntime;
-
-    type Context: JsContextImpl<Runtime = Self>;
-
-    fn new() -> Self;
-
-    fn to_raw(&self) -> Self::RawRuntime;
-
-    fn run_pending_jobs(&self) -> i32 {
-        -1
-    }
-
-    fn run_gc(&self);
-}
-
 /// Static engine: types and a [`RawContext`](JsEngine::RawContext) token for host work.
 pub trait JsEngine: Sized + 'static {
     /// Engine-specific context token, typically a thin wrapper around an
@@ -40,10 +23,8 @@ pub trait JsEngine: Sized + 'static {
     type Context: JsContextImpl<
             Engine = Self,
             Value = Self::Value,
-            Runtime = Self::Isolate,
         > + crate::JsErrorFactory
         + crate::JsExceptionThrower;
-    type Isolate: JsIsolate<Context = Self::Context> + 'static;
 
     fn name() -> &'static str;
 

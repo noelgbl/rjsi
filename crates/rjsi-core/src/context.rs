@@ -6,15 +6,11 @@ pub(crate) mod thrown_store;
 /// Engine-level context implementation (native handle + operations).
 pub trait JsContextImpl {
     /// Static engine descriptor for this native context (`Self` is [`JsEngine::Context`](crate::JsEngine::Context)).
-    type Engine: JsEngine<Context = Self, Value = Self::Value, Isolate = Self::Runtime>;
+    type Engine: JsEngine<Context = Self, Value = Self::Value>;
 
     type RawContext;
 
-    type Runtime: crate::JsIsolate<Context = Self>;
-
     type Value: crate::JsValueImpl<Context = Self>;
-
-    fn new(runtime: &Self::Runtime) -> Self;
 
     fn as_raw(&self) -> &Self::RawContext;
 

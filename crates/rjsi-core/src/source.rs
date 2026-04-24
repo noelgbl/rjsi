@@ -61,7 +61,7 @@ impl Source {
     }
 
     /// Create a Source from compiled bytecode
-    pub(crate) fn from_bytecode(code: impl Into<Vec<u8>>) -> Self {
+    pub fn from_bytecode(code: impl Into<Vec<u8>>) -> Self {
         Self {
             kind: SourceKind::ByteCode(code.into()),
             name: None,

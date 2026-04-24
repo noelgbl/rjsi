@@ -28,8 +28,8 @@ pub struct RustFunc<E: JsEngine> {
     required_params: u32,
 }
 
-type FnMutClosure<E: JsEngine> = dyn for<'js> FnMut(&mut ParamsAccessor<'js, E>) -> JsResult<E::Value>;
-type FnOnceClosure<E: JsEngine> = dyn for<'js> FnOnce(&mut ParamsAccessor<'js, E>) -> JsResult<E::Value>;
+type FnMutClosure<E> = dyn for<'js> FnMut(&mut ParamsAccessor<'js, E>) -> JsResult<<E as JsEngine>::Value>;
+type FnOnceClosure<E> = dyn for<'js> FnOnce(&mut ParamsAccessor<'js, E>) -> JsResult<<E as JsEngine>::Value>;
 
 pub enum JsCallable<E: JsEngine> {
     FnMut(RefCell<Box<FnMutClosure<E>>>),
