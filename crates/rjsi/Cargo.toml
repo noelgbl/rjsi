@@ -1,0 +1,17 @@
+[package]
+name = "rjsi"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+quickjs = ["dep:rjsi-quickjs"]
+v8 = ["dep:rjsi-v8"]
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+rjsi-core.workspace = true
+
+rjsi-quickjs = { workspace = true, optional = true }
+rjsi-v8 = { workspace = true, optional = true }

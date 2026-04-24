@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/rjsi",
+  "crates/rjsi-core",
+  "crates/rjsi-v8",
+  "crates/rjsi-quickjs",
+  "crates/rjsi-ops",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "APACHE-2.0"
+
+[workspace.dependencies]
+anyhow = "1.0.100"
+thiserror = "2.0.18"
+itertools = "0.14.0"
+serde = { version = "1.0.217", features = ["derive"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tokio = { version = "1.52.1", features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "io-std",
+  "signal",
+] }
+async-trait = "0.1.86"
+async-recursion = "1.1.1"
+bytes = "1.10.1"
+futures = "0.3.31"
+serde_json = "1.0.138"
+tokio-stream = "0.1"
+uuid = { version = "1.23.1", features = ["v4"] }
+parking_lot = "0.12"
+literate-engine = { path = "crates/engine" }
+rjsi = { path = "crates/rjsi" }
+rjsi-async = { path = "crates/rjsi-async" }
+rjsi-core = { path = "crates/rjsi-core" }
+rjsi-v8 = { path = "crates/rjsi-v8" }
+rjsi-quickjs = { path = "crates/rjsi-quickjs" }

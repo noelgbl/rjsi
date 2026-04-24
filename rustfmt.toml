@@ -1,0 +1,10 @@
+edition = "2024"
+
+imports_granularity = "Module"
+imports_layout = "Horizontal"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+reorder_modules = true
+newline_style = "Unix"
+use_field_init_shorthand = true
+single_line_let_else_max_width = 0
