@@ -175,7 +175,40 @@ where
             .map_err(|thrown| Self::thrown_error(ctx.clone(), thrown))
     }
 
-    pub fn get<'a, K, T>(&'a self, k: K) -> JsResult<T>
+    /// Single-operation raw property lookup.
+    ///
+    /// This does not call `has_property`, so it cannot distinguish a missing
+    /// property from an engine that reports missing values as `None`. Use
+    /// [`Self::get_required`] or [`Self::get_opt`] when that distinction matters.
+    pub fn get_raw<'a, K>(&'a self, k: K) -> JsResult<Option<JsValue<'js, E>>>
+    where
+        K: Into<PropertyKey<'a, E>>,
+    {
+        let ctx = self.context();
+        let key = k.into().into_value(ctx.clone());
+        self.as_value()
+            .get_property(key)
+            .map(|value| value.map(|value| JsValue::from_raw(ctx.clone(), value)))
+            .map_err(|thrown| Self::thrown_error(ctx, thrown))
+    }
+
+    /// Single-operation raw property lookup returning the engine value.
+    pub fn get_raw_value<'a, K>(&'a self, k: K) -> JsResult<Option<E::Value>>
+    where
+        K: Into<PropertyKey<'a, E>>,
+    {
+        let ctx = self.context();
+        let key = k.into().into_value(ctx.clone());
+        self.as_value()
+            .get_property(key)
+            .map_err(|thrown| Self::thrown_error(ctx, thrown))
+    }
+
+    /// Ergonomic required-property lookup.
+    ///
+    /// This preserves the historical `get` behavior by checking `has_property`
+    /// when the first lookup returns `None` or `undefined`.
+    pub fn get_required<'a, K, T>(&'a self, k: K) -> JsResult<T>
     where
         K: Into<PropertyKey<'a, E>>,
         T: FromJsValue<'js, E>,
@@ -214,6 +247,14 @@ where
         };
 
         T::from_js_value(ctx, value)
+    }
+
+    pub fn get<'a, K, T>(&'a self, k: K) -> JsResult<T>
+    where
+        K: Into<PropertyKey<'a, E>>,
+        T: FromJsValue<'js, E>,
+    {
+        self.get_required(k)
     }
 
     pub fn get_opt<'a, K, T>(&'a self, k: K) -> JsResult<Option<T>>

@@ -147,6 +147,34 @@ where
         self.push_value(value.into_js_value(ctx))
     }
 
+    /// Push many Rust values while reading `length` only once.
+    pub fn extend<T, I>(&self, values: I) -> JsResult<u32>
+    where
+        T: IntoJsValue<'js, E>,
+        I: IntoIterator<Item = T>,
+    {
+        let ctx = self.context();
+        let mut index = self.len()?;
+        for value in values {
+            self.set_value(index, value.into_js_value(ctx.clone()))?;
+            index += 1;
+        }
+        Ok(index)
+    }
+
+    /// Push many already-created JS values while reading `length` only once.
+    pub fn extend_values<I>(&self, values: I) -> JsResult<u32>
+    where
+        I: IntoIterator<Item = JsValue<'js, E>>,
+    {
+        let mut index = self.len()?;
+        for value in values {
+            self.set_value(index, value)?;
+            index += 1;
+        }
+        Ok(index)
+    }
+
     /// Pop a raw JS value using primitive index operations.
     pub fn pop_value(&self) -> JsResult<JsValue<'js, E>> {
         let len = self.len()?;
@@ -368,9 +396,7 @@ where
 {
     fn into_js_value(self, ctx: JsContext<'js, E>) -> JsValue<'js, E> {
         let array = JsArray::new(ctx.clone()).expect("array");
-        for item in self {
-            array.push(item).expect("Failed to push value into array");
-        }
+        array.extend(self).expect("Failed to push value into array");
         <JsArray<'js, E> as IntoJsValue<'js, E>>::into_js_value(array, ctx)
     }
 }

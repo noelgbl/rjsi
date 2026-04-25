@@ -1,8 +1,8 @@
 mod class;
 mod context;
-mod global;
 pub mod error;
 pub mod function;
+mod global;
 mod iterator;
 mod promise;
 mod runtime;
@@ -12,6 +12,7 @@ mod value;
 pub mod engine {
     pub use crate::class::JsClassExt;
     pub use crate::context::{JsContextImpl, JsRawContext};
+    pub use crate::global::{ClonedGlobal, JsGlobalHandle};
     pub use crate::runtime::{JsEngine, JsRuntime};
     pub use crate::value::{
         JsArrayBufferOps, JsArrayOps, JsErrorFactory, JsExceptionThrower, JsObjectOps, JsProxyOps,
@@ -21,12 +22,10 @@ pub mod engine {
 
 pub use class::{Class, ClassSetup, JsClass};
 pub use context::{JsContext, JsNativeAsyncContext, ThrownValueHandle, ThrownValueStore};
-pub use global::Global;
 pub use error::{HostError, JsResult, RjsiJSError, illegal_constructor};
-pub use function::{Constructor, HostCallback, HostCallbackOnce, RustFunc};
-pub use iterator::{
-    IntoJsIteratorExt, JsIterator, install_iterator_symbol,
-};
+pub use function::{Constructor, HostAccessorCallback, HostCallback, HostCallbackOnce, RustFunc};
+pub use global::{ClonedGlobal, Global, JsGlobalHandle};
+pub use iterator::{IntoJsIteratorExt, JsIterator, LocalJsIterator, install_iterator_symbol};
 pub use promise::Promise;
 pub use runtime::{JsEngine, JsRuntime};
 pub use source::{Source, SourceKind};
@@ -39,19 +38,20 @@ pub use value::{
 
 #[doc(hidden)]
 pub use engine::{
-    JsArrayBufferOps, JsArrayOps, JsClassExt, JsContextImpl, JsErrorFactory,
-    JsExceptionThrower, JsObjectOps, JsProxyOps, JsRawContext, JsTypeOf, JsTypedArrayOps,
-    JsValueConversion, JsValueImpl,
+    JsArrayBufferOps, JsArrayOps, JsClassExt, JsContextImpl, JsErrorFactory, JsExceptionThrower,
+    JsObjectOps, JsProxyOps, JsRawContext, JsTypeOf, JsTypedArrayOps, JsValueConversion,
+    JsValueImpl,
 };
 
 pub mod prelude {
     pub use crate::{
-        Class, ClassSetup, FromJsValue, HostCallback, HostCallbackOnce, HostError,
-        IntoJsIteratorExt, IntoJsValue, JsArray, JsArrayBuffer, JsArrayBufferOps, JsArrayOps,
-        JsBytes, JsClass, JsContext, JsContextImpl, JsDate, JsEngine, JsErrorFactory, JsException,
-        JsExceptionThrower, JsFunc, JsIterator, JsNativeAsyncContext, JsObject, JsObjectOps,
-        JsProxy, JsProxyOps, JsRawContext, JsResult, JsRuntime, JsSymbol,
-        JsTypedArray, JsTypedArrayOps, JsTypeOf, JsValue, JsValueConversion, JsValueImpl,
-        JsValueMapper, Promise, RjsiJSError, Source, SourceKind, install_iterator_symbol,
+        Class, ClassSetup, ClonedGlobal, FromJsValue, Global, HostAccessorCallback, HostCallback,
+        HostCallbackOnce, HostError, IntoJsIteratorExt, IntoJsValue, JsArray, JsArrayBuffer,
+        JsArrayBufferOps, JsArrayOps, JsBytes, JsClass, JsContext, JsContextImpl, JsDate, JsEngine,
+        JsErrorFactory, JsException, JsExceptionThrower, JsFunc, JsGlobalHandle, JsIterator,
+        JsNativeAsyncContext, JsObject, JsObjectOps, JsProxy, JsProxyOps, JsRawContext, JsResult,
+        JsRuntime, JsSymbol, JsTypeOf, JsTypedArray, JsTypedArrayOps, JsValue, JsValueConversion,
+        JsValueImpl, JsValueMapper, LocalJsIterator, Promise, RjsiJSError, Source, SourceKind,
+        install_iterator_symbol,
     };
 }

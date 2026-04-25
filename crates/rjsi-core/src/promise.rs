@@ -54,10 +54,7 @@ impl<'js, E: JsEngine> JsContext<'js, E> {
         E::Value: JsTypeOf,
     {
         let (p, res, rej) = JsContextImpl::promise(self.native_context());
-        let promise = JsObject::from_js_value(
-            self.clone(),
-            JsValue::from_raw(self.clone(), p),
-        )?;
+        let promise = JsObject::from_js_value(self.clone(), JsValue::from_raw(self.clone(), p))?;
         let resolver = <JsFunc<'js, E> as FromJsValue<'js, E>>::from_js_value(
             self.clone(),
             JsValue::from_raw(self.clone(), res),

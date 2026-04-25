@@ -465,10 +465,7 @@ impl RjsiJSError {
                 };
                 for (i, item) in items.iter().enumerate() {
                     let ctx2 = ctx.clone();
-                    let _ = array.set(
-                        i as u32,
-                        Self::error_data_to_js_value(ctx2, item),
-                    );
+                    let _ = array.set(i as u32, Self::error_data_to_js_value(ctx2, item));
                 }
                 JsValue::from_rust(ctx, array)
             }
@@ -489,20 +486,17 @@ impl RjsiJSError {
         E::Value: JsObjectOps + JsArrayOps,
         E::Context: JsErrorFactory,
     {
-        let raw = ctx.native_context().new_error(
-            host.name,
-            &host.message,
-            Some(host.code),
-        );
-        let obj = JsObject::from_js_value(ctx.clone(), JsValue::from_raw(ctx.clone(), raw)).unwrap();
+        let raw = ctx
+            .native_context()
+            .new_error(host.name, &host.message, Some(host.code));
+        let obj =
+            JsObject::from_js_value(ctx.clone(), JsValue::from_raw(ctx.clone(), raw)).unwrap();
 
         if host.code == E_JS_THROWN {
             let data_obj = host
                 .data
                 .as_ref()
-                .and_then(|data| {
-                    Self::error_data_to_js_value(ctx.clone(), data).into_object()
-                })
+                .and_then(|data| Self::error_data_to_js_value(ctx.clone(), data).into_object())
                 .unwrap_or_else(|| JsObject::new(ctx.clone()));
 
             if let Some(handle) = host.thrown
@@ -631,7 +625,10 @@ impl RjsiJSError {
 
     /// Creates a `Thrown` error from a JS value that originated from JavaScript
     /// (e.g. exception payload / Promise reject reason / abort reason).
-    pub fn from_thrown_value<'js, E: JsEngine>(ctx: JsContext<'js, E>, value: JsValue<'js, E>) -> Self {
+    pub fn from_thrown_value<'js, E: JsEngine>(
+        ctx: JsContext<'js, E>,
+        value: JsValue<'js, E>,
+    ) -> Self {
         Self(RjsiJSErrorKind::Thrown(ThrownValue {
             handle: ctx.capture_thrown(value),
         }))

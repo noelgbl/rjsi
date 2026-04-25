@@ -3,7 +3,6 @@ use crate::{
     JsTypeOf, JsValue,
 };
 use std::cell::{Ref, RefMut};
-use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -11,7 +10,8 @@ use std::ops::Deref;
 pub struct ParamsAccessor<'js, E: JsEngine> {
     ctx: JsContext<'js, E>,
     this: E::Value,
-    args: VecDeque<E::Value>,
+    args: Vec<E::Value>,
+    next_arg: usize,
     is_last_param: bool,
 }
 
@@ -20,7 +20,8 @@ impl<'js, E: JsEngine> ParamsAccessor<'js, E> {
         Self {
             ctx,
             this,
-            args: args.into(),
+            args,
+            next_arg: 0,
             is_last_param: false,
         }
     }
@@ -30,11 +31,39 @@ impl<'js, E: JsEngine> ParamsAccessor<'js, E> {
     }
 
     fn next_arg(&mut self) -> Option<E::Value> {
-        self.args.pop_front()
+        let value = self.args.get(self.next_arg).cloned();
+        if value.is_some() {
+            self.next_arg += 1;
+        }
+        value
     }
 
     pub fn get_this(&self) -> E::Value {
         self.this.clone()
+    }
+
+    pub fn raw_this(&self) -> &E::Value {
+        &self.this
+    }
+
+    pub fn raw_args(&self) -> &[E::Value] {
+        &self.args[self.next_arg..]
+    }
+
+    pub fn arg(&self, index: usize) -> Option<&E::Value> {
+        self.raw_args().get(index)
+    }
+
+    pub fn this_object(&self) -> Option<JsObject<'js, E>>
+    where
+        E::Value: JsTypeOf,
+    {
+        if self.this.is_undefined() {
+            return None;
+        }
+
+        let ctx = self.ctx.clone();
+        JsObject::from_js_value(ctx.clone(), JsValue::from_raw(ctx, self.this.clone())).ok()
     }
 
     pub(crate) fn context(&self) -> JsContext<'js, E> {
@@ -52,20 +81,12 @@ impl<'js, E: JsEngine> ParamsAccessor<'js, E> {
         E::Value: JsTypeOf,
     {
         let ctx = self.ctx.clone();
-        let this = if self.this.is_undefined() {
-            None
-        } else {
-            Some(
-                JsObject::from_js_value(
-                    ctx.clone(),
-                    JsValue::from_raw(ctx.clone(), self.this.clone()),
-                )
-                .unwrap(),
-            )
-        };
+        let this = self.this_object();
         let args = self
             .args
-            .drain(..)
+            .iter()
+            .skip(self.next_arg)
+            .cloned()
             .map(|value| JsValue::from_raw(ctx.clone(), value))
             .collect();
         (ctx, this, args)
@@ -73,7 +94,7 @@ impl<'js, E: JsEngine> ParamsAccessor<'js, E> {
 
     // length changed since its content will be removed
     pub(crate) fn args_len(&self) -> usize {
-        self.args.len()
+        self.args.len().saturating_sub(self.next_arg)
     }
 }
 
@@ -350,10 +371,7 @@ where
     fn get_param(accessor: &mut ParamsAccessor<'js, E>) -> JsResult<Self> {
         let value = accessor.get_this();
         let ctx = accessor.context();
-        let val = T::from_js_value(
-            ctx.clone(),
-            JsValue::from_raw(ctx.clone(), value),
-        )?;
+        let val = T::from_js_value(ctx.clone(), JsValue::from_raw(ctx.clone(), value))?;
         Ok(Self(val))
     }
 }
@@ -369,10 +387,7 @@ where
     fn get_param(accessor: &mut ParamsAccessor<'js, E>) -> JsResult<Self> {
         let value = accessor.get_this();
         let ctx = accessor.context();
-        let obj = JsObject::from_js_value(
-            ctx.clone(),
-            JsValue::from_raw(ctx.clone(), value),
-        )?;
+        let obj = JsObject::from_js_value(ctx.clone(), JsValue::from_raw(ctx.clone(), value))?;
         if !crate::Class::instance_of::<T>(&obj) {
             return Err(crate::HostError::new(
                 crate::error::E_TYPE,

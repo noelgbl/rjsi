@@ -90,10 +90,7 @@ where
     }
 
     /// Create a new ArrayBuffer from owned bytes.
-    pub fn from_bytes_owned<B: Into<Vec<u8>>>(
-        ctx: JsContext<'js, E>,
-        data: B,
-    ) -> JsResult<Self> {
+    pub fn from_bytes_owned<B: Into<Vec<u8>>>(ctx: JsContext<'js, E>, data: B) -> JsResult<Self> {
         let value = E::Value::from_vec(ctx.native_context(), data.into());
         if value.is_exception() {
             return Err(crate::RjsiJSError::from_thrown_value(

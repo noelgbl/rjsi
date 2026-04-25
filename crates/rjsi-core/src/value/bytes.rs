@@ -162,12 +162,9 @@ where
 
         class.callback_method("toString", 0, |ctx, this, _args| {
             let this = this.ok_or_else(|| -> RjsiJSError {
-                HostError::new(
-                    crate::error::E_TYPE,
-                    "JsBytes.toString requires a receiver",
-                )
-                .with_name("TypeError")
-                .into()
+                HostError::new(crate::error::E_TYPE, "JsBytes.toString requires a receiver")
+                    .with_name("TypeError")
+                    .into()
             })?;
             let bytes = JsBytes::from_object(this).ok_or_else(|| -> RjsiJSError {
                 HostError::new(crate::error::E_TYPE, "Not a JsBytes instance")

@@ -14,8 +14,6 @@ pub trait JsContextImpl {
 
     fn as_raw(&self) -> &Self::RawContext;
 
-    fn from_borrowed_raw(ctx: Self::RawContext) -> Self;
-
     fn eval(&self, source: Source) -> Self::Value;
 
     fn global(&self) -> Self::Value;
@@ -100,8 +98,7 @@ impl<'js, E: JsEngine> JsContext<'js, E> {
     }
 
     pub fn capture_thrown(&self, value: JsValue<'js, E>) -> ThrownValueHandle {
-        self.native_context()
-            .capture_thrown(value.into_inner())
+        self.native_context().capture_thrown(value.into_inner())
     }
 
     pub fn resolve_thrown(&self, handle: ThrownValueHandle) -> Option<JsValue<'js, E>> {

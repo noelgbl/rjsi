@@ -1,8 +1,8 @@
 use crate::function::{Constructor, FromParams, IntoJsCallable, ParamsAccessor, RustFunc};
 use crate::{
-    HostError, JsArrayOps, JsContext, JsContextImpl, JsEngine, JsErrorFactory,
-    JsExceptionThrower, JsFunc, JsObject, JsObjectOps, JsResult, JsTypeOf, JsValue, JsValueImpl,
-    PropertyDescriptor, PropertyKey, RjsiJSError,
+    HostError, JsArrayOps, JsContext, JsContextImpl, JsEngine, JsErrorFactory, JsExceptionThrower,
+    JsFunc, JsObject, JsObjectOps, JsResult, JsTypeOf, JsValue, JsValueImpl, PropertyDescriptor,
+    PropertyKey, RjsiJSError,
 };
 
 use std::any::TypeId;
@@ -91,8 +91,7 @@ pub trait JsClassExt<E: JsEngine>: JsClass<E> {
             Err(e) => return Err(e.throw_js_exception(js_ctx.clone())),
         };
 
-        match JsObject::from_js_value(js_ctx.clone(), JsValue::from_raw(js_ctx.clone(), instance))
-        {
+        match JsObject::from_js_value(js_ctx.clone(), JsValue::from_raw(js_ctx.clone(), instance)) {
             Ok(obj) => Ok(obj.into_value()),
             Err(e) => Err(e.throw_js_exception(js_ctx)),
         }
@@ -115,23 +114,20 @@ pub trait JsClassExt<E: JsEngine>: JsClass<E> {
         }
 
         let js_ctx = JsContext::<E>::new(E::raw_context_from_ref(ctx));
-        let instance = match JsObject::from_js_value(
-            js_ctx.clone(),
-            JsValue::from_raw(js_ctx.clone(), value),
-        ) {
-            Ok(obj) => obj,
-            Err(e) => return e.throw_js_exception(js_ctx.clone()),
-        };
+        let instance =
+            match JsObject::from_js_value(js_ctx.clone(), JsValue::from_raw(js_ctx.clone(), value))
+            {
+                Ok(obj) => obj,
+                Err(e) => return e.throw_js_exception(js_ctx.clone()),
+            };
 
-        let proto = match JsObject::from_js_value(
-            js_ctx.clone(),
-            JsValue::from_raw(js_ctx.clone(), this),
-        )
-        .and_then(|constructor| constructor.get("prototype"))
-        {
-            Ok(proto) => proto,
-            Err(e) => return e.throw_js_exception(js_ctx),
-        };
+        let proto =
+            match JsObject::from_js_value(js_ctx.clone(), JsValue::from_raw(js_ctx.clone(), this))
+                .and_then(|constructor| constructor.get("prototype"))
+            {
+                Ok(proto) => proto,
+                Err(e) => return e.throw_js_exception(js_ctx),
+            };
 
         instance.prototype(proto);
         instance.into_value()
@@ -152,7 +148,12 @@ pub trait JsClassExt<E: JsEngine>: JsClass<E> {
     }
 
     /// call object as function
-    fn call<'js>(ctx: &'js E::Context, function: E::Value, this: E::Value, args: Vec<E::Value>) -> E::Value
+    fn call<'js>(
+        ctx: &'js E::Context,
+        function: E::Value,
+        this: E::Value,
+        args: Vec<E::Value>,
+    ) -> E::Value
     where
         E::Value: JsObjectOps + JsArrayOps + 'static,
         E::Context: JsErrorFactory + JsExceptionThrower,
@@ -347,10 +348,7 @@ impl<'a, 'js, E: JsEngine> ClassSetup<'a, 'js, E>
 where
     E::Value: JsObjectOps,
 {
-    pub fn new(
-        constructor: JsObject<'js, E>,
-        context: &'a JsContext<'js, E>,
-    ) -> JsResult<Self> {
+    pub fn new(constructor: JsObject<'js, E>, context: &'a JsContext<'js, E>) -> JsResult<Self> {
         let constructor = Class(constructor);
         let prototype = constructor.0.get::<_, JsObject<'js, E>>("prototype")?;
         Ok(Self {
@@ -399,6 +397,18 @@ where
         Ok(())
     }
 
+    pub fn accessor_callback_method<F>(&self, name: &str, arity: u32, callback: F) -> JsResult<()>
+    where
+        F: for<'i> FnMut(&mut ParamsAccessor<'i, E>) -> JsResult<<E as JsEngine>::Value> + 'static,
+        E::Value: JsTypeOf + 'static,
+        E: 'static,
+    {
+        let func = JsFunc::accessor_callback(self.context.clone(), arity, callback)?;
+        let func = func.name(name)?;
+        self.prototype.set(name, func)?;
+        Ok(())
+    }
+
     pub fn static_method<F, P, K: 'static>(&self, name: &str, f: F) -> JsResult<()>
     where
         F: IntoJsCallable<E, P, K> + 'static,
@@ -428,6 +438,23 @@ where
         Ok(())
     }
 
+    pub fn accessor_callback_static_method<F>(
+        &self,
+        name: &str,
+        arity: u32,
+        callback: F,
+    ) -> JsResult<()>
+    where
+        F: for<'i> FnMut(&mut ParamsAccessor<'i, E>) -> JsResult<<E as JsEngine>::Value> + 'static,
+        E::Value: JsTypeOf + 'static,
+        E: 'static,
+    {
+        let func = JsFunc::accessor_callback(self.context.clone(), arity, callback)?;
+        let func = func.name(name)?;
+        self.constructor.set(name, func)?;
+        Ok(())
+    }
+
     pub fn property<Key>(&self, k: Key, descriptor: PropertyDescriptor<'js, E>) -> JsResult<()>
     where
         Key: for<'b> Into<PropertyKey<'b, E>>,
@@ -436,7 +463,11 @@ where
         Ok(())
     }
 
-    pub fn static_property<Key>(&self, k: Key, descriptor: PropertyDescriptor<'js, E>) -> JsResult<()>
+    pub fn static_property<Key>(
+        &self,
+        k: Key,
+        descriptor: PropertyDescriptor<'js, E>,
+    ) -> JsResult<()>
     where
         Key: for<'b> Into<PropertyKey<'b, E>>,
     {
@@ -465,5 +496,14 @@ where
         E: 'static,
     {
         JsFunc::callback(self.context.clone(), arity, callback)
+    }
+
+    pub fn new_accessor_callback_func<F>(&self, arity: u32, callback: F) -> JsResult<JsFunc<'js, E>>
+    where
+        F: for<'i> FnMut(&mut ParamsAccessor<'i, E>) -> JsResult<<E as JsEngine>::Value> + 'static,
+        E::Value: JsTypeOf + 'static,
+        E: 'static,
+    {
+        JsFunc::accessor_callback(self.context.clone(), arity, callback)
     }
 }

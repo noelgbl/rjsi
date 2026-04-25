@@ -52,12 +52,9 @@ where
 
     pub fn target(&self) -> JsResult<JsObject<'js, E>> {
         let ctx = self.context();
-        let value = self
-            .as_value()
-            .proxy_target()
-            .map_err(|thrown| {
-                RjsiJSError::from_thrown_value(ctx.clone(), JsValue::from_raw(ctx.clone(), thrown))
-            })?;
+        let value = self.as_value().proxy_target().map_err(|thrown| {
+            RjsiJSError::from_thrown_value(ctx.clone(), JsValue::from_raw(ctx.clone(), thrown))
+        })?;
         let v = JsValue::from_raw(ctx.clone(), value);
         JsObject::from_js_value(ctx, v)
     }

@@ -41,6 +41,11 @@ pub use date::*;
 mod proxy;
 pub use proxy::*;
 
+/// Engine-owned JavaScript value handle.
+///
+/// Implementations should keep this type as close to the native engine handle as
+/// possible. Higher-level wrappers such as [`JsValue`] provide ergonomic context
+/// binding; hot paths may use the raw/borrowed accessors here directly.
 pub trait JsValueImpl: Clone + PartialEq + Hash {
     type RawValue: Copy;
 
@@ -68,14 +73,20 @@ pub trait JsValueImpl: Clone + PartialEq + Hash {
 
     fn create_undefined(ctx: &Self::Context) -> Self;
 
-    fn create_symbol(ctx: &Self::Context, descripiton: &str) -> Self;
+    fn create_symbol(ctx: &Self::Context, description: &str) -> Self;
 
     fn from_json_str(ctx: &Self::Context, str: &str) -> Self;
 
     fn create_date(ctx: &Self::Context, epoch_ms: f64) -> Self;
 }
 
-/// A JavaScript value bound to the lifetime of an active [`JsContext`](crate::JsContext).
+/// A safe JavaScript value bound to an active [`JsContext`](crate::JsContext).
+///
+/// This wrapper deliberately carries both the engine value and context token.
+/// It is the ergonomic API: conversions and object/function helpers can operate
+/// without the caller threading a context separately. For tight loops, prefer
+/// borrowing [`JsValue::as_value`] or moving [`JsValue::into_inner`] and use the
+/// lower-level engine traits with a context you already hold.
 pub struct JsValue<'js, E: JsEngine + 'static> {
     pub(crate) inner: E::Value,
     pub(crate) ctx: JsContext<'js, E>,
@@ -122,8 +133,20 @@ impl<'js, E: JsEngine + 'static> JsValue<'js, E> {
         &self.inner
     }
 
+    pub fn as_raw_value(&self) -> &<E::Value as JsValueImpl>::RawValue {
+        self.inner.as_raw_value()
+    }
+
+    pub fn raw_value_for_api(&self) -> <E::Value as JsValueImpl>::RawValue {
+        self.inner.raw_value_for_api()
+    }
+
     pub fn into_inner(self) -> E::Value {
         self.inner
+    }
+
+    pub fn into_raw_value(self) -> <E::Value as JsValueImpl>::RawValue {
+        self.inner.into_raw_value()
     }
 
     pub fn context(&self) -> JsContext<'js, E> {

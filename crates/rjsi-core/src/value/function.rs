@@ -1,6 +1,4 @@
-use crate::function::{
-    FromParams, IntoJsCallable, IntoOnceJsCallable, JsParameterType, RustFunc,
-};
+use crate::function::{FromParams, IntoJsCallable, IntoOnceJsCallable, JsParameterType, RustFunc};
 use crate::{
     Class, FromJsValue, HostError, IntoJsValue, JsContext, JsContextImpl, JsEngine, JsObject,
     JsObjectOps, JsResult, JsTypeOf, JsValue, JsValueImpl, JsValueMapper, PropertyDescriptor,
@@ -49,7 +47,11 @@ impl<'js, E: JsEngine> JsFunc<'js, E>
 where
     E::Value: JsObjectOps,
 {
-    fn call_with_argv(&self, this: Option<JsObject<'js, E>>, argv: &[E::Value]) -> E::Value {
+    /// Call with a borrowed raw argv slice.
+    ///
+    /// This is the primitive fast path: callers can reuse argument storage and
+    /// avoid tuple-to-`SmallVec` construction on repeated calls.
+    pub fn call_raw_argv(&self, this: Option<JsObject<'js, E>>, argv: &[E::Value]) -> E::Value {
         let ctx = self.context();
         let this = match this {
             Some(obj) => obj.into_value(),
@@ -64,7 +66,7 @@ where
     {
         let ctx = self.context();
         let argv = args.into_js_args(ctx.clone());
-        self.call_with_argv(this, &argv)
+        self.call_raw_argv(this, &argv)
     }
 
     pub fn new<F, P, K>(ctx: JsContext<'js, E>, f: F) -> JsResult<Self>
@@ -98,6 +100,17 @@ where
         RustFunc::new_callback(arity, callback).into_js(ctx)
     }
 
+    pub fn accessor_callback<F>(ctx: JsContext<'js, E>, arity: u32, callback: F) -> JsResult<Self>
+    where
+        F: for<'i> FnMut(
+                &mut crate::function::ParamsAccessor<'i, E>,
+            ) -> JsResult<<E as JsEngine>::Value>
+            + 'static,
+        E: 'static,
+    {
+        RustFunc::new_accessor_callback(arity, callback).into_js(ctx)
+    }
+
     pub fn callback_once<F>(ctx: JsContext<'js, E>, arity: u32, callback: F) -> JsResult<Self>
     where
         F: for<'i> FnOnce(
@@ -119,6 +132,16 @@ where
     {
         let ctx = self.context();
         let result = self.call_raw(this, args);
+        result.try_convert::<R>(ctx)
+    }
+
+    pub fn call_argv<R>(&self, this: Option<JsObject<'js, E>>, argv: &[E::Value]) -> JsResult<R>
+    where
+        R: FromJsValue<'js, E>,
+        E::Value: JsObjectOps + JsValueMapper<'js, E>,
+    {
+        let ctx = self.context();
+        let result = self.call_raw_argv(this, argv);
         result.try_convert::<R>(ctx)
     }
 

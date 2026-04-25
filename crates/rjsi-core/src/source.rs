@@ -106,7 +106,10 @@ impl Source {
     /// # Returns
     /// * `Ok(Source)` - The loaded source code, ready for evaluation or compilation
     /// * `Err(RjsiJSError)` - If file reading fails, type is unsupported, or bytecode is invalid
-    pub fn from_path<'js, E: JsEngine>(_ctx: &JsContext<'js, E>, path: impl AsRef<Path>) -> JsResult<Self> {
+    pub fn from_path<'js, E: JsEngine>(
+        _ctx: &JsContext<'js, E>,
+        path: impl AsRef<Path>,
+    ) -> JsResult<Self> {
         let code = fs::read(path.as_ref())?;
 
         let kind = match path.as_ref().extension().and_then(|ext| ext.to_str()) {

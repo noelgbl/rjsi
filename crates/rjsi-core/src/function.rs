@@ -22,18 +22,27 @@ pub type HostCallbackOnce<E> = dyn for<'js> FnOnce(
     ) -> JsResult<JsValue<'js, E>>
     + 'static;
 
+/// Low-level host callback that reads arguments through a borrowed accessor.
+///
+/// Unlike [`HostCallback`], this path does not materialize a `Vec<JsValue>`.
+pub type HostAccessorCallback<E> =
+    dyn for<'js> FnMut(&mut ParamsAccessor<'js, E>) -> JsResult<<E as JsEngine>::Value> + 'static;
+
 /// Container to hold rust closure/function that's callable from JS.
 pub struct RustFunc<E: JsEngine> {
     func: JsCallable<E>,
     required_params: u32,
 }
 
-type FnMutClosure<E> = dyn for<'js> FnMut(&mut ParamsAccessor<'js, E>) -> JsResult<<E as JsEngine>::Value>;
-type FnOnceClosure<E> = dyn for<'js> FnOnce(&mut ParamsAccessor<'js, E>) -> JsResult<<E as JsEngine>::Value>;
+type FnMutClosure<E> =
+    dyn for<'js> FnMut(&mut ParamsAccessor<'js, E>) -> JsResult<<E as JsEngine>::Value>;
+type FnOnceClosure<E> =
+    dyn for<'js> FnOnce(&mut ParamsAccessor<'js, E>) -> JsResult<<E as JsEngine>::Value>;
 
 pub enum JsCallable<E: JsEngine> {
     FnMut(RefCell<Box<FnMutClosure<E>>>),
     FnOnce(RefCell<Option<Box<FnOnceClosure<E>>>>),
+    Accessor(RefCell<Box<HostAccessorCallback<E>>>),
     Callback(RefCell<Box<HostCallback<E>>>),
     CallbackOnce(RefCell<Option<Box<HostCallbackOnce<E>>>>),
 }
@@ -94,6 +103,17 @@ impl<E: JsEngine> RustFunc<E> {
         }
     }
 
+    pub(crate) fn new_accessor_callback<F>(arity: u32, callback: F) -> Self
+    where
+        F: for<'js> FnMut(&mut ParamsAccessor<'js, E>) -> JsResult<E::Value> + 'static,
+    {
+        let boxed: Box<HostAccessorCallback<E>> = Box::new(callback);
+        Self {
+            func: JsCallable::Accessor(RefCell::new(boxed)),
+            required_params: arity,
+        }
+    }
+
     pub(crate) fn new_callback_once<F>(arity: u32, callback: F) -> Self
     where
         F: for<'js> FnOnce(
@@ -110,10 +130,7 @@ impl<E: JsEngine> RustFunc<E> {
         }
     }
 
-    pub(crate) fn call<'js>(
-        &mut self,
-        accessor: &mut ParamsAccessor<'js, E>,
-    ) -> JsResult<E::Value>
+    pub fn call<'js>(&mut self, accessor: &mut ParamsAccessor<'js, E>) -> JsResult<E::Value>
     where
         E::Value: JsTypeOf,
     {
@@ -125,15 +142,14 @@ impl<E: JsEngine> RustFunc<E> {
         match &self.func {
             JsCallable::FnMut(f) => f.borrow_mut()(accessor),
             JsCallable::FnOnce(f) => f.take().ok_or_else(HostError::once_fn_called)?(accessor),
+            JsCallable::Accessor(callback) => callback.borrow_mut()(accessor),
             JsCallable::Callback(callback) => {
                 let (ctx, this, args) = accessor.raw_parts();
                 callback.borrow_mut()(ctx, this, args).map(|v| v.into_inner())
             }
             JsCallable::CallbackOnce(callback) => {
                 let (ctx, this, args) = accessor.raw_parts();
-                callback
-                    .take()
-                    .ok_or_else(HostError::once_fn_called)?(ctx, this, args)
+                callback.take().ok_or_else(HostError::once_fn_called)?(ctx, this, args)
                     .map(|v| v.into_inner())
             }
         }
@@ -167,10 +183,14 @@ impl<E: JsEngine> Constructor<E> {
         Self(RustFunc::new_callback(arity, callback))
     }
 
-    pub fn call<'js>(
-        &mut self,
-        accessor: &mut ParamsAccessor<'js, E>,
-    ) -> JsResult<E::Value>
+    pub fn accessor_callback<F>(arity: u32, callback: F) -> Self
+    where
+        F: for<'js> FnMut(&mut ParamsAccessor<'js, E>) -> JsResult<E::Value> + 'static,
+    {
+        Self(RustFunc::new_accessor_callback(arity, callback))
+    }
+
+    pub fn call<'js>(&mut self, accessor: &mut ParamsAccessor<'js, E>) -> JsResult<E::Value>
     where
         E::Value: JsTypeOf,
     {

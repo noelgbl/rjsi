@@ -1,4 +1,6 @@
 use crate::{IntoJsValue, JsContext, JsEngine, JsObject, JsObjectOps, JsResult, JsValue};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 /// Core JavaScript iterator that wraps Rust iterators (no `Rc`/`RefCell`; uses `Arc<Mutex<...>>`).
@@ -9,6 +11,56 @@ where
 {
     inner: Arc<Mutex<Box<dyn Iterator<Item = T> + Send + 'static>>>,
     ctx: JsContext<'js, E>,
+}
+
+/// Single-threaded iterator wrapper for runtimes that execute JS on one thread.
+///
+/// Prefer this over [`JsIterator`] when `Send` is not required; it avoids the
+/// `Arc<Mutex<...>>` lock on every `next`.
+pub struct LocalJsIterator<'js, E: JsEngine, T>
+where
+    E::Value: JsObjectOps + 'static,
+    T: IntoJsValue<'js, E> + 'static,
+{
+    inner: Rc<RefCell<Box<dyn Iterator<Item = T> + 'static>>>,
+    ctx: JsContext<'js, E>,
+}
+
+impl<'js, E, T> LocalJsIterator<'js, E, T>
+where
+    E: JsEngine + 'static,
+    E::Value: JsObjectOps + 'static,
+    T: IntoJsValue<'js, E> + 'static,
+{
+    pub fn new<I>(iterable: I, ctx: JsContext<'js, E>) -> Self
+    where
+        I: IntoIterator<Item = T> + 'static,
+        I::IntoIter: 'static,
+    {
+        Self {
+            inner: Rc::new(RefCell::new(Box::new(iterable.into_iter()))),
+            ctx,
+        }
+    }
+
+    pub fn next(&self) -> JsResult<JsObject<'js, E>> {
+        let result = JsObject::new(self.ctx.clone());
+        let mut iter = self.inner.borrow_mut();
+
+        match iter.next() {
+            Some(item) => {
+                result.set("done", false)?;
+                let value = <T as IntoJsValue<'js, E>>::into_js_value(item, self.ctx.clone());
+                result.set("value", value)?;
+            }
+            None => {
+                result.set("done", true)?;
+                result.set("value", JsValue::undefined(self.ctx.clone()))?;
+            }
+        }
+
+        Ok(result)
+    }
 }
 
 impl<'js, E, T> JsIterator<'js, E, T>
@@ -47,11 +99,7 @@ where
         Ok(result)
     }
 
-    pub fn install_on(
-        &self,
-        _ctx: JsContext<'js, E>,
-        _obj: &JsObject<'js, E>,
-    ) -> JsResult<()>
+    pub fn install_on(&self, _ctx: JsContext<'js, E>, _obj: &JsObject<'js, E>) -> JsResult<()>
     where
         E::Value: Send,
     {

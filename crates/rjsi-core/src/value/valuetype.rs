@@ -48,6 +48,15 @@ impl fmt::Display for JsValueType {
 }
 
 pub trait JsTypeOf: JsValueImpl {
+    /// Return the value's type in one engine operation when possible.
+    ///
+    /// The default preserves the older implementation in terms of `is_*`
+    /// probes. Backends targeting low overhead should override this method and
+    /// implement `is_*` helpers from their native type tag.
+    fn value_type(&self) -> JsValueType {
+        self.type_of_by_probing()
+    }
+
     fn is_exception(&self) -> bool;
     fn is_error(&self) -> bool;
     fn is_array(&self) -> bool;
@@ -66,7 +75,7 @@ pub trait JsTypeOf: JsValueImpl {
     fn is_date(&self) -> bool;
     fn is_proxy(&self) -> bool;
 
-    fn type_of(&self) -> JsValueType {
+    fn type_of_by_probing(&self) -> JsValueType {
         if self.is_exception() {
             JsValueType::Exception
         } else if self.is_error() {
@@ -103,6 +112,10 @@ pub trait JsTypeOf: JsValueImpl {
         } else {
             JsValueType::Unknown
         }
+    }
+
+    fn type_of(&self) -> JsValueType {
+        self.value_type()
     }
 }
 

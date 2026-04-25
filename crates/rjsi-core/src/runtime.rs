@@ -1,17 +1,6 @@
-//! Running [`JsRuntime`] vs static [`JsEngine`] definitions.
-//!
-//! - [`JsRuntime`] is a **live** instance: it owns isolate/context lifetime and exposes
-//!   [`JsRuntime::with_raw_context`].
-//! - [`JsEngine`] is the **static** engine abstraction: value/context/isolate types and
-//!   a short-lived [`JsEngine::RawContext`] token used inside `with_raw_context`.
+use crate::{JsContext, JsContextImpl, JsGlobalHandle, JsResult, JsValueImpl};
 
-use crate::{JsContextImpl, JsResult, JsValueImpl};
-
-/// Static engine: types and a [`RawContext`](JsEngine::RawContext) token for host work.
 pub trait JsEngine: Sized + 'static {
-    /// Engine-specific context token, typically a thin wrapper around an
-    /// isolate or runtime reference. Used only for the duration of
-    /// [`JsRuntime::with_raw_context`].
     type RawContext<'js>: Clone;
 
     type Value: JsValueImpl<Context = Self::Context>
@@ -20,21 +9,19 @@ pub trait JsEngine: Sized + 'static {
         + crate::JsValueConversion
         + crate::JsArrayOps
         + 'static;
-    type Context: JsContextImpl<
-            Engine = Self,
-            Value = Self::Value,
-        > + crate::JsErrorFactory
+    type Context: JsContextImpl<Engine = Self, Value = Self::Value>
+        + crate::JsErrorFactory
         + crate::JsExceptionThrower;
-
+    /// Long-lived rooted value handle used by [`crate::Global`].
+    type Global: JsGlobalHandle<Self>;
+    /// The name of the backing JavaScript engine
     fn name() -> &'static str;
-
+    /// The version of backing JavaScript engine
     fn version() -> String;
-
     /// Build a [`RawContext`](JsEngine::RawContext) token from a borrowed native context.
     ///
     /// Many engines use `type RawContext<'js> = &'js Self::Context` and can return `ctx` here.
     fn raw_context_from_ref<'js>(ctx: &'js Self::Context) -> Self::RawContext<'js>;
-
     /// Resolve the native context handle used by [`JsValueImpl`](crate::JsValueImpl) operations.
     fn context<'js>(raw: &Self::RawContext<'js>) -> &'js Self::Context;
 }
@@ -47,9 +34,19 @@ pub trait JsRuntime: 'static {
     /// The engine backing this runtime.
     type Engine: JsEngine;
 
-    /// Runs `f` with a short-lived reference to the engine's raw context token.
+    /// Runs `f` with a short-lived reference to the engine's raw context.
     fn with_raw_context<R>(
-        &mut self,
+        &self,
         f: impl for<'js> FnOnce(<Self::Engine as JsEngine>::RawContext<'js>) -> JsResult<R>,
     ) -> JsResult<R>;
+
+    fn with<T>(
+        &self,
+        f: impl for<'js> FnOnce(JsContext<'js, Self::Engine>) -> JsResult<T>,
+    ) -> JsResult<T> {
+        self.with_raw_context(|raw| {
+            let ctx = JsContext::<Self::Engine>::new(raw);
+            f(ctx)
+        })
+    }
 }
