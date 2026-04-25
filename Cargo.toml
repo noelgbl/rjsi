@@ -1,17 +1,21 @@
 [workspace]
 resolver = "3"
 members = [
-  "crates/rjsi",
-  "crates/rjsi-core",
-  "crates/rjsi-v8",
-  "crates/rjsi-quickjs",
-  "crates/rjsi-ops",
+    "crates/rjsi",
+    "crates/rjsi-core",
+    "crates/rjsi-conformance",
+    "crates/rjsi-console",
+    "crates/rjsi-v8",
+    "crates/rjsi-quickjs",
+    "crates/rjsi-jsc",
+    "crates/rjsi-macros",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "APACHE-2.0"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/noelgbl/rjsi"
 
 [workspace.dependencies]
 anyhow = "1.0.100"
@@ -21,11 +25,11 @@ serde = { version = "1.0.217", features = ["derive"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio = { version = "1.52.1", features = [
-  "macros",
-  "rt-multi-thread",
-  "sync",
-  "io-std",
-  "signal",
+    "macros",
+    "rt-multi-thread",
+    "sync",
+    "io-std",
+    "signal",
 ] }
 async-trait = "0.1.86"
 async-recursion = "1.1.1"
@@ -35,9 +39,4 @@ serde_json = "1.0.138"
 tokio-stream = "0.1"
 uuid = { version = "1.23.1", features = ["v4"] }
 parking_lot = "0.12"
-literate-engine = { path = "crates/engine" }
-rjsi = { path = "crates/rjsi" }
-rjsi-async = { path = "crates/rjsi-async" }
-rjsi-core = { path = "crates/rjsi-core" }
-rjsi-v8 = { path = "crates/rjsi-v8" }
-rjsi-quickjs = { path = "crates/rjsi-quickjs" }
+smallvec = "1.15.1"

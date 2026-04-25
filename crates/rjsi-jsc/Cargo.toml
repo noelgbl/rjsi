@@ -1,0 +1,13 @@
+[package]
+name = "rjsi-jsc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rjsi-core = { path = "../rjsi-core" }
+rusty_jsc = { git = "https://github.com/wasmerio/rusty_jsc" }
+rusty_jsc_sys = { git = "https://github.com/wasmerio/rusty_jsc" }
+
+[dev-dependencies]
+rjsi-console = { path = "../rjsi-console" }
+rjsi-conformance = { path = "../rjsi-conformance" }

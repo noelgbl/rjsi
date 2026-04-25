@@ -1,0 +1,21 @@
+[package]
+name = "rjsi-v8"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+v8 = []
+
+[dependencies]
+rjsi-core = { path = "../rjsi-core" }
+v8 = "147.4.0"
+
+[dev-dependencies]
+criterion = "0.8.2"
+rjsi-console = { path = "../rjsi-console" }
+rjsi-conformance = { path = "../rjsi-conformance" }
+
+[[bench]]
+name = "v8_paths"
+harness = false

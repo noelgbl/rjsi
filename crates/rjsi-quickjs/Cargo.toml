@@ -1,0 +1,17 @@
+[package]
+name = "rjsi-quickjs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rjsi-core = { path = "../rjsi-core" }
+rquickjs = { version = "0.11.0", features = ["properties"] }
+
+[dev-dependencies]
+criterion = "0.8.2"
+rjsi-console = { path = "../rjsi-console" }
+rjsi-conformance = { path = "../rjsi-conformance" }
+
+[[bench]]
+name = "quickjs_paths"
+harness = false

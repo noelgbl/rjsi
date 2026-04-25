@@ -9,12 +9,17 @@ edition = "2024"
 anyhow.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
-smallvec = "1.15.1"
+smallvec.workspace = true
 bytes.workspace = true
 
 [dev-dependencies]
 criterion = "0.8.2"
+rjsi-quickjs = { path = "../rjsi-quickjs" }
 
 [[bench]]
 name = "core_paths"
+harness = false
+
+[[bench]]
+name = "ergo_paths"
 harness = false
