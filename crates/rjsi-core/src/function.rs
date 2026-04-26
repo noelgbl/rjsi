@@ -1,6 +1,7 @@
-use crate::{HostError, JsEngine, JsResult};
 use std::cell::RefCell;
 use std::marker::PhantomData;
+
+use crate::{HostError, JsEngine, JsResult};
 
 /// Engine-provided view over host callback arguments.
 ///
@@ -201,26 +202,34 @@ impl<'js, S: crate::JsScope<'js>> IntoJs<'js, S> for String {
 
 impl<'js, S: crate::JsScope<'js>> FromJs<'js, S> for bool {
     fn from_js(scope: &mut S, value: &<S::Engine as JsEngine>::Value<'js>) -> JsResult<Self> {
-        scope.to_boolean(value).ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected boolean").into())
+        scope
+            .to_boolean(value)
+            .ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected boolean").into())
     }
 }
 
 impl<'js, S: crate::JsScope<'js>> FromJs<'js, S> for f64 {
     fn from_js(scope: &mut S, value: &<S::Engine as JsEngine>::Value<'js>) -> JsResult<Self> {
-        scope.to_number(value).ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected number").into())
+        scope
+            .to_number(value)
+            .ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected number").into())
     }
 }
 
 impl<'js, S: crate::JsScope<'js>> FromJs<'js, S> for i32 {
     fn from_js(scope: &mut S, value: &<S::Engine as JsEngine>::Value<'js>) -> JsResult<Self> {
-        let value = scope.to_number(value).ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected number"))?;
+        let value = scope
+            .to_number(value)
+            .ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected number"))?;
         Ok(value as i32)
     }
 }
 
 impl<'js, S: crate::JsScope<'js>> FromJs<'js, S> for String {
     fn from_js(scope: &mut S, value: &<S::Engine as JsEngine>::Value<'js>) -> JsResult<Self> {
-        scope.to_string(value).ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected string").into())
+        scope
+            .to_string(value)
+            .ok_or_else(|| HostError::type_error(crate::error::E_TYPE, "expected string").into())
     }
 }
 
@@ -248,7 +257,9 @@ where
     'js: 'a,
 {
     fn from_host_args(accessor: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<Self> {
-        let value = accessor.next_arg().ok_or_else(|| HostError::invalid_arg_count(1, 0))?;
+        let value = accessor
+            .next_arg()
+            .ok_or_else(|| HostError::invalid_arg_count(1, 0))?;
         let scope = accessor.scope();
         Ok((A::from_js(scope, &value)?,))
     }
@@ -263,8 +274,12 @@ where
     'js: 'a,
 {
     fn from_host_args(accessor: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<Self> {
-        let first = accessor.next_arg().ok_or_else(|| HostError::invalid_arg_count(2, 0))?;
-        let second = accessor.next_arg().ok_or_else(|| HostError::invalid_arg_count(2, 1))?;
+        let first = accessor
+            .next_arg()
+            .ok_or_else(|| HostError::invalid_arg_count(2, 0))?;
+        let second = accessor
+            .next_arg()
+            .ok_or_else(|| HostError::invalid_arg_count(2, 1))?;
         let scope = accessor.scope();
         Ok((A::from_js(scope, &first)?, B::from_js(scope, &second)?))
     }
@@ -292,7 +307,10 @@ pub struct TypedHostFunction<F, Args> {
 
 impl<F, Args> TypedHostFunction<F, Args> {
     pub fn new(function: F) -> Self {
-        Self { function, marker: PhantomData }
+        Self {
+            function,
+            marker: PhantomData,
+        }
     }
 }
 
@@ -302,7 +320,10 @@ where
     F: for<'js> FnMut(&mut E::Scope<'js>) -> R + 'static,
     R: for<'js> IntoHostReturn<'js, E>,
 {
-    fn call<'a, 'js>(&mut self, accessor: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
+    fn call<'a, 'js>(
+        &mut self,
+        accessor: &mut ParamsAccessor<'a, 'js, E>,
+    ) -> JsResult<E::Value<'js>>
     where
         'js: 'a,
     {
@@ -318,7 +339,10 @@ where
     for<'a, 'js> (A,): FromHostArgs<'a, 'js, E>,
     R: for<'js> IntoHostReturn<'js, E>,
 {
-    fn call<'a, 'js>(&mut self, accessor: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
+    fn call<'a, 'js>(
+        &mut self,
+        accessor: &mut ParamsAccessor<'a, 'js, E>,
+    ) -> JsResult<E::Value<'js>>
     where
         'js: 'a,
     {
@@ -330,8 +354,7 @@ where
 impl<E, F> HostFunction<E> for F
 where
     E: JsEngine,
-    F: for<'a, 'js> FnMut(&mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
-        + 'static,
+    F: for<'a, 'js> FnMut(&mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>> + 'static,
 {
     fn call<'a, 'js>(
         &mut self,
@@ -344,9 +367,8 @@ where
     }
 }
 
-type HostAccessorCallback<E> =
-    dyn for<'a, 'js> FnMut(&mut ParamsAccessor<'a, 'js, E>) -> JsResult<<E as JsEngine>::Value<'js>>
-        + 'static;
+type HostAccessorCallback<E> = dyn for<'a, 'js> FnMut(&mut ParamsAccessor<'a, 'js, E>) -> JsResult<<E as JsEngine>::Value<'js>>
+    + 'static;
 
 pub struct RustFunc<E: JsEngine> {
     required_params: usize,
@@ -365,7 +387,10 @@ impl<E: JsEngine> RustFunc<E> {
         }
     }
 
-    pub fn call<'a, 'js>(&self, accessor: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
+    pub fn call<'a, 'js>(
+        &self,
+        accessor: &mut ParamsAccessor<'a, 'js, E>,
+    ) -> JsResult<E::Value<'js>>
     where
         'js: 'a,
     {

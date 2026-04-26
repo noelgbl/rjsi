@@ -407,12 +407,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "heck"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
 name = "home"
 version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -827,7 +821,6 @@ dependencies = [
  "rjsi-console",
  "rjsi-core",
  "rjsi-jsc",
- "rjsi-macros",
  "rjsi-quickjs",
  "rjsi-v8",
  "tracing",
@@ -854,8 +847,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
- "criterion",
- "rjsi-quickjs",
  "smallvec",
  "thiserror",
  "tracing",
@@ -870,17 +861,6 @@ dependencies = [
  "rjsi-core",
  "rusty_jsc",
  "rusty_jsc_sys",
-]
-
-[[package]]
-name = "rjsi-macros"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "strum",
- "strum_macros",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -1064,24 +1044,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42316e70da376f3d113a68d138a60d8a9883c604fe97942721ec2068dab13a9f"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "strum"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
-
-[[package]]
-name = "strum_macros"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
 ]
 
 [[package]]

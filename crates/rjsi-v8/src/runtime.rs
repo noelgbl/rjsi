@@ -6,7 +6,9 @@ use std::rc::Rc;
 use std::sync::Once;
 use std::thread::{self, ThreadId};
 
-use rjsi_core::{HostArgs, HostError, HostFunction, JsEngine, JsResult, JsRuntime, JsScope, JsValueType, ParamsAccessor, PropertyAttributes, Source};
+use rjsi_core::{
+    HostArgs, HostError, HostFunction, JsEngine, JsResult, JsRuntime, JsScope, JsValueType, ParamsAccessor, PropertyAttributes, Source
+};
 use v8 as rv8;
 
 use crate::value::{V8Global, V8PropertyKey, V8Value};
@@ -46,14 +48,18 @@ struct V8IsolateEnterGuard {
 
 impl V8IsolateEnterGuard {
     fn new(isolate: &mut rv8::Isolate) -> Self {
-        unsafe { isolate.enter(); }
+        unsafe {
+            isolate.enter();
+        }
         Self { isolate }
     }
 }
 
 impl Drop for V8IsolateEnterGuard {
     fn drop(&mut self) {
-        unsafe { (&mut *self.isolate).exit(); }
+        unsafe {
+            (&mut *self.isolate).exit();
+        }
     }
 }
 
@@ -106,14 +112,20 @@ impl V8RuntimeContext {
 
     fn assert_owner_thread(&self) -> JsResult<()> {
         if thread::current().id() != self.inner.owner_thread {
-            return Err(HostError::new(rjsi_core::error::E_INVALID_STATE, "V8 runtime accessed from a non-owner thread").into());
+            return Err(HostError::new(
+                rjsi_core::error::E_INVALID_STATE,
+                "V8 runtime accessed from a non-owner thread",
+            )
+            .into());
         }
         Ok(())
     }
 }
 
 impl Default for V8RuntimeContext {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub struct V8Engine;
@@ -137,8 +149,7 @@ fn v8_host_callback<F>(
     scope: &mut rv8::PinScope<'_, '_>,
     args: rv8::FunctionCallbackArguments<'_>,
     mut rv: rv8::ReturnValue<rv8::Value>,
-)
-where
+) where
     F: HostFunction<V8Engine>,
 {
     let state_ptr = args.data().cast::<rv8::External>().value() as *mut V8HostFunctionState<F>;
@@ -149,13 +160,21 @@ where
 
     let state = unsafe { &mut *state_ptr };
     let scope_ptr = scope as *mut _ as *mut ActiveV8Scope<'_>;
-    let mut rjsi_scope = V8Scope { runtime: &state.runtime, scope: scope_ptr };
-    let host_args = V8CallbackArgs { args, marker: std::marker::PhantomData };
+    let mut rjsi_scope = V8Scope {
+        runtime: &state.runtime,
+        scope: scope_ptr,
+    };
+    let host_args = V8CallbackArgs {
+        args,
+        marker: std::marker::PhantomData,
+    };
     let mut accessor = ParamsAccessor::<V8Engine>::new(&mut rjsi_scope, host_args);
     match state.function.borrow_mut().call(&mut accessor) {
         Ok(value) => rv.set(value.local),
         Err(err) => {
-            let message = rv8::String::new(scope, &err.to_string()).map(Into::into).unwrap_or_else(|| rv8::undefined(scope).into());
+            let message = rv8::String::new(scope, &err.to_string())
+                .map(Into::into)
+                .unwrap_or_else(|| rv8::undefined(scope).into());
             let thrown = scope.throw_exception(message);
             rv.set(thrown);
         }
@@ -203,14 +222,21 @@ impl JsEngine for V8Engine {
     where
         'js: 'a;
 
-    fn name() -> &'static str { "v8" }
-    fn version() -> String { rv8::V8::get_version().to_string() }
+    fn name() -> &'static str {
+        "v8"
+    }
+    fn version() -> String {
+        rv8::V8::get_version().to_string()
+    }
 }
 
 impl JsRuntime for V8RuntimeContext {
     type Engine = V8Engine;
 
-    fn with_scope<R>(&self, f: impl for<'js> FnOnce(&mut V8Scope<'js>) -> JsResult<R>) -> JsResult<R> {
+    fn with_scope<R>(
+        &self,
+        f: impl for<'js> FnOnce(&mut V8Scope<'js>) -> JsResult<R>,
+    ) -> JsResult<R> {
         self.assert_owner_thread()?;
         let active = ACTIVE_ISOLATE.with(Cell::get);
         if !active.is_null() {
@@ -242,7 +268,10 @@ impl V8RuntimeContext {
         let mut context_scope = rv8::ContextScope::new(handle_scope, context);
         let _active_guard = ActiveIsolateGuard::push(isolate_ptr);
         let scope_ptr = &mut *context_scope as *mut _ as *mut ActiveV8Scope<'_>;
-        let mut scope = V8Scope { runtime: self, scope: scope_ptr };
+        let mut scope = V8Scope {
+            runtime: self,
+            scope: scope_ptr,
+        };
         f(&mut scope)
     }
 }
@@ -251,10 +280,18 @@ impl<'js> JsScope<'js> for V8Scope<'js> {
     type Engine = V8Engine;
 
     fn eval(&mut self, source: Source) -> JsResult<V8Value<'js>> {
-        let code = std::str::from_utf8(source.code()).map_err(|e| HostError::new(rjsi_core::error::E_INVALID_DATA, e.to_string()))?;
-        let Some(code) = rv8::String::new(self.scope(), code) else { return Ok(self.undefined_value()); };
-        let Some(script) = rv8::Script::compile(self.scope(), code, None) else { return Ok(self.undefined_value()); };
-        Ok(script.run(self.scope()).map(|v| V8Value::from_local(v, false)).unwrap_or_else(|| self.undefined_value()))
+        let code = std::str::from_utf8(source.code())
+            .map_err(|e| HostError::new(rjsi_core::error::E_INVALID_DATA, e.to_string()))?;
+        let Some(code) = rv8::String::new(self.scope(), code) else {
+            return Ok(self.undefined_value());
+        };
+        let Some(script) = rv8::Script::compile(self.scope(), code, None) else {
+            return Ok(self.undefined_value());
+        };
+        Ok(script
+            .run(self.scope())
+            .map(|v| V8Value::from_local(v, false))
+            .unwrap_or_else(|| self.undefined_value()))
     }
 
     fn global(&mut self) -> V8Value<'js> {
@@ -263,11 +300,26 @@ impl<'js> JsScope<'js> for V8Scope<'js> {
         V8Value::from_local(context.global(self.scope()), false)
     }
 
-    fn undefined(&mut self) -> V8Value<'js> { self.undefined_value() }
-    fn null(&mut self) -> V8Value<'js> { let local = rv8::null(self.scope()); V8Value::from_local(local, false) }
-    fn boolean(&mut self, value: bool) -> V8Value<'js> { let local = rv8::Boolean::new(self.scope(), value); V8Value::from_local(local, false) }
-    fn number(&mut self, value: f64) -> V8Value<'js> { let local = rv8::Number::new(self.scope(), value); V8Value::from_local(local, false) }
-    fn string(&mut self, value: &str) -> V8Value<'js> { rv8::String::new(self.scope(), value).map(|s| V8Value::from_local(s, false)).unwrap_or_else(|| self.undefined_value()) }
+    fn undefined(&mut self) -> V8Value<'js> {
+        self.undefined_value()
+    }
+    fn null(&mut self) -> V8Value<'js> {
+        let local = rv8::null(self.scope());
+        V8Value::from_local(local, false)
+    }
+    fn boolean(&mut self, value: bool) -> V8Value<'js> {
+        let local = rv8::Boolean::new(self.scope(), value);
+        V8Value::from_local(local, false)
+    }
+    fn number(&mut self, value: f64) -> V8Value<'js> {
+        let local = rv8::Number::new(self.scope(), value);
+        V8Value::from_local(local, false)
+    }
+    fn string(&mut self, value: &str) -> V8Value<'js> {
+        rv8::String::new(self.scope(), value)
+            .map(|s| V8Value::from_local(s, false))
+            .unwrap_or_else(|| self.undefined_value())
+    }
 
     fn object(&mut self) -> V8Value<'js> {
         V8Value::from_local(rv8::Object::new(self.scope()), false)
@@ -280,12 +332,22 @@ impl<'js> JsScope<'js> for V8Scope<'js> {
     fn array_buffer_copy(&mut self, bytes: &[u8]) -> V8Value<'js> {
         let buffer = rv8::ArrayBuffer::new(self.scope(), bytes.len());
         if let Some(data) = buffer.data() {
-            unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), data.as_ptr().cast::<u8>(), bytes.len()); }
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    bytes.as_ptr(),
+                    data.as_ptr().cast::<u8>(),
+                    bytes.len(),
+                );
+            }
         }
         V8Value::from_local(buffer, false)
     }
 
-    fn host_function<F>(&mut self, name: &'static str, function: F) -> Result<V8Value<'js>, V8Value<'js>>
+    fn host_function<F>(
+        &mut self,
+        name: &'static str,
+        function: F,
+    ) -> Result<V8Value<'js>, V8Value<'js>>
     where
         F: HostFunction<V8Engine>,
     {
@@ -296,7 +358,8 @@ impl<'js> JsScope<'js> for V8Scope<'js> {
         let state_ptr = (&mut *state) as *mut V8HostFunctionState<F> as *mut c_void;
         self.runtime.inner.host_functions.borrow_mut().push(state);
         let external = rv8::External::new(self.scope(), state_ptr);
-        let name_value = rv8::String::new(self.scope(), name).ok_or_else(|| self.undefined_value())?;
+        let name_value =
+            rv8::String::new(self.scope(), name).ok_or_else(|| self.undefined_value())?;
         let function = rv8::Function::builder(v8_host_callback::<F>)
             .data(external.into())
             .length(0)
@@ -307,38 +370,65 @@ impl<'js> JsScope<'js> for V8Scope<'js> {
     }
 
     fn value_type(&mut self, value: &V8Value<'js>) -> JsValueType {
-        if value.exception { return JsValueType::Exception; }
+        if value.exception {
+            return JsValueType::Exception;
+        }
         let value = value.local;
-        if value.is_undefined() { JsValueType::Undefined }
-        else if value.is_null() { JsValueType::Null }
-        else if value.is_boolean() { JsValueType::Boolean }
-        else if value.is_number() { JsValueType::Number }
-        else if value.is_big_int() { JsValueType::BigInt }
-        else if value.is_string() { JsValueType::String }
-        else if value.is_symbol() { JsValueType::Symbol }
-        else if value.is_array() { JsValueType::Array }
-        else if value.is_array_buffer() { JsValueType::ArrayBuffer }
-        else if value.is_function() { JsValueType::Function }
-        else if value.is_promise() { JsValueType::Promise }
-        else if value.is_native_error() { JsValueType::Error }
-        else if value.is_date() { JsValueType::Date }
-        else if value.is_object() { JsValueType::Object }
-        else { JsValueType::Unknown }
+        if value.is_undefined() {
+            JsValueType::Undefined
+        } else if value.is_null() {
+            JsValueType::Null
+        } else if value.is_boolean() {
+            JsValueType::Boolean
+        } else if value.is_number() {
+            JsValueType::Number
+        } else if value.is_big_int() {
+            JsValueType::BigInt
+        } else if value.is_string() {
+            JsValueType::String
+        } else if value.is_symbol() {
+            JsValueType::Symbol
+        } else if value.is_array() {
+            JsValueType::Array
+        } else if value.is_array_buffer() {
+            JsValueType::ArrayBuffer
+        } else if value.is_function() {
+            JsValueType::Function
+        } else if value.is_promise() {
+            JsValueType::Promise
+        } else if value.is_native_error() {
+            JsValueType::Error
+        } else if value.is_date() {
+            JsValueType::Date
+        } else if value.is_object() {
+            JsValueType::Object
+        } else {
+            JsValueType::Unknown
+        }
     }
 
     fn to_boolean(&mut self, value: &V8Value<'js>) -> Option<bool> {
-        if value.exception { return None; }
+        if value.exception {
+            return None;
+        }
         Some(value.local.boolean_value(self.scope()))
     }
 
     fn to_number(&mut self, value: &V8Value<'js>) -> Option<f64> {
-        if value.exception { return None; }
+        if value.exception {
+            return None;
+        }
         value.local.number_value(self.scope())
     }
 
     fn to_string(&mut self, value: &V8Value<'js>) -> Option<String> {
-        if value.exception { return None; }
-        value.local.to_string(self.scope()).map(|s| s.to_rust_string_lossy(self.scope()))
+        if value.exception {
+            return None;
+        }
+        value
+            .local
+            .to_string(self.scope())
+            .map(|s| s.to_rust_string_lossy(self.scope()))
     }
 
     fn property_key(&mut self, key: &str) -> V8PropertyKey<'js> {
@@ -348,55 +438,132 @@ impl<'js> JsScope<'js> for V8Scope<'js> {
 
     fn static_property_key(&mut self, key: &'static str) -> V8PropertyKey<'js> {
         if let Some(global) = self.runtime.inner.static_keys.borrow().get(key) {
-            return V8PropertyKey { local: rv8::Local::new(self.scope(), global) };
+            return V8PropertyKey {
+                local: rv8::Local::new(self.scope(), global),
+            };
         }
         let local: rv8::Local<'js, rv8::Name> = rv8::String::new(self.scope(), key).unwrap().into();
         let active_scope = unsafe { &mut *self.scope };
         let isolate = active_scope.as_ref();
         let global = rv8::Global::new(isolate, local);
-        self.runtime.inner.static_keys.borrow_mut().insert(key, global);
+        self.runtime
+            .inner
+            .static_keys
+            .borrow_mut()
+            .insert(key, global);
         V8PropertyKey { local }
     }
 
-    fn get_property(&mut self, object: &V8Value<'js>, key: &V8PropertyKey<'js>) -> Result<Option<V8Value<'js>>, V8Value<'js>> {
-        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else { return Ok(None); };
-        Ok(object.get(self.scope(), key.local.into()).map(|v| V8Value::from_local(v, false)))
+    fn get_property(
+        &mut self,
+        object: &V8Value<'js>,
+        key: &V8PropertyKey<'js>,
+    ) -> Result<Option<V8Value<'js>>, V8Value<'js>> {
+        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else {
+            return Ok(None);
+        };
+        Ok(object
+            .get(self.scope(), key.local.into())
+            .map(|v| V8Value::from_local(v, false)))
     }
 
-    fn set_property(&mut self, object: &V8Value<'js>, key: &V8PropertyKey<'js>, value: &V8Value<'js>) -> Result<(), V8Value<'js>> {
-        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else { return Ok(()); };
-        object.set(self.scope(), key.local.into(), value.local).map(|_| ()).ok_or_else(|| self.undefined_value())
+    fn set_property(
+        &mut self,
+        object: &V8Value<'js>,
+        key: &V8PropertyKey<'js>,
+        value: &V8Value<'js>,
+    ) -> Result<(), V8Value<'js>> {
+        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else {
+            return Ok(());
+        };
+        object
+            .set(self.scope(), key.local.into(), value.local)
+            .map(|_| ())
+            .ok_or_else(|| self.undefined_value())
     }
 
-    fn has_property(&mut self, object: &V8Value<'js>, key: &V8PropertyKey<'js>) -> Result<bool, V8Value<'js>> {
-        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else { return Ok(false); };
-        object.has(self.scope(), key.local.into()).ok_or_else(|| self.undefined_value())
+    fn has_property(
+        &mut self,
+        object: &V8Value<'js>,
+        key: &V8PropertyKey<'js>,
+    ) -> Result<bool, V8Value<'js>> {
+        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else {
+            return Ok(false);
+        };
+        object
+            .has(self.scope(), key.local.into())
+            .ok_or_else(|| self.undefined_value())
     }
 
-    fn delete_property(&mut self, object: &V8Value<'js>, key: &V8PropertyKey<'js>) -> Result<bool, V8Value<'js>> {
-        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else { return Ok(false); };
-        object.delete(self.scope(), key.local.into()).ok_or_else(|| self.undefined_value())
+    fn delete_property(
+        &mut self,
+        object: &V8Value<'js>,
+        key: &V8PropertyKey<'js>,
+    ) -> Result<bool, V8Value<'js>> {
+        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else {
+            return Ok(false);
+        };
+        object
+            .delete(self.scope(), key.local.into())
+            .ok_or_else(|| self.undefined_value())
     }
 
-    fn define_property(&mut self, object: &V8Value<'js>, key: &V8PropertyKey<'js>, value: &V8Value<'js>, _attributes: PropertyAttributes) -> Result<(), V8Value<'js>> {
+    fn define_property(
+        &mut self,
+        object: &V8Value<'js>,
+        key: &V8PropertyKey<'js>,
+        value: &V8Value<'js>,
+        _attributes: PropertyAttributes,
+    ) -> Result<(), V8Value<'js>> {
         self.set_property(object, key, value)
     }
 
-    fn get_index(&mut self, object: &V8Value<'js>, index: u32) -> Result<Option<V8Value<'js>>, V8Value<'js>> {
-        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else { return Ok(None); };
-        Ok(object.get_index(self.scope(), index).map(|v| V8Value::from_local(v, false)))
+    fn get_index(
+        &mut self,
+        object: &V8Value<'js>,
+        index: u32,
+    ) -> Result<Option<V8Value<'js>>, V8Value<'js>> {
+        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else {
+            return Ok(None);
+        };
+        Ok(object
+            .get_index(self.scope(), index)
+            .map(|v| V8Value::from_local(v, false)))
     }
 
-    fn set_index(&mut self, object: &V8Value<'js>, index: u32, value: &V8Value<'js>) -> Result<(), V8Value<'js>> {
-        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else { return Ok(()); };
-        object.set_index(self.scope(), index, value.local).map(|_| ()).ok_or_else(|| self.undefined_value())
+    fn set_index(
+        &mut self,
+        object: &V8Value<'js>,
+        index: u32,
+        value: &V8Value<'js>,
+    ) -> Result<(), V8Value<'js>> {
+        let Ok(object): Result<rv8::Local<'js, rv8::Object>, _> = object.local.try_into() else {
+            return Ok(());
+        };
+        object
+            .set_index(self.scope(), index, value.local)
+            .map(|_| ())
+            .ok_or_else(|| self.undefined_value())
     }
 
-    fn call_function(&mut self, function: &V8Value<'js>, this: Option<&V8Value<'js>>, argv: &[V8Value<'js>]) -> Result<V8Value<'js>, V8Value<'js>> {
-        let Ok(function): Result<rv8::Local<'js, rv8::Function>, _> = function.local.try_into() else { return Err(self.undefined_value()); };
-        let this = this.map(|v| v.local).unwrap_or_else(|| rv8::undefined(self.scope()).into());
+    fn call_function(
+        &mut self,
+        function: &V8Value<'js>,
+        this: Option<&V8Value<'js>>,
+        argv: &[V8Value<'js>],
+    ) -> Result<V8Value<'js>, V8Value<'js>> {
+        let Ok(function): Result<rv8::Local<'js, rv8::Function>, _> = function.local.try_into()
+        else {
+            return Err(self.undefined_value());
+        };
+        let this = this
+            .map(|v| v.local)
+            .unwrap_or_else(|| rv8::undefined(self.scope()).into());
         let argv: Vec<_> = argv.iter().map(|arg| arg.local).collect();
-        function.call(self.scope(), this, &argv).map(|v| V8Value::from_local(v, false)).ok_or_else(|| self.undefined_value())
+        function
+            .call(self.scope(), this, &argv)
+            .map(|v| V8Value::from_local(v, false))
+            .ok_or_else(|| self.undefined_value())
     }
 
     fn throw(&mut self, value: V8Value<'js>) -> V8Value<'js> {

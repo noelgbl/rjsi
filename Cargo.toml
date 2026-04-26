@@ -8,7 +8,6 @@ members = [
     "crates/rjsi-v8",
     "crates/rjsi-quickjs",
     "crates/rjsi-jsc",
-    "crates/rjsi-macros",
 ]
 
 [workspace.package]

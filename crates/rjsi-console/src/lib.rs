@@ -5,11 +5,11 @@ use std::marker::PhantomData;
 use std::time::Instant;
 
 use rjsi_core::{
-    HostError, HostFunction, JsEngine, JsResult, JsRuntime, JsScope, JsValueType, ParamsAccessor,
+    HostError, HostFunction, JsEngine, JsResult, JsRuntime, JsScope, JsValueType, ParamsAccessor
 };
 
-/// Installs the generic `console` and invokes `console.log("hello")`. Use with every
-/// [`JsRuntime`](rjsi_core::JsRuntime) in integration tests.
+/// Installs the generic `console` and invokes `console.log("hello")`. Use with
+/// every [`JsRuntime`](rjsi_core::JsRuntime) in integration tests.
 pub fn smoke_install_and_log<R: JsRuntime>(runtime: &R) -> JsResult<()> {
     fn ok<T, E>(r: Result<T, E>, what: &'static str) -> T {
         r.unwrap_or_else(|_| panic!("rjsi_console::smoke_install_and_log: {what}"))
@@ -24,11 +24,7 @@ pub fn smoke_install_and_log<R: JsRuntime>(runtime: &R) -> JsResult<()> {
             "get global.console",
         )
         .unwrap();
-        let log = ok(
-            scope.get_property(&console, &log_key),
-            "get console.log",
-        )
-        .unwrap();
+        let log = ok(scope.get_property(&console, &log_key), "get console.log").unwrap();
         let arg = scope.string("hello");
         ok(
             scope.call_function(&log, Some(&console), &[arg]),
@@ -130,7 +126,9 @@ fn define_method<'js, S: JsScope<'js>>(
     let key = scope.static_property_key(name);
     scope
         .set_property(console, &key, &function)
-        .map_err(|thrown| host_error_from_thrown(scope, &thrown, &format!("failed to set console.{name}")))?;
+        .map_err(|thrown| {
+            host_error_from_thrown(scope, &thrown, &format!("failed to set console.{name}"))
+        })?;
     Ok(())
 }
 
@@ -154,10 +152,7 @@ struct ConsoleMethod<E: JsEngine> {
 }
 
 impl<E: JsEngine> HostFunction<E> for ConsoleMethod<E> {
-    fn call<'a, 'js>(
-        &mut self,
-        params: &mut ParamsAccessor<'a, 'js, E>,
-    ) -> JsResult<E::Value<'js>>
+    fn call<'a, 'js>(&mut self, params: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
     where
         'js: 'a,
     {
@@ -189,9 +184,7 @@ where
     Ok(params.scope().undefined())
 }
 
-fn assert<'a, 'js, E: JsEngine>(
-    params: &mut ParamsAccessor<'a, 'js, E>,
-) -> JsResult<E::Value<'js>>
+fn assert<'a, 'js, E: JsEngine>(params: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
 where
     'js: 'a,
 {
@@ -216,9 +209,7 @@ where
     Ok(params.scope().undefined())
 }
 
-fn clear<'a, 'js, E: JsEngine>(
-    params: &mut ParamsAccessor<'a, 'js, E>,
-) -> JsResult<E::Value<'js>>
+fn clear<'a, 'js, E: JsEngine>(params: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
 where
     'js: 'a,
 {
@@ -231,9 +222,7 @@ where
     Ok(params.scope().undefined())
 }
 
-fn dir<'a, 'js, E: JsEngine>(
-    params: &mut ParamsAccessor<'a, 'js, E>,
-) -> JsResult<E::Value<'js>>
+fn dir<'a, 'js, E: JsEngine>(params: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
 where
     'js: 'a,
 {
@@ -246,9 +235,7 @@ where
     Ok(params.scope().undefined())
 }
 
-fn trace<'a, 'js, E: JsEngine>(
-    params: &mut ParamsAccessor<'a, 'js, E>,
-) -> JsResult<E::Value<'js>>
+fn trace<'a, 'js, E: JsEngine>(params: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
 where
     'js: 'a,
 {
@@ -262,9 +249,7 @@ where
     Ok(params.scope().undefined())
 }
 
-fn time<'a, 'js, E: JsEngine>(
-    params: &mut ParamsAccessor<'a, 'js, E>,
-) -> JsResult<E::Value<'js>>
+fn time<'a, 'js, E: JsEngine>(params: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
 where
     'js: 'a,
 {
@@ -316,9 +301,7 @@ where
     Ok(params.scope().undefined())
 }
 
-fn count<'a, 'js, E: JsEngine>(
-    params: &mut ParamsAccessor<'a, 'js, E>,
-) -> JsResult<E::Value<'js>>
+fn count<'a, 'js, E: JsEngine>(params: &mut ParamsAccessor<'a, 'js, E>) -> JsResult<E::Value<'js>>
 where
     'js: 'a,
 {
@@ -342,14 +325,15 @@ where
     let label = next_label(params, "default");
     let removed = CONSOLE_STATE.with(|state| state.counters.borrow_mut().remove(&label).is_some());
     if !removed {
-        write_console::<E>(LogLevel::Warn, &format!("Count for '{label}' does not exist"));
+        write_console::<E>(
+            LogLevel::Warn,
+            &format!("Count for '{label}' does not exist"),
+        );
     }
     Ok(params.scope().undefined())
 }
 
-fn collect_args<'a, 'js, E: JsEngine>(
-    params: &mut ParamsAccessor<'a, 'js, E>,
-) -> Vec<E::Value<'js>>
+fn collect_args<'a, 'js, E: JsEngine>(params: &mut ParamsAccessor<'a, 'js, E>) -> Vec<E::Value<'js>>
 where
     'js: 'a,
 {
@@ -431,9 +415,9 @@ fn format_value<'js, S: JsScope<'js>>(
             .to_string(value)
             .filter(|text| text != "[object Object]")
             .unwrap_or_else(|| "{...}".to_owned()),
-        JsValueType::Error | JsValueType::Exception => scope
-            .to_string(value)
-            .unwrap_or_else(|| "Error".to_owned()),
+        JsValueType::Error | JsValueType::Exception => {
+            scope.to_string(value).unwrap_or_else(|| "Error".to_owned())
+        }
         JsValueType::Symbol | JsValueType::Promise | JsValueType::Unknown => scope
             .to_string(value)
             .unwrap_or_else(|| format!("[{}]", scope.value_type(value))),
@@ -534,7 +518,9 @@ fn emit_console_trace<E: JsEngine>(level: LogLevel, message: &str) {
     }
 
     match level {
-        LogLevel::Verbose | LogLevel::Info => emit_at_level!(tracing::Level::INFO),
+        LogLevel::Verbose | LogLevel::Info => {
+            emit_at_level!(tracing::Level::INFO)
+        }
         LogLevel::Debug => emit_at_level!(tracing::Level::DEBUG),
         LogLevel::Error | LogLevel::Trace | LogLevel::Assert => {
             emit_at_level!(tracing::Level::ERROR);
@@ -550,7 +536,9 @@ fn host_error_from_thrown<'js, S: JsScope<'js>>(
 ) -> rjsi_core::RjsiJSError {
     HostError::new(
         rjsi_core::error::E_ERROR,
-        scope.to_string(thrown).unwrap_or_else(|| fallback.to_owned()),
+        scope
+            .to_string(thrown)
+            .unwrap_or_else(|| fallback.to_owned()),
     )
     .into()
 }

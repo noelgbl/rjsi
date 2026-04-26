@@ -1,4 +1,4 @@
-use rjsi::{JsRuntime, Source, JsScope};
+use rjsi::{JsRuntime, JsScope, Source};
 
 fn main() -> rjsi::JsResult<()> {
     let runtime = rjsi::v8::V8RuntimeContext::new();

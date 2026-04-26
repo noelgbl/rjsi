@@ -1,4 +1,4 @@
-use rjsi_core::{JsGlobalHandle};
+use rjsi_core::JsGlobalHandle;
 use v8 as rv8;
 
 use crate::runtime::V8Engine;
@@ -22,7 +22,10 @@ impl<'js> V8Value<'js> {
     where
         rv8::Local<'js, T>: Into<rv8::Local<'js, rv8::Value>>,
     {
-        Self { local: local.into(), exception }
+        Self {
+            local: local.into(),
+            exception,
+        }
     }
 }
 
@@ -57,6 +60,9 @@ impl JsGlobalHandle<V8Engine> for V8Global {
         scope: &mut <V8Engine as rjsi_core::JsEngine>::Scope<'js>,
     ) -> <V8Engine as rjsi_core::JsEngine>::Value<'js> {
         let local = rv8::Local::new(scope.scope(), &self.handle);
-        V8Value { local, exception: self.exception }
+        V8Value {
+            local,
+            exception: self.exception,
+        }
     }
 }

@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use rjsi_core::{
-    Global, HostFunction, JsEngine, JsRuntime, JsScope, JsValueType, ParamsAccessor, Source,
+    Global, HostFunction, JsEngine, JsRuntime, JsScope, JsValueType, ParamsAccessor, Source
 };
 
 fn expect_js<T, E>(r: Result<T, E>, msg: &'static str) -> T {
@@ -76,7 +76,8 @@ pub fn static_property_get_set<R: JsRuntime>(runtime: &R) {
         .unwrap();
 }
 
-/// Nested `with_scope` on the same runtime: inner scope does not clobber the outer.
+/// Nested `with_scope` on the same runtime: inner scope does not clobber the
+/// outer.
 pub fn nested_scopes<R: JsRuntime>(runtime: &R) {
     runtime
         .with_scope(|outer| {
@@ -94,7 +95,8 @@ pub fn nested_scopes<R: JsRuntime>(runtime: &R) {
         .unwrap();
 }
 
-/// Object, array, `ArrayBuffer`, and a registered host function callable from script.
+/// Object, array, `ArrayBuffer`, and a registered host function callable from
+/// script.
 pub fn constructors_and_host<R: JsRuntime>(runtime: &R) {
     runtime
         .with_scope(|scope| {
@@ -144,19 +146,15 @@ pub fn array_index_get_set<R: JsRuntime>(runtime: &R) {
             let a = scope.array(3);
             let n = scope.number(99.0);
             expect_js(scope.set_index(&a, 1, &n), "conformance: set_index");
-            let got = expect_js(
-                scope.get_index(&a, 1),
-                "conformance: get_index",
-            )
-            .unwrap();
+            let got = expect_js(scope.get_index(&a, 1), "conformance: get_index").unwrap();
             assert_eq!(scope.to_number(&got), Some(99.0));
             Ok(())
         })
         .unwrap();
 }
 
-/// Runs the portable part of this module (everything except [`nested_scopes`], which some
-/// backends cannot support when `with_scope` is non-reentrant).
+/// Runs the portable part of this module (everything except [`nested_scopes`],
+/// which some backends cannot support when `with_scope` is non-reentrant).
 pub fn run_all<R: JsRuntime>(runtime: &R) {
     eval_runs(runtime);
     explicit_global_restores(runtime);

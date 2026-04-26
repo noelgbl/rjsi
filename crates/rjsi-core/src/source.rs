@@ -16,11 +16,17 @@ pub struct Source {
 
 impl Source {
     pub fn from_bytes<T: AsRef<[u8]>>(code: T) -> Self {
-        Self { kind: SourceKind::JavaScript(code.as_ref().to_vec()), name: None }
+        Self {
+            kind: SourceKind::JavaScript(code.as_ref().to_vec()),
+            name: None,
+        }
     }
 
     pub fn from_bytecode(code: impl Into<Vec<u8>>) -> Self {
-        Self { kind: SourceKind::ByteCode(code.into()), name: None }
+        Self {
+            kind: SourceKind::ByteCode(code.into()),
+            name: None,
+        }
     }
 
     pub fn from_path(path: impl AsRef<Path>) -> JsResult<Self> {
@@ -32,10 +38,14 @@ impl Source {
                 return Err(HostError::new(
                     crate::error::E_NOT_SUPPORTED,
                     format!("Unsupported source file type: {}", path.as_ref().display()),
-                ).into());
+                )
+                .into());
             }
         };
-        Ok(Self { kind, name: Some(path.as_ref().to_string_lossy().into_owned()) })
+        Ok(Self {
+            kind,
+            name: Some(path.as_ref().to_string_lossy().into_owned()),
+        })
     }
 
     pub fn with_name(mut self, name: impl Into<String>) -> Self {

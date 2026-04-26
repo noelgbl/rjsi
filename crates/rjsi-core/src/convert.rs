@@ -1,14 +1,17 @@
-use crate::{HostError, JsEngine, JsResult, JsScope, ParamsAccessor, RjsiJSError};
-pub use crate::{FromJs, IntoJs};
 use smallvec::SmallVec;
+
+pub use crate::{FromJs, IntoJs};
+use crate::{HostError, JsEngine, JsResult, JsScope, ParamsAccessor, RjsiJSError};
 
 pub trait ScopeExt<'js>: JsScope<'js> {
     fn get(
         &mut self,
         object: &<Self::Engine as JsEngine>::Value<'js>,
         key: &str,
-    ) -> Result<Option<<Self::Engine as JsEngine>::Value<'js>>, <Self::Engine as JsEngine>::Value<'js>>
-    {
+    ) -> Result<
+        Option<<Self::Engine as JsEngine>::Value<'js>>,
+        <Self::Engine as JsEngine>::Value<'js>,
+    > {
         let key = self.property_key(key);
         self.get_property(object, &key)
     }
@@ -87,11 +90,17 @@ pub trait ScopeExt<'js>: JsScope<'js> {
 impl<'js, S: JsScope<'js>> ScopeExt<'js> for S {}
 
 pub trait JsArgs<'js, S: JsScope<'js>> {
-    fn into_args(self, scope: &mut S) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>>;
+    fn into_args(
+        self,
+        scope: &mut S,
+    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>>;
 }
 
 impl<'js, S: JsScope<'js>> JsArgs<'js, S> for () {
-    fn into_args(self, _scope: &mut S) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
+    fn into_args(
+        self,
+        _scope: &mut S,
+    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
         Ok(SmallVec::new())
     }
 }
@@ -101,7 +110,10 @@ where
     S: JsScope<'js>,
     A: IntoJs<'js, S>,
 {
-    fn into_args(self, scope: &mut S) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
+    fn into_args(
+        self,
+        scope: &mut S,
+    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
         let mut args = SmallVec::new();
         args.push(self.0.into_js(scope)?);
         Ok(args)
@@ -114,7 +126,10 @@ where
     A: IntoJs<'js, S>,
     B: IntoJs<'js, S>,
 {
-    fn into_args(self, scope: &mut S) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
+    fn into_args(
+        self,
+        scope: &mut S,
+    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
         let mut args = SmallVec::new();
         args.push(self.0.into_js(scope)?);
         args.push(self.1.into_js(scope)?);

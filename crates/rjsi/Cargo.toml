@@ -5,7 +5,6 @@ edition = "2024"
 
 [features]
 default = []
-macros = ["dep:rjsi-macros"]
 quickjs = ["dep:rjsi-quickjs"]
 v8 = ["dep:rjsi-v8"]
 jsc = ["dep:rjsi-jsc"]
@@ -20,10 +19,6 @@ name = "add"
 required-features = ["v8"]
 
 [[example]]
-name = "macros"
-required-features = ["v8", "macros"]
-
-[[example]]
 name = "console"
 required-features = ["v8", "console"]
 
@@ -33,6 +28,5 @@ tracing.workspace = true
 rjsi-core = { path = "../rjsi-core" }
 rjsi-quickjs = { path = "../rjsi-quickjs", optional = true }
 rjsi-v8 = { path = "../rjsi-v8", optional = true }
-rjsi-macros = { path = "../rjsi-macros", optional = true }
 rjsi-console = { path = "../rjsi-console", optional = true }
 rjsi-jsc = { path = "../rjsi-jsc", optional = true }

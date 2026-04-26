@@ -25,7 +25,11 @@ pub struct HostError {
 
 impl HostError {
     pub fn new(code: &'static str, message: impl Into<String>) -> Self {
-        Self { name: "Error", code, message: message.into() }
+        Self {
+            name: "Error",
+            code,
+            message: message.into(),
+        }
     }
 
     pub fn with_name(mut self, name: &'static str) -> Self {
@@ -38,7 +42,10 @@ impl HostError {
     }
 
     pub fn invalid_arg_count(expected: usize, got: usize) -> Self {
-        Self::type_error(E_INVALID_ARG, format!("{expected} arguments required, but {got} found"))
+        Self::type_error(
+            E_INVALID_ARG,
+            format!("{expected} arguments required, but {got} found"),
+        )
     }
 }
 

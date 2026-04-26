@@ -23,10 +23,7 @@ pub trait JsEngine: Sized + 'static {
 pub trait JsScope<'js> {
     type Engine: JsEngine;
 
-    fn eval(
-        &mut self,
-        source: Source,
-    ) -> JsResult<<Self::Engine as JsEngine>::Value<'js>>;
+    fn eval(&mut self, source: Source) -> JsResult<<Self::Engine as JsEngine>::Value<'js>>;
 
     fn global(&mut self) -> <Self::Engine as JsEngine>::Value<'js>;
     fn undefined(&mut self) -> <Self::Engine as JsEngine>::Value<'js>;
@@ -62,7 +59,10 @@ pub trait JsScope<'js> {
         &mut self,
         object: &<Self::Engine as JsEngine>::Value<'js>,
         key: &<Self::Engine as JsEngine>::PropertyKey<'js>,
-    ) -> Result<Option<<Self::Engine as JsEngine>::Value<'js>>, <Self::Engine as JsEngine>::Value<'js>>;
+    ) -> Result<
+        Option<<Self::Engine as JsEngine>::Value<'js>>,
+        <Self::Engine as JsEngine>::Value<'js>,
+    >;
 
     fn set_property(
         &mut self,
@@ -95,7 +95,10 @@ pub trait JsScope<'js> {
         &mut self,
         object: &<Self::Engine as JsEngine>::Value<'js>,
         index: u32,
-    ) -> Result<Option<<Self::Engine as JsEngine>::Value<'js>>, <Self::Engine as JsEngine>::Value<'js>>;
+    ) -> Result<
+        Option<<Self::Engine as JsEngine>::Value<'js>>,
+        <Self::Engine as JsEngine>::Value<'js>,
+    >;
 
     fn set_index(
         &mut self,
