@@ -1,10 +1,19 @@
-use rjsi::{FromJs, JsRuntime, JsScope, Source};
+use rjsi::quickjs::QuickJsError;
 
-fn main() -> rjsi::JsResult<()> {
-    let runtime = rjsi::v8::V8RuntimeContext::new();
+use rjsi::{ContextLike, ScopeLike, ValueLike};
+
+fn main() -> Result<(), QuickJsError> {
+    let runtime = rjsi::quickjs::QuickJsRuntimeContext::new();
     let result = runtime.with_scope(|scope| {
-        let value = scope.eval(Source::from_bytes("'Hello from V8 via RJSI'"))?;
-        String::from_js(scope, &value)
+        let value = scope.eval("'Hello from QuickJS via RJSI'")?;
+        value
+            .with_str(scope, str::to_owned)
+            .ok_or_else(|| {
+                QuickJsError::from(rjsi::HostError::type_error(
+                    rjsi::E_TYPE,
+                    "expected string",
+                ))
+            })
     })?;
 
     println!("{result}");

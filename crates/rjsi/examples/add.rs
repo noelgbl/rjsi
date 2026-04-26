@@ -1,10 +1,19 @@
-use rjsi::{FromJs, JsRuntime, JsScope, Source};
+use rjsi::quickjs::QuickJsError;
 
-fn main() -> rjsi::JsResult<()> {
-    let runtime = rjsi::v8::V8RuntimeContext::new();
+use rjsi::{ContextLike, ScopeLike, ValueLike};
+
+fn main() -> Result<(), QuickJsError> {
+    let runtime = rjsi::quickjs::QuickJsRuntimeContext::new();
     let result = runtime.with_scope(|scope| {
-        let value = scope.eval(Source::from_bytes("1 + 2 + 3"))?;
-        i32::from_js(scope, &value)
+        let value = scope.eval("1 + 2 + 3")?;
+        value
+            .as_i32(scope)
+            .ok_or_else(|| {
+                QuickJsError::from(rjsi::HostError::type_error(
+                    rjsi::E_TYPE,
+                    "expected integer",
+                ))
+            })
     })?;
 
     println!("1 + 2 + 3 = {result}");

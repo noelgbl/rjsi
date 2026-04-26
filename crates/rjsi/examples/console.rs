@@ -1,11 +1,13 @@
-use rjsi::{JsRuntime, JsScope, Source};
+use rjsi::quickjs::QuickJsError;
 
-fn main() -> rjsi::JsResult<()> {
-    let runtime = rjsi::v8::V8RuntimeContext::new();
+use rjsi::{ContextLike, ScopeLike};
+
+fn main() -> Result<(), QuickJsError> {
+    let runtime = rjsi::quickjs::QuickJsRuntimeContext::new();
 
     runtime.with_scope(|scope| {
-        rjsi::console::init(scope)?;
-        scope.eval(Source::from_bytes("console.log('Hello, world!')"))?;
+        rjsi::console::init::<rjsi::quickjs::QuickJsRuntime>(scope)?;
+        scope.eval("console.log('Hello, world!')")?;
         Ok(())
     })?;
 

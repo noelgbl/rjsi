@@ -5,6 +5,7 @@ members = [
     "crates/rjsi-core",
     "crates/rjsi-conformance",
     "crates/rjsi-console",
+    "crates/rjsi-macros",
     "crates/rjsi-v8",
     "crates/rjsi-quickjs",
     "crates/rjsi-jsc",

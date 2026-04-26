@@ -1,91 +1,45 @@
-use std::fmt;
+use crate::runtime::Runtime;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum JsValueType {
-    Undefined,
-    Null,
-    Boolean,
-    Number,
-    BigInt,
-    String,
-    Symbol,
-    Object,
-    Array,
-    ArrayBuffer,
-    Function,
-    Promise,
-    Error,
-    Exception,
-    Date,
-    Unknown,
+pub trait ValueLike<'s, R: Runtime>: Clone + Sized {
+    fn is_undefined(&self) -> bool;
+    fn is_null(&self) -> bool;
+    fn is_boolean(&self) -> bool;
+    fn is_number(&self) -> bool;
+    fn is_string(&self) -> bool;
+    fn is_object(&self) -> bool;
+    fn is_array(&self) -> bool;
+    fn is_function(&self) -> bool;
+    fn is_array_buffer(&self) -> bool;
+
+    fn as_bool(&self, scope: &mut R::Scope<'s, '_>) -> Option<bool>;
+    fn as_i32(&self, scope: &mut R::Scope<'s, '_>) -> Option<i32>;
+    fn as_f64(&self, scope: &mut R::Scope<'s, '_>) -> Option<f64>;
+
+    fn with_str<F, T>(&self, scope: &mut R::Scope<'s, '_>, f: F) -> Option<T>
+    where
+        F: FnOnce(&str) -> T;
+
+    fn to_string_lossy(&self, scope: &mut R::Scope<'s, '_>) -> Option<String>;
+
+    fn get(&self, scope: &mut R::Scope<'s, '_>, key: &str) -> R::Value<'s>;
+    fn set(&self, scope: &mut R::Scope<'s, '_>, key: &str, val: R::Value<'s>);
+    fn has(&self, scope: &mut R::Scope<'s, '_>, key: &str) -> bool;
+    fn delete(&self, scope: &mut R::Scope<'s, '_>, key: &str) -> bool;
+
+    fn get_index(&self, scope: &mut R::Scope<'s, '_>, i: u32) -> R::Value<'s>;
+    fn set_index(&self, scope: &mut R::Scope<'s, '_>, i: u32, val: R::Value<'s>);
+    fn length(&self, scope: &mut R::Scope<'s, '_>) -> u32;
+
+    fn with_bytes<F, T>(&self, scope: &mut R::Scope<'s, '_>, f: F) -> Option<T>
+    where
+        F: FnOnce(&[u8]) -> T;
+
+    fn call(
+        &self,
+        scope: &mut R::Scope<'s, '_>,
+        this: R::Value<'s>,
+        args: &[R::Value<'s>],
+    ) -> Result<R::Value<'s>, R::Error>;
 }
 
-impl fmt::Display for JsValueType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            JsValueType::Undefined => "undefined",
-            JsValueType::Null => "null",
-            JsValueType::Boolean => "boolean",
-            JsValueType::Number => "number",
-            JsValueType::BigInt => "bigint",
-            JsValueType::String => "string",
-            JsValueType::Symbol => "symbol",
-            JsValueType::Object => "object",
-            JsValueType::Array => "array",
-            JsValueType::ArrayBuffer => "arrayBuffer",
-            JsValueType::Function => "function",
-            JsValueType::Promise => "promise",
-            JsValueType::Error => "error",
-            JsValueType::Exception => "exception",
-            JsValueType::Date => "date",
-            JsValueType::Unknown => "unknown",
-        })
-    }
-}
-
-#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct PropertyAttributes(u32);
-
-impl PropertyAttributes {
-    const WRITABLE: u32 = 1;
-    const ENUMERABLE: u32 = 1 << 1;
-    const CONFIGURABLE: u32 = 1 << 2;
-
-    #[must_use]
-    pub const fn new() -> Self {
-        Self(0)
-    }
-
-    #[must_use]
-    pub const fn writable(mut self) -> Self {
-        self.0 |= Self::WRITABLE;
-        self
-    }
-
-    #[must_use]
-    pub const fn enumerable(mut self) -> Self {
-        self.0 |= Self::ENUMERABLE;
-        self
-    }
-
-    #[must_use]
-    pub const fn configurable(mut self) -> Self {
-        self.0 |= Self::CONFIGURABLE;
-        self
-    }
-
-    #[must_use]
-    pub const fn is_writable(self) -> bool {
-        self.0 & Self::WRITABLE != 0
-    }
-
-    #[must_use]
-    pub const fn is_enumerable(self) -> bool {
-        self.0 & Self::ENUMERABLE != 0
-    }
-
-    #[must_use]
-    pub const fn is_configurable(self) -> bool {
-        self.0 & Self::CONFIGURABLE != 0
-    }
-}
+pub trait JsFunction<'s, R: Runtime>: Clone + Sized {}

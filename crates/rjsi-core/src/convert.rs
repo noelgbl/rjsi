@@ -1,165 +1,149 @@
-use smallvec::SmallVec;
+use crate::{
+    error::{E_TYPE, HostError},
+    runtime::Runtime,
+    scope::ScopeLike,
+    value::ValueLike,
+};
 
-pub use crate::{FromJs, IntoJs};
-use crate::{HostError, JsEngine, JsResult, JsScope, ParamsAccessor, RjsiJSError};
+pub trait IntoJs<'s, R: Runtime>: Sized {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error>;
+}
 
-pub trait ScopeExt<'js>: JsScope<'js> {
-    fn get(
-        &mut self,
-        object: &<Self::Engine as JsEngine>::Value<'js>,
-        key: &str,
-    ) -> Result<
-        Option<<Self::Engine as JsEngine>::Value<'js>>,
-        <Self::Engine as JsEngine>::Value<'js>,
-    > {
-        let key = self.property_key(key);
-        self.get_property(object, &key)
-    }
+pub trait FromJs<'s, R: Runtime>: Sized {
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error>;
+}
 
-    fn set<V: IntoJs<'js, Self>>(
-        &mut self,
-        object: &<Self::Engine as JsEngine>::Value<'js>,
-        key: &str,
-        value: V,
-    ) -> Result<(), <Self::Engine as JsEngine>::Value<'js>>
-    where
-        Self: Sized,
-    {
-        let key = self.property_key(key);
-        let value = value.into_js(self).map_err(|err| {
-            let message = self.string(&err.to_string());
-            self.throw(message)
-        })?;
-        self.set_property(object, &key, &value)
-    }
-
-    fn has(
-        &mut self,
-        object: &<Self::Engine as JsEngine>::Value<'js>,
-        key: &str,
-    ) -> Result<bool, <Self::Engine as JsEngine>::Value<'js>> {
-        let key = self.property_key(key);
-        self.has_property(object, &key)
-    }
-
-    fn delete(
-        &mut self,
-        object: &<Self::Engine as JsEngine>::Value<'js>,
-        key: &str,
-    ) -> Result<bool, <Self::Engine as JsEngine>::Value<'js>> {
-        let key = self.property_key(key);
-        self.delete_property(object, &key)
-    }
-
-    fn call<A: JsArgs<'js, Self>>(
-        &mut self,
-        function: &<Self::Engine as JsEngine>::Value<'js>,
-        this: Option<&<Self::Engine as JsEngine>::Value<'js>>,
-        args: A,
-    ) -> Result<<Self::Engine as JsEngine>::Value<'js>, <Self::Engine as JsEngine>::Value<'js>>
-    where
-        Self: Sized,
-    {
-        let args = args.into_args(self).map_err(|err| {
-            let message = self.string(&err.to_string());
-            self.throw(message)
-        })?;
-        self.call_function(function, this, &args)
-    }
-
-    fn call_method<A: JsArgs<'js, Self>>(
-        &mut self,
-        object: &<Self::Engine as JsEngine>::Value<'js>,
-        key: &str,
-        args: A,
-    ) -> Result<<Self::Engine as JsEngine>::Value<'js>, <Self::Engine as JsEngine>::Value<'js>>
-    where
-        Self: Sized,
-    {
-        let function = match self.get(object, key)? {
-            Some(function) => function,
-            None => {
-                let message = self.string("method not found");
-                return Err(self.throw(message));
-            }
-        };
-        self.call(&function, Some(object), args)
+impl<'s, R: Runtime> IntoJs<'s, R> for () {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        Ok(scope.undefined())
     }
 }
 
-impl<'js, S: JsScope<'js>> ScopeExt<'js> for S {}
-
-pub trait JsArgs<'js, S: JsScope<'js>> {
-    fn into_args(
-        self,
-        scope: &mut S,
-    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>>;
-}
-
-impl<'js, S: JsScope<'js>> JsArgs<'js, S> for () {
-    fn into_args(
-        self,
-        _scope: &mut S,
-    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
-        Ok(SmallVec::new())
+impl<'s, R: Runtime> IntoJs<'s, R> for bool {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        Ok(scope.boolean(self))
     }
 }
 
-impl<'js, S, A> JsArgs<'js, S> for (A,)
+impl<'s, R: Runtime> IntoJs<'s, R> for i32 {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        Ok(scope.integer(self))
+    }
+}
+
+impl<'s, R: Runtime> IntoJs<'s, R> for f64 {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        Ok(scope.number(self))
+    }
+}
+
+impl<'s, R: Runtime> IntoJs<'s, R> for &str {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        Ok(scope.string(self))
+    }
+}
+
+impl<'s, R: Runtime> IntoJs<'s, R> for String {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        Ok(scope.string(&self))
+    }
+}
+
+impl<'s, R, T> IntoJs<'s, R> for Option<T>
 where
-    S: JsScope<'js>,
-    A: IntoJs<'js, S>,
+    R: Runtime,
+    T: IntoJs<'s, R>,
 {
-    fn into_args(
-        self,
-        scope: &mut S,
-    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
-        let mut args = SmallVec::new();
-        args.push(self.0.into_js(scope)?);
-        Ok(args)
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        match self {
+            Some(value) => value.into_js(scope),
+            None => Ok(scope.null()),
+        }
     }
 }
 
-impl<'js, S, A, B> JsArgs<'js, S> for (A, B)
+impl<'s, R, T> IntoJs<'s, R> for Vec<T>
 where
-    S: JsScope<'js>,
-    A: IntoJs<'js, S>,
-    B: IntoJs<'js, S>,
+    R: Runtime,
+    T: IntoJs<'s, R>,
 {
-    fn into_args(
-        self,
-        scope: &mut S,
-    ) -> JsResult<SmallVec<[<S::Engine as JsEngine>::Value<'js>; 4]>> {
-        let mut args = SmallVec::new();
-        args.push(self.0.into_js(scope)?);
-        args.push(self.1.into_js(scope)?);
-        Ok(args)
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        let array = scope.array(self.len() as u32);
+        for (index, value) in self.into_iter().enumerate() {
+            let value = value.into_js(scope)?;
+            array.set_index(scope, index as u32, value);
+        }
+        Ok(array)
     }
 }
 
-pub trait ParamsExt<'a, 'js, E: JsEngine>
-where
-    'js: 'a,
-{
-    fn next<T: FromJs<'js, E::Scope<'js>>>(&mut self) -> JsResult<T>;
-}
-
-impl<'a, 'js, E: JsEngine> ParamsExt<'a, 'js, E> for ParamsAccessor<'a, 'js, E>
-where
-    'js: 'a,
-{
-    fn next<T: FromJs<'js, E::Scope<'js>>>(&mut self) -> JsResult<T> {
-        let value = self
-            .next_arg()
-            .ok_or_else(|| RjsiJSError::from(conversion_error("argument")))?;
-        T::from_js(self.scope(), &value)
+impl<'s, R: Runtime> FromJs<'s, R> for bool {
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
+        if value.is_boolean() {
+            value
+                .as_bool(scope)
+                .ok_or_else(|| HostError::type_error(E_TYPE, "expected boolean").into())
+        } else {
+            Err(HostError::type_error(E_TYPE, "expected boolean").into())
+        }
     }
 }
 
-fn conversion_error(expected: &str) -> HostError {
-    HostError::type_error(crate::error::E_TYPE, format!("expected {expected}"))
+impl<'s, R: Runtime> FromJs<'s, R> for i32 {
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
+        value
+            .as_i32(scope)
+            .ok_or_else(|| HostError::type_error(E_TYPE, "expected integer").into())
+    }
 }
 
-pub mod prelude {
-    pub use super::{FromJs, IntoJs, JsArgs, ParamsExt, ScopeExt};
+impl<'s, R: Runtime> FromJs<'s, R> for f64 {
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
+        value
+            .as_f64(scope)
+            .ok_or_else(|| HostError::type_error(E_TYPE, "expected number").into())
+    }
 }
+
+impl<'s, R: Runtime> FromJs<'s, R> for String {
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
+        value
+            .with_str(scope, str::to_owned)
+            .ok_or_else(|| HostError::type_error(E_TYPE, "expected string").into())
+    }
+}
+
+impl<'s, R, T> FromJs<'s, R> for Option<T>
+where
+    R: Runtime,
+    T: FromJs<'s, R>,
+{
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
+        if value.is_null() || value.is_undefined() {
+            Ok(None)
+        } else {
+            T::from_js(scope, value).map(Some)
+        }
+    }
+}
+
+impl<'s, R, T> FromJs<'s, R> for Vec<T>
+where
+    R: Runtime,
+    T: FromJs<'s, R>,
+{
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
+        if !value.is_array() {
+            return Err(HostError::type_error(E_TYPE, "expected array").into());
+        }
+        let len = value.length(scope);
+        let mut out = Vec::with_capacity(len as usize);
+        for index in 0..len {
+            let item = value.get_index(scope, index);
+            out.push(T::from_js(scope, item)?);
+        }
+        Ok(out)
+    }
+}
+
+pub struct ZeroCopyBuf<'a>(pub &'a [u8]);

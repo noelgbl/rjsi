@@ -1,16 +1,22 @@
-//! QuickJS backend for RJSi's hot core API.
+//! QuickJS backend for RJSI
 
-use std::cell::RefCell;
+use std::fmt;
+use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::thread::{self, ThreadId};
 
 use rjsi_core::{
-    HostArgs, HostError, HostFunction, JsEngine, JsGlobalHandle, JsResult, JsRuntime, JsScope, JsValueType, ParamsAccessor, PropertyAttributes, Source
+    Args, Callback, ContextLike, JsFunction, HostError, PersistentLike, Runtime, ScopeLike,
+    TryCatchResult, ValueLike,
 };
-use rquickjs::function::{IntoJsFunc, ParamRequirement, Params as QjsParams, Rest};
+use rquickjs::function::{IntoJsFunc, ParamRequirement, Params as QjsParams, Rest, This};
 use rquickjs::{
-    Array, ArrayBuffer, CatchResultExt, CaughtError, Context, Ctx, Function as QjsFunction, Object, Persistent, Runtime, String as QjsString, Value
+    Array, ArrayBuffer, CatchResultExt, CaughtError, Context as QjsContext, Ctx, Function as QjsFunction,
+    Object, Persistent, Runtime as QjsRuntimeHandle, String as QjsString, Value,
 };
+
+pub struct QuickJsRuntime;
 
 #[derive(Clone)]
 pub struct QuickJsRuntimeContext {
@@ -19,15 +25,75 @@ pub struct QuickJsRuntimeContext {
 
 struct QuickJsRuntimeInner {
     owner_thread: ThreadId,
-    _runtime: Runtime,
-    context: Context,
+    _runtime: QjsRuntimeHandle,
+    context: QjsContext,
+}
+
+#[derive(Debug, Clone)]
+pub struct QuickJsError {
+    message: String,
+}
+
+impl QuickJsError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+
+    fn from_caught(err: CaughtError<'_>) -> Self {
+        match err {
+            CaughtError::Exception(ex) => Self::new(format!("{ex:?}")),
+            CaughtError::Value(value) => Self::new(format!("{value:?}")),
+            CaughtError::Error(err) => Self::from(err),
+        }
+    }
+}
+
+impl fmt::Display for QuickJsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for QuickJsError {}
+
+impl From<HostError> for QuickJsError {
+    fn from(value: HostError) -> Self {
+        Self::new(value.to_string())
+    }
+}
+
+impl From<rquickjs::Error> for QuickJsError {
+    fn from(value: rquickjs::Error) -> Self {
+        Self::new(format!("{value:?}"))
+    }
+}
+
+pub struct QuickJsScope<'js, 'p> {
+    ctx: Ctx<'js>,
+    _parent: PhantomData<&'p ()>,
+}
+
+struct QuickJsHostAdapter {
+    callback: Arc<Callback<QuickJsRuntime>>,
+}
+
+#[derive(Clone)]
+pub struct QuickJsValue<'js> {
+    value: Value<'js>,
+}
+
+#[derive(Clone)]
+pub struct QuickJsGlobal {
+    handle: Persistent<Value<'static>>,
 }
 
 impl QuickJsRuntimeContext {
     #[must_use]
     pub fn new() -> Self {
-        let runtime = Runtime::new().expect("failed to create QuickJS runtime");
-        let context = Context::full(&runtime).expect("failed to create QuickJS context");
+        let runtime = QjsRuntimeHandle::new().expect("failed to create QuickJS runtime");
+        let context = QjsContext::full(&runtime).expect("failed to create QuickJS context");
         Self {
             inner: Rc::new(QuickJsRuntimeInner {
                 owner_thread: thread::current().id(),
@@ -37,10 +103,10 @@ impl QuickJsRuntimeContext {
         }
     }
 
-    fn assert_owner_thread(&self) -> JsResult<()> {
+    fn assert_owner_thread(&self) -> Result<(), QuickJsError> {
         if thread::current().id() != self.inner.owner_thread {
             return Err(HostError::new(
-                rjsi_core::error::E_INVALID_STATE,
+                rjsi_core::E_INVALID_STATE,
                 "QuickJS runtime accessed from a non-owner thread",
             )
             .into());
@@ -55,24 +121,7 @@ impl Default for QuickJsRuntimeContext {
     }
 }
 
-pub struct QuickJsEngine;
-
-pub struct QuickJsScope<'js> {
-    ctx: Ctx<'js>,
-}
-
-pub struct QuickJsCallbackArgs<'a, 'js> {
-    params: QjsParams<'a, 'js>,
-}
-
-struct QuickJsHostAdapter<F> {
-    function: RefCell<F>,
-}
-
-impl<'js, F> IntoJsFunc<'js, ()> for QuickJsHostAdapter<F>
-where
-    F: HostFunction<QuickJsEngine> + 'js,
-{
+impl<'js> IntoJsFunc<'js, ()> for QuickJsHostAdapter {
     fn param_requirements() -> ParamRequirement {
         ParamRequirement::any()
     }
@@ -80,141 +129,131 @@ where
     fn call<'a>(&self, params: QjsParams<'a, 'js>) -> rquickjs::Result<Value<'js>> {
         let mut scope = QuickJsScope {
             ctx: params.ctx().clone(),
+            _parent: PhantomData,
         };
-        let ctx = scope.ctx.clone();
-        let mut accessor =
-            ParamsAccessor::<QuickJsEngine>::new(&mut scope, QuickJsCallbackArgs { params });
-        self.function
-            .try_borrow_mut()
-            .map_err(|_| {
-                rquickjs::Exception::throw_internal(&ctx, "host function already borrowed")
-            })?
-            .call(&mut accessor)
-            .map(|value| value.value)
-            .map_err(|err| rquickjs::Exception::throw_internal(&ctx, &err.to_string()))
-    }
-}
-
-impl<'a, 'js> HostArgs<'a, 'js, QuickJsEngine> for QuickJsCallbackArgs<'a, 'js>
-where
-    'js: 'a,
-{
-    fn len(&self) -> usize {
-        self.params.len()
-    }
-
-    fn this(&self, _scope: &mut QuickJsScope<'js>) -> Option<QuickJsValue<'js>> {
-        Some(QuickJsValue {
-            value: self.params.this(),
-            exception: false,
-        })
-    }
-
-    fn get(&self, _scope: &mut QuickJsScope<'js>, index: usize) -> Option<QuickJsValue<'js>> {
-        self.params.arg(index).map(|value| QuickJsValue {
-            value,
-            exception: false,
-        })
-    }
-}
-
-impl<'js> QuickJsScope<'js> {
-    fn from_value(&self, value: Value<'js>, exception: bool) -> QuickJsValue<'js> {
-        QuickJsValue { value, exception }
-    }
-
-    fn from_error(&self, err: rquickjs::Error) -> QuickJsValue<'js> {
-        let message = format!("{err:?}");
-        let value = QjsString::from_str(self.ctx.clone(), &message)
-            .map(|s| s.into_value())
-            .unwrap_or_else(|_| Value::new_undefined(self.ctx.clone()));
-        self.from_value(value, true)
-    }
-
-    fn from_caught(&self, caught: CaughtError<'js>) -> QuickJsValue<'js> {
-        match caught {
-            CaughtError::Exception(ex) => self.from_value(ex.into_value(), true),
-            CaughtError::Value(value) => self.from_value(value, true),
-            CaughtError::Error(err) => self.from_error(err),
+        let mut values = Vec::with_capacity(params.len());
+        for index in 0..params.len() {
+            if let Some(value) = params.arg(index) {
+                values.push(QuickJsValue { value });
+            }
         }
+        let args = Args::new(
+            QuickJsValue {
+                value: params.this(),
+            },
+            values,
+        );
+        (self.callback)(&mut scope, args)
+            .map(|value| value.value)
+            .map_err(|err| rquickjs::Exception::throw_internal(params.ctx(), &err.to_string()))
     }
 }
 
-impl JsEngine for QuickJsEngine {
-    type Scope<'js> = QuickJsScope<'js>;
-    type Value<'js> = QuickJsValue<'js>;
-    type PropertyKey<'js> = QuickJsPropertyKey<'js>;
-    type Global = QuickJsGlobal;
-    type HostArgs<'a, 'js>
-        = QuickJsCallbackArgs<'a, 'js>
-    where
-        'js: 'a;
+impl Runtime for QuickJsRuntime {
+    type Scope<'s, 'p: 's> = QuickJsScope<'s, 'p>;
+    type Value<'s> = QuickJsValue<'s>;
+    type Function<'s> = QuickJsValue<'s>;
+    type Persistent = QuickJsGlobal;
+    type Context = QuickJsRuntimeContext;
+    type Error = QuickJsError;
 
     fn name() -> &'static str {
         "quickjs"
     }
+
     fn version() -> String {
         "rquickjs-0.11".to_string()
     }
 }
 
-impl JsRuntime for QuickJsRuntimeContext {
-    type Engine = QuickJsEngine;
-
-    fn with_scope<R>(
+impl ContextLike<QuickJsRuntime> for QuickJsRuntimeContext {
+    fn with_scope<T>(
         &self,
-        f: impl for<'js> FnOnce(&mut QuickJsScope<'js>) -> JsResult<R>,
-    ) -> JsResult<R> {
+        f: impl for<'s> FnOnce(&mut QuickJsScope<'s, 's>) -> Result<T, QuickJsError>,
+    ) -> Result<T, QuickJsError> {
         self.assert_owner_thread()?;
         self.inner.context.with(|ctx| {
-            let mut scope = QuickJsScope { ctx };
+            let mut scope = QuickJsScope {
+                ctx,
+                _parent: PhantomData,
+            };
             f(&mut scope)
         })
     }
 }
 
-impl<'js> JsScope<'js> for QuickJsScope<'js> {
-    type Engine = QuickJsEngine;
+impl<'js, 'p: 'js> ScopeLike<'js, 'p, QuickJsRuntime> for QuickJsScope<'js, 'p> {
+    fn with_scope<'s2, F, T>(&'s2 mut self, f: F) -> T
+    where
+        'js: 's2,
+        F: FnOnce(&mut QuickJsScope<'s2, 'js>) -> T,
+    {
+        let ctx = unsafe { std::mem::transmute::<Ctx<'js>, Ctx<'s2>>(self.ctx.clone()) };
+        let mut child = QuickJsScope {
+            ctx,
+            _parent: PhantomData,
+        };
+        f(&mut child)
+    }
 
-    fn eval(&mut self, source: Source) -> JsResult<QuickJsValue<'js>> {
-        let code = std::str::from_utf8(source.code())
-            .map_err(|e| HostError::new(rjsi_core::error::E_INVALID_DATA, e.to_string()))?;
-        Ok(
-            match self.ctx.eval::<Value<'js>, _>(code).catch(&self.ctx) {
-                Ok(value) => self.from_value(value, false),
-                Err(err) => self.from_caught(err),
-            },
-        )
+    fn eval(&mut self, src: &str) -> Result<QuickJsValue<'js>, QuickJsError> {
+        match self.ctx.eval::<Value<'js>, _>(src).catch(&self.ctx) {
+            Ok(value) => Ok(QuickJsValue { value }),
+            Err(err) => Err(QuickJsError::from_caught(err)),
+        }
     }
 
     fn global(&mut self) -> QuickJsValue<'js> {
-        let value = self.ctx.globals().into_value();
-        self.from_value(value, false)
+        QuickJsValue {
+            value: self.ctx.globals().into_value(),
+        }
     }
 
     fn undefined(&mut self) -> QuickJsValue<'js> {
-        self.from_value(Value::new_undefined(self.ctx.clone()), false)
+        QuickJsValue {
+            value: Value::new_undefined(self.ctx.clone()),
+        }
     }
+
     fn null(&mut self) -> QuickJsValue<'js> {
-        self.from_value(Value::new_null(self.ctx.clone()), false)
+        QuickJsValue {
+            value: Value::new_null(self.ctx.clone()),
+        }
     }
+
     fn boolean(&mut self, value: bool) -> QuickJsValue<'js> {
-        self.from_value(Value::new_bool(self.ctx.clone(), value), false)
+        QuickJsValue {
+            value: Value::new_bool(self.ctx.clone(), value),
+        }
     }
+
+    fn integer(&mut self, value: i32) -> QuickJsValue<'js> {
+        QuickJsValue {
+            value: Value::new_int(self.ctx.clone(), value),
+        }
+    }
+
     fn number(&mut self, value: f64) -> QuickJsValue<'js> {
-        self.from_value(Value::new_float(self.ctx.clone(), value), false)
+        QuickJsValue {
+            value: Value::new_float(self.ctx.clone(), value),
+        }
     }
+
     fn string(&mut self, value: &str) -> QuickJsValue<'js> {
         let value = QjsString::from_str(self.ctx.clone(), value)
             .map(|s| s.into_value())
             .unwrap_or_else(|_| Value::new_undefined(self.ctx.clone()));
-        self.from_value(value, false)
+        QuickJsValue { value }
     }
 
     fn object(&mut self) -> QuickJsValue<'js> {
         Object::new(self.ctx.clone())
-            .map(|object| self.from_value(object.into_value(), false))
-            .unwrap_or_else(|err| self.from_error(err))
+            .map(|object| QuickJsValue {
+                value: object.into_value(),
+            })
+            .unwrap_or_else(|_| QuickJsValue {
+                value: Value::new_undefined(self.ctx.clone()),
+            })
     }
 
     fn array(&mut self, len: u32) -> QuickJsValue<'js> {
@@ -224,252 +263,256 @@ impl<'js> JsScope<'js> for QuickJsScope<'js> {
                     let undefined = Value::new_undefined(self.ctx.clone());
                     let _ = array.set((len - 1) as usize, undefined);
                 }
-                self.from_value(array.into_value(), false)
+                QuickJsValue {
+                    value: array.into_value(),
+                }
             }
-            Err(err) => self.from_error(err),
+            Err(_) => QuickJsValue {
+                value: Value::new_undefined(self.ctx.clone()),
+            },
         }
     }
 
     fn array_buffer_copy(&mut self, bytes: &[u8]) -> QuickJsValue<'js> {
         ArrayBuffer::new_copy(self.ctx.clone(), bytes)
-            .map(|buffer| self.from_value(buffer.into_value(), false))
-            .unwrap_or_else(|err| self.from_error(err))
+            .map(|buffer| QuickJsValue {
+                value: buffer.into_value(),
+            })
+            .unwrap_or_else(|_| QuickJsValue {
+                value: Value::new_undefined(self.ctx.clone()),
+            })
     }
 
-    fn host_function<F>(
-        &mut self,
-        _name: &'static str,
-        function: F,
-    ) -> Result<QuickJsValue<'js>, QuickJsValue<'js>>
+    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<QuickJsValue<'js>, QuickJsError>
     where
-        F: HostFunction<QuickJsEngine>,
+        F: FnOnce(&mut QuickJsScope<'js, 'p>) -> Result<QuickJsValue<'js>, QuickJsError>,
     {
-        let ctx = self.ctx.clone();
+        match f(self) {
+            Ok(v) => TryCatchResult::Ok(v),
+            Err(e) => TryCatchResult::Exception(e),
+        }
+    }
+
+    /// QuickJS has no external backing in this build; this copies the slice
+    /// while keeping the `data: &'s [u8]` contract for the call site.
+    fn array_buffer_zero_copy(&mut self, data: &'js [u8]) -> QuickJsValue<'js> {
+        self.array_buffer_copy(data)
+    }
+
+    fn function<F>(&mut self, f: F) -> Result<QuickJsValue<'js>, QuickJsError>
+    where
+        F: for<'a> Fn(
+                &mut QuickJsScope<'a, 'a>,
+                Args<'a, QuickJsRuntime>,
+            ) -> Result<QuickJsValue<'a>, QuickJsError>
+            + Send
+            + Sync
+            + 'static,
+    {
         let function = QjsFunction::new(
-            ctx.clone(),
+            self.ctx.clone(),
             QuickJsHostAdapter {
-                function: RefCell::new(function),
+                callback: Arc::new(f),
             },
         )
-        .map_err(|err| self.from_error(err))?;
-        Ok(self.from_value(function.into_value(), false))
+        .map_err(QuickJsError::from)?;
+        Ok(QuickJsValue {
+            value: function.into_value(),
+        })
+    }
+}
+
+impl<'js> ValueLike<'js, QuickJsRuntime> for QuickJsValue<'js> {
+    fn is_undefined(&self) -> bool {
+        self.value.is_undefined()
     }
 
-    fn value_type(&mut self, value: &QuickJsValue<'js>) -> JsValueType {
-        if value.exception {
-            return JsValueType::Exception;
-        }
-        let value = &value.value;
-        if value.is_undefined() {
-            JsValueType::Undefined
-        } else if value.is_null() {
-            JsValueType::Null
-        } else if value.is_bool() {
-            JsValueType::Boolean
-        } else if value.is_number() {
-            JsValueType::Number
-        } else if value.is_big_int() {
-            JsValueType::BigInt
-        } else if value.is_string() {
-            JsValueType::String
-        } else if value.is_symbol() {
-            JsValueType::Symbol
-        } else if value.is_array() {
-            JsValueType::Array
-        } else if value.is_function() {
-            JsValueType::Function
-        } else if value.is_promise() {
-            JsValueType::Promise
-        } else if value.is_error() {
-            JsValueType::Error
-        } else if value.is_object() {
-            JsValueType::Object
+    fn is_null(&self) -> bool {
+        self.value.is_null()
+    }
+
+    fn is_boolean(&self) -> bool {
+        self.value.is_bool()
+    }
+
+    fn is_number(&self) -> bool {
+        self.value.is_number()
+    }
+
+    fn is_string(&self) -> bool {
+        self.value.is_string()
+    }
+
+    fn is_object(&self) -> bool {
+        self.value.is_object()
+    }
+
+    fn is_array(&self) -> bool {
+        self.value.is_array()
+    }
+
+    fn is_function(&self) -> bool {
+        self.value.is_function()
+    }
+
+    fn is_array_buffer(&self) -> bool {
+        self.value
+            .clone()
+            .into_object()
+            .map(|o| o.is_array_buffer())
+            .unwrap_or(false)
+    }
+
+    fn as_bool(&self, _scope: &mut QuickJsScope<'js, '_>) -> Option<bool> {
+        if self.is_boolean() {
+            self.value.as_bool()
         } else {
-            JsValueType::Unknown
+            None
         }
     }
 
-    fn to_boolean(&mut self, value: &QuickJsValue<'js>) -> Option<bool> {
-        if value.exception {
-            return None;
-        }
-        value.value.as_bool()
+    fn as_i32(&self, _scope: &mut QuickJsScope<'js, '_>) -> Option<i32> {
+        self.value.as_int()
     }
 
-    fn to_number(&mut self, value: &QuickJsValue<'js>) -> Option<f64> {
-        if value.exception {
-            return None;
-        }
-        value.value.as_number()
+    fn as_f64(&self, _scope: &mut QuickJsScope<'js, '_>) -> Option<f64> {
+        self.value.as_number()
     }
 
-    fn to_string(&mut self, value: &QuickJsValue<'js>) -> Option<String> {
-        if value.exception {
-            return None;
-        }
-        value
-            .value
+    fn with_str<F, T>(&self, _scope: &mut QuickJsScope<'js, '_>, f: F) -> Option<T>
+    where
+        F: FnOnce(&str) -> T,
+    {
+        self.value
+            .clone()
+            .into_string()
+            .and_then(|s| s.to_string().ok())
+            .map(|s| f(&s))
+    }
+
+    fn to_string_lossy(&self, _scope: &mut QuickJsScope<'js, '_>) -> Option<String> {
+        self.value
             .clone()
             .into_string()
             .and_then(|s| s.to_string().ok())
     }
 
-    fn property_key(&mut self, key: &str) -> QuickJsPropertyKey<'js> {
-        QuickJsPropertyKey(std::borrow::Cow::Owned(key.to_owned()))
+    fn get(&self, scope: &mut QuickJsScope<'js, '_>, key: &str) -> QuickJsValue<'js> {
+        let u = QuickJsValue {
+            value: Value::new_undefined(scope.ctx.clone()),
+        };
+        let Some(object) = self.value.clone().into_object() else {
+            return u;
+        };
+        object
+            .get::<_, Value<'js>>(key)
+            .map(|value| QuickJsValue { value })
+            .unwrap_or(u)
     }
 
-    fn get_property(
-        &mut self,
-        object: &QuickJsValue<'js>,
-        key: &QuickJsPropertyKey<'js>,
-    ) -> Result<Option<QuickJsValue<'js>>, QuickJsValue<'js>> {
-        let object = value_to_object(object.value.clone());
-        match object.and_then(|object| object.get::<_, Value<'js>>(key.0.as_ref())) {
-            Ok(value) => Ok(Some(self.from_value(value, false))),
-            Err(_) => Ok(None),
+    fn set(
+        &self,
+        _scope: &mut QuickJsScope<'js, '_>,
+        key: &str,
+        value: QuickJsValue<'js>,
+    ) {
+        if let Some(object) = self.value.clone().into_object() {
+            let _ = object.set(key, value.value);
         }
     }
 
-    fn set_property(
-        &mut self,
-        object: &QuickJsValue<'js>,
-        key: &QuickJsPropertyKey<'js>,
-        value: &QuickJsValue<'js>,
-    ) -> Result<(), QuickJsValue<'js>> {
-        value_to_object(object.value.clone())
-            .and_then(|object| object.set(key.0.as_ref(), value.value.clone()))
-            .map_err(|err| self.from_error(err))
+    fn has(&self, _scope: &mut QuickJsScope<'js, '_>, key: &str) -> bool {
+        self.value
+            .clone()
+            .into_object()
+            .and_then(|o| o.contains_key(key).ok())
+            .unwrap_or(false)
     }
 
-    fn has_property(
-        &mut self,
-        object: &QuickJsValue<'js>,
-        key: &QuickJsPropertyKey<'js>,
-    ) -> Result<bool, QuickJsValue<'js>> {
-        value_to_object(object.value.clone())
-            .and_then(|object| object.contains_key(key.0.as_ref()))
-            .map_err(|err| self.from_error(err))
+    fn delete(&self, _scope: &mut QuickJsScope<'js, '_>, key: &str) -> bool {
+        self.value
+            .clone()
+            .into_object()
+            .and_then(|o| o.remove(key).ok())
+            .is_some()
     }
 
-    fn delete_property(
-        &mut self,
-        object: &QuickJsValue<'js>,
-        key: &QuickJsPropertyKey<'js>,
-    ) -> Result<bool, QuickJsValue<'js>> {
-        value_to_object(object.value.clone())
-            .and_then(|object| object.remove(key.0.as_ref()).map(|_| true))
-            .map_err(|err| self.from_error(err))
-    }
-
-    fn define_property(
-        &mut self,
-        object: &QuickJsValue<'js>,
-        key: &QuickJsPropertyKey<'js>,
-        value: &QuickJsValue<'js>,
-        _attributes: PropertyAttributes,
-    ) -> Result<(), QuickJsValue<'js>> {
-        self.set_property(object, key, value)
-    }
-
-    fn get_index(
-        &mut self,
-        object: &QuickJsValue<'js>,
-        index: u32,
-    ) -> Result<Option<QuickJsValue<'js>>, QuickJsValue<'js>> {
-        let key = QuickJsPropertyKey(index.to_string().into());
-        self.get_property(object, &key)
+    fn get_index(&self, scope: &mut QuickJsScope<'js, '_>, i: u32) -> QuickJsValue<'js> {
+        let u = QuickJsValue {
+            value: Value::new_undefined(scope.ctx.clone()),
+        };
+        let Some(object) = self.value.clone().into_object() else {
+            return u;
+        };
+        object
+            .get::<_, Value<'js>>(i)
+            .map(|value| QuickJsValue { value })
+            .unwrap_or(u)
     }
 
     fn set_index(
-        &mut self,
-        object: &QuickJsValue<'js>,
-        index: u32,
-        value: &QuickJsValue<'js>,
-    ) -> Result<(), QuickJsValue<'js>> {
-        let key = QuickJsPropertyKey(index.to_string().into());
-        self.set_property(object, &key, value)
+        &self,
+        _scope: &mut QuickJsScope<'js, '_>,
+        i: u32,
+        value: QuickJsValue<'js>,
+    ) {
+        if let Some(object) = self.value.clone().into_object() {
+            let _ = object.set(i, value.value);
+        }
     }
 
-    fn call_function(
-        &mut self,
-        function: &QuickJsValue<'js>,
-        _this: Option<&QuickJsValue<'js>>,
-        argv: &[QuickJsValue<'js>],
-    ) -> Result<QuickJsValue<'js>, QuickJsValue<'js>> {
-        let function = function
+    fn length(&self, _scope: &mut QuickJsScope<'js, '_>) -> u32 {
+        self.value
+            .as_array()
+            .map(|a| a.len() as u32)
+            .unwrap_or(0)
+    }
+
+    fn with_bytes<F, T>(&self, _scope: &mut QuickJsScope<'js, '_>, f: F) -> Option<T>
+    where
+        F: FnOnce(&[u8]) -> T,
+    {
+        let o = self.value.clone().into_object()?;
+        let b = o.as_array_buffer()?;
+        let bytes = b.as_bytes()?;
+        Some(f(bytes))
+    }
+
+    fn call(
+        &self,
+        _scope: &mut QuickJsScope<'js, '_>,
+        this: QuickJsValue<'js>,
+        args: &[QuickJsValue<'js>],
+    ) -> Result<QuickJsValue<'js>, QuickJsError> {
+        let function = self
             .value
             .clone()
             .into_function()
-            .ok_or_else(|| rquickjs::Exception::throw_type(&self.ctx, "Value is not callable"));
-        let args = argv.iter().map(|arg| arg.value.clone()).collect::<Vec<_>>();
-        match function
-            .and_then(|function| function.call::<_, Value<'js>>((Rest(args),)))
-            .catch(&self.ctx)
-        {
-            Ok(value) => Ok(self.from_value(value, false)),
-            Err(err) => Err(self.from_caught(err)),
-        }
-    }
-
-    fn throw(&mut self, mut value: QuickJsValue<'js>) -> QuickJsValue<'js> {
-        value.exception = true;
-        value
+            .ok_or_else(|| HostError::type_error(rjsi_core::E_TYPE, "value is not callable"))?;
+        let args = args.iter().map(|arg| arg.value.clone()).collect::<Vec<_>>();
+        function
+            .call::<_, Value<'js>>((This(this.value), Rest(args)))
+            .catch(&function.ctx().clone())
+            .map(|value| QuickJsValue { value })
+            .map_err(QuickJsError::from_caught)
     }
 }
 
-#[derive(Clone)]
-pub struct QuickJsValue<'js> {
-    value: Value<'js>,
-    exception: bool,
-}
+impl<'js> JsFunction<'js, QuickJsRuntime> for QuickJsValue<'js> {}
 
-impl std::fmt::Debug for QuickJsValue<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("QuickJsValue")
-            .field("exception", &self.exception)
-            .finish_non_exhaustive()
-    }
-}
-
-#[derive(Clone)]
-pub struct QuickJsPropertyKey<'js>(std::borrow::Cow<'js, str>);
-
-#[derive(Clone)]
-pub struct QuickJsGlobal {
-    handle: Persistent<Value<'static>>,
-    exception: bool,
-}
-
-impl JsGlobalHandle<QuickJsEngine> for QuickJsGlobal {
-    fn new<'js>(
-        scope: &mut <QuickJsEngine as JsEngine>::Scope<'js>,
-        value: &<QuickJsEngine as JsEngine>::Value<'js>,
-    ) -> Self {
+impl PersistentLike<QuickJsRuntime> for QuickJsGlobal {
+    fn new<'s, 'p: 's>(scope: &mut QuickJsScope<'s, 'p>, value: QuickJsValue<'s>) -> Self {
         Self {
-            handle: Persistent::save(&scope.ctx, value.value.clone()),
-            exception: value.exception,
+            handle: Persistent::save(&scope.ctx, value.value),
         }
     }
 
-    fn get<'js>(
-        &self,
-        scope: &mut <QuickJsEngine as JsEngine>::Scope<'js>,
-    ) -> <QuickJsEngine as JsEngine>::Value<'js> {
+    fn get<'s, 'p: 's>(&self, scope: &mut QuickJsScope<'s, 'p>) -> QuickJsValue<'s> {
         let value = self
             .handle
             .clone()
             .restore(&scope.ctx)
             .unwrap_or_else(|_| Value::new_undefined(scope.ctx.clone()));
-        QuickJsValue {
-            value,
-            exception: self.exception,
-        }
+        QuickJsValue { value }
     }
-}
-
-fn value_to_object<'js>(value: Value<'js>) -> Result<Object<'js>, rquickjs::Error> {
-    let ctx = value.ctx().clone();
-    value
-        .into_object()
-        .ok_or_else(|| rquickjs::Exception::throw_type(&ctx, "Value is not an object"))
 }

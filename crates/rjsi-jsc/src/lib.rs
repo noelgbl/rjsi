@@ -1,21 +1,28 @@
-//! JavaScriptCore backend for RJSI
+//! JavaScriptCore backend for RJSI.
 
 mod layout;
 
 use std::cell::{RefCell, UnsafeCell};
 use std::collections::HashMap;
+use std::fmt;
 use std::marker::PhantomData;
 use std::ptr::null_mut;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::thread::{self, ThreadId};
 
 use layout::jsobject_ref;
 use rjsi_core::{
-    HostArgs, HostError, HostFunction, JsEngine, JsGlobalHandle, JsResult, JsRuntime, JsScope, JsValueType, ParamsAccessor, PropertyAttributes, Source
+    Args, Callback, ContextLike, JsFunction, HostError, PersistentLike, Runtime, ScopeLike,
+    TryCatchResult, ValueLike,
 };
 use rusty_jsc::{JSContext, JSObject, JSObjectGeneric, JSString, JSValue};
 use rusty_jsc_sys::{
-    JSContextRef, JSEvaluateScript, JSObjectDeleteProperty, JSObjectGetProperty, JSObjectGetPropertyAtIndex, JSObjectHasProperty, JSObjectIsFunction, JSObjectMakeArrayBufferWithBytesNoCopy, JSObjectRef, JSObjectSetProperty, JSObjectSetPropertyAtIndex, JSPropertyAttributes, JSTypedArrayType_kJSTypedArrayTypeArrayBuffer, JSValueGetTypedArrayType, JSValueIsDate, JSValueIsObject, JSValueIsSymbol, JSValueProtect, JSValueRef, JSValueUnprotect, kJSPropertyAttributeDontDelete, kJSPropertyAttributeDontEnum, kJSPropertyAttributeReadOnly, size_t
+    JSContextRef, JSEvaluateScript, JSObjectDeleteProperty, JSObjectGetProperty,
+    JSObjectGetPropertyAtIndex, JSObjectHasProperty, JSObjectIsFunction,
+    JSObjectMakeArrayBufferWithBytesNoCopy, JSObjectRef, JSObjectSetProperty,
+    JSObjectSetPropertyAtIndex, JSValueIsObject, JSValueProtect, JSValueRef, JSValueUnprotect,
+    size_t,
 };
 
 thread_local! {
@@ -62,7 +69,6 @@ fn active_runtime() -> Option<&'static JscRuntimeInner> {
     if p.is_null() {
         return None;
     }
-    // SAFETY: set only to `Rc::as_ptr` for an `Rc` that outlives `with_scope`.
     Some(unsafe { &*p })
 }
 
@@ -72,140 +78,77 @@ fn active_ctx_ptr() -> Option<*mut JSContext> {
         .filter(|p| !p.is_null())
 }
 
-/// Single-thread: `&JSContext` for the active scope (C may reenter; we only use
-/// `&` on the engine).
 fn active_context_ref() -> Option<&'static JSContext> {
     let p = active_ctx_ptr()?;
-    // SAFETY: `p` is `UnsafeCell::get()` for the runtime, valid while TLS is set.
     Some(unsafe { &*p })
 }
 
-/// Owning handle of a `JSContext` for this thread (not shared with other
-/// threads).
+pub struct JscRuntime;
+
 pub struct JscRuntimeContext {
     inner: Rc<JscRuntimeInner>,
 }
 
 struct JscRuntimeInner {
     owner_thread: ThreadId,
-    /// `UnsafeCell` so host callbacks re-entering from JSC can use `&*ptr` even
-    /// though `JsScope` holds `&mut` to `JscScope` (a different type than
-    /// `JSContext`). Only one thread touches this.
     context: UnsafeCell<JSContext>,
-    /// `JSObjectRef` (as `usize`) of each host `JSObject` → index in
-    /// `host_slots`. JavaScriptCore’s callback function objects do not
-    /// support `JSObjectSetPrivate` in all targets; the map is reliable.
     host_fn_by_object: RefCell<HashMap<usize, usize>>,
     host_slots: RefCell<Vec<Box<dyn JscHostSlot>>>,
 }
 
-/// [`rjsi_core::JsEngine`] for JavaScriptCore.
-pub struct JscEngine;
-
-pub struct JscScope<'js> {
-    /// Same address as `JscRuntimeInner::context` for this runtime. Must not
-    /// materialize `&mut` to this pointer while another `&mut` to
-    /// `JscScope` re-enters; we only use `&*`.
+pub struct JscScope<'js, 'p> {
     ctx: *mut JSContext,
-    _marker: PhantomData<&'js ()>,
-}
-
-pub struct JscValue<'js> {
-    value: JSValue,
-    exception: bool,
-    _m: PhantomData<&'js ()>,
-}
-
-impl std::fmt::Debug for JscValue<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("JscValue")
-            .field("exception", &self.exception)
-            .finish_non_exhaustive()
-    }
+    _marker: PhantomData<(&'js (), &'p ())>,
 }
 
 #[derive(Clone)]
-pub struct JscPropertyKey<'js>(pub(crate) std::borrow::Cow<'js, str>);
+pub struct JscValue<'js> {
+    value: JSValue,
+    _m: PhantomData<&'js ()>,
+}
 
+#[derive(Clone)]
 pub struct JscGlobal {
     context: JSContextRef,
     value: JSValue,
-    exception: bool,
 }
 
-impl JscGlobal {
-    fn protect(context: JSContextRef, value: &JSValue) {
-        unsafe { JSValueProtect(context, value.get_ref()) };
-    }
-
-    fn unprotect(context: JSContextRef, value: &JSValue) {
-        unsafe { JSValueUnprotect(context, value.get_ref()) };
-    }
+#[derive(Debug, Clone)]
+pub struct JscError {
+    message: String,
 }
 
-impl Drop for JscGlobal {
-    fn drop(&mut self) {
-        Self::unprotect(self.context, &self.value);
-    }
-}
-
-impl Clone for JscGlobal {
-    fn clone(&self) -> Self {
-        let value = self.value.clone();
-        Self::protect(self.context, &value);
+impl JscError {
+    fn new(message: impl Into<String>) -> Self {
         Self {
-            context: self.context,
-            value,
-            exception: self.exception,
+            message: message.into(),
         }
     }
 }
 
-/// Host callback arguments (owned; built when JSC enters Rust).
-pub struct JscCallbackArgs {
-    this: JSValue,
-    args: Vec<JSValue>,
-}
-
-impl<'a, 'js> HostArgs<'a, 'js, JscEngine> for JscCallbackArgs
-where
-    'js: 'a,
-{
-    fn len(&self) -> usize {
-        self.args.len()
-    }
-
-    fn this(&self, _scope: &mut JscScope<'js>) -> Option<JscValue<'js>> {
-        Some(wrap(self.this.clone(), false, PhantomData))
-    }
-
-    fn get(&self, _scope: &mut JscScope<'js>, index: usize) -> Option<JscValue<'js>> {
-        self.args
-            .get(index)
-            .map(|v| wrap(v.clone(), false, PhantomData))
+impl fmt::Display for JscError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
     }
 }
 
-fn wrap<'js>(value: JSValue, exception: bool, _m: PhantomData<&'js ()>) -> JscValue<'js> {
-    let v = JscValue {
-        value,
-        exception,
-        _m,
-    };
-    // SAFETY: `JscValue` is a scope marker; `JSValue` is process-scoped in
-    // `rusty_jsc` (valid for this `with_scope`).
-    unsafe { std::mem::transmute(v) }
+impl std::error::Error for JscError {}
+
+impl From<HostError> for JscError {
+    fn from(value: HostError) -> Self {
+        Self::new(value.to_string())
+    }
 }
 
 trait JscHostSlot: 'static {
     fn call(&self, jsc: &JSContext, this: &JSValue, args: &[JSValue]) -> Result<JSValue, JSValue>;
 }
 
-struct JscHostWrapper<F: HostFunction<JscEngine>> {
-    f: RefCell<F>,
+struct JscHostWrapper {
+    callback: Arc<Callback<JscRuntime>>,
 }
 
-impl<F: HostFunction<JscEngine>> JscHostSlot for JscHostWrapper<F> {
+impl JscHostSlot for JscHostWrapper {
     fn call(&self, jsc: &JSContext, this: &JSValue, args: &[JSValue]) -> Result<JSValue, JSValue> {
         let Some(p) = active_ctx_ptr() else {
             return Err(JSValue::string(
@@ -213,19 +156,16 @@ impl<F: HostFunction<JscEngine>> JscHostSlot for JscHostWrapper<F> {
                 "RJSI host: active context pointer (internal error)",
             ));
         };
-        let this_arg = this.clone();
-        let cargs = JscCallbackArgs {
-            this: this_arg,
-            args: args.to_vec(),
-        };
+        let cargs = args.iter().cloned().map(|value| wrap(value, PhantomData));
         let mut scope = JscScope {
             ctx: p,
             _marker: PhantomData,
         };
-        let mut pacc = ParamsAccessor::new(&mut scope, cargs);
-        let out = self.f.borrow_mut().call(&mut pacc);
+        let out = (self.callback)(
+            &mut scope,
+            Args::new(wrap(this.clone(), PhantomData), cargs),
+        );
         match out {
-            Ok(v) if v.exception => Err(v.value),
             Ok(v) => Ok(v.value),
             Err(e) => Err(JSValue::string(jsc, e.to_string())),
         }
@@ -241,10 +181,6 @@ unsafe extern "C" fn jsc_host_trampoline(
     exception: *mut JSValueRef,
 ) -> JSValueRef {
     let Some(jsc) = active_context_ref() else {
-        if !exception.is_null() {
-            // Cannot allocate JS strings before we have a live context; leave
-            // exception unset.
-        }
         return std::ptr::null();
     };
     let Some(rt) = ({
@@ -253,7 +189,9 @@ unsafe extern "C" fn jsc_host_trampoline(
     }) else {
         if !exception.is_null() {
             let err = JSValue::string(jsc, "RJSI host function: no active JscRuntimeContext");
-            unsafe { *exception = err.get_ref() }
+            unsafe {
+                *exception = err.get_ref();
+            }
         }
         let u = JSValue::undefined(jsc);
         return u.get_ref();
@@ -267,7 +205,9 @@ unsafe extern "C" fn jsc_host_trampoline(
     let Some(id) = id else {
         if !exception.is_null() {
             let err = JSValue::string(jsc, "RJSI host function: missing host function map entry");
-            unsafe { *exception = err.get_ref() }
+            unsafe {
+                *exception = err.get_ref();
+            }
         }
         let u = JSValue::undefined(jsc);
         return u.get_ref();
@@ -276,7 +216,9 @@ unsafe extern "C" fn jsc_host_trampoline(
     let Some(slot) = slots.get(id) else {
         if !exception.is_null() {
             let err = JSValue::string(jsc, "RJSI host function: invalid host slot");
-            unsafe { *exception = err.get_ref() }
+            unsafe {
+                *exception = err.get_ref();
+            }
         }
         let u = JSValue::undefined(jsc);
         return u.get_ref();
@@ -289,14 +231,19 @@ unsafe extern "C" fn jsc_host_trampoline(
     };
     let n = argument_count as usize;
     let args: Vec<JSValue> = (0..n)
-        .map(|i| JSValue::from(unsafe { *arguments.add(i) }))
+        .map(|i| {
+            let v = unsafe { *arguments.add(i) };
+            JSValue::from(v)
+        })
         .collect();
 
     match slot.call(jsc, &this_js, &args) {
         Ok(v) => v.get_ref(),
         Err(e) => {
             if !exception.is_null() {
-                unsafe { *exception = e.get_ref() }
+                unsafe {
+                    *exception = e.get_ref();
+                }
             }
             let u = JSValue::undefined(jsc);
             u.get_ref()
@@ -316,6 +263,12 @@ unsafe extern "C" fn jsc_array_buffer_dealloc(
     }
 }
 
+unsafe extern "C" fn jsc_array_buffer_borrow_dealloc(
+    _bytes: *mut std::os::raw::c_void,
+    _deallocator_context: *mut std::os::raw::c_void,
+) {
+}
+
 impl JscRuntimeContext {
     #[must_use]
     pub fn new() -> Self {
@@ -329,10 +282,10 @@ impl JscRuntimeContext {
         }
     }
 
-    fn assert_owner_thread(&self) -> JsResult<()> {
+    fn assert_owner_thread(&self) -> Result<(), JscError> {
         if thread::current().id() != self.inner.owner_thread {
             return Err(HostError::new(
-                rjsi_core::error::E_INVALID_STATE,
+                rjsi_core::E_INVALID_STATE,
                 "JSC runtime used from a non-owner thread",
             )
             .into());
@@ -347,53 +300,13 @@ impl Default for JscRuntimeContext {
     }
 }
 
-impl<'js> JscScope<'js> {
-    /// Immutable borrow of the `rusty_jsc` context. All operations use this (no
-    /// `&mut JSContext` across C re-entry).
-    #[inline]
-    fn ctx(&self) -> &JSContext {
-        // SAFETY: `ctx` is `UnsafeCell::get` from a single `JscRuntimeContext`, valid
-        // while TLS is set and `f` runs.
-        unsafe { &*self.ctx }
-    }
-
-    /// Opaque C handle: [`JSContext::get_ref`].
-    #[inline]
-    fn ctx_ref(&self) -> JSContextRef {
-        self.ctx().get_ref()
-    }
-
-    fn wrap(&mut self, v: JSValue, exception: bool) -> JscValue<'js> {
-        let v = JscValue {
-            value: v,
-            exception,
-            _m: PhantomData,
-        };
-        // SAFETY: same as `wrap` at module scope — values are only used while the
-        // active `with_scope` borrow lives.
-        unsafe { std::mem::transmute(v) }
-    }
-
-    fn as_object(&mut self, v: &JscValue<'js>) -> Result<JSObject, JscValue<'js>> {
-        if v.exception {
-            return Err(self.wrap(v.value.clone(), true));
-        }
-        match v.value.to_object(self.ctx()) {
-            Ok(o) => Ok(o),
-            Err(e) => Err(self.wrap(e, true)),
-        }
-    }
-}
-
-impl JsEngine for JscEngine {
-    type Scope<'js> = JscScope<'js>;
-    type Value<'js> = JscValue<'js>;
-    type PropertyKey<'js> = JscPropertyKey<'js>;
-    type Global = JscGlobal;
-    type HostArgs<'a, 'js>
-        = JscCallbackArgs
-    where
-        'js: 'a;
+impl Runtime for JscRuntime {
+    type Scope<'s, 'p: 's> = JscScope<'s, 'p>;
+    type Value<'s> = JscValue<'s>;
+    type Function<'s> = JscValue<'s>;
+    type Persistent = JscGlobal;
+    type Context = JscRuntimeContext;
+    type Error = JscError;
 
     fn name() -> &'static str {
         "javascriptcore"
@@ -404,32 +317,11 @@ impl JsEngine for JscEngine {
     }
 }
 
-impl JsGlobalHandle<JscEngine> for JscGlobal {
-    fn new<'js>(scope: &mut JscScope<'js>, value: &JscValue<'js>) -> Self {
-        let ctx = scope.ctx_ref();
-        Self::protect(ctx, &value.value);
-        Self {
-            context: ctx,
-            value: value.value.clone(),
-            exception: value.exception,
-        }
-    }
-
-    fn get<'js>(
+impl ContextLike<JscRuntime> for JscRuntimeContext {
+    fn with_scope<T>(
         &self,
-        _scope: &mut <JscEngine as JsEngine>::Scope<'js>,
-    ) -> <JscEngine as JsEngine>::Value<'js> {
-        wrap(self.value.clone(), self.exception, PhantomData)
-    }
-}
-
-impl JsRuntime for JscRuntimeContext {
-    type Engine = JscEngine;
-
-    fn with_scope<R>(
-        &self,
-        f: impl for<'js> FnOnce(&mut JscScope<'js>) -> JsResult<R>,
-    ) -> JsResult<R> {
+        f: impl for<'s> FnOnce(&mut JscScope<'s, 's>) -> Result<T, JscError>,
+    ) -> Result<T, JscError> {
         self.assert_owner_thread()?;
         let ctx_ptr: *mut JSContext = self.inner.context.get();
         let _ctxg = JscContextGuard::set(ctx_ptr);
@@ -441,18 +333,40 @@ impl JsRuntime for JscRuntimeContext {
     }
 }
 
-impl<'js> JsScope<'js> for JscScope<'js> {
-    type Engine = JscEngine;
+impl<'js, 'p> JscScope<'js, 'p> {
+    #[inline]
+    fn ctx(&self) -> &JSContext {
+        unsafe { &*self.ctx }
+    }
 
-    fn eval(&mut self, source: Source) -> JsResult<JscValue<'js>> {
-        let code = std::str::from_utf8(source.code())
-            .map_err(|e| HostError::new(rjsi_core::error::E_INVALID_DATA, e.to_string()))?;
-        // Use the raw `JSEvaluateScript` so we never hold a Rust `&mut` to `JSContext`
-        // while JSC runs script (host callbacks re-enter and need a consistent
-        // `&` to the same `UnsafeCell` contents). Mirrors `JSContext::evaluate_script`
-        // in `rusty_jsc` without a temporary `JSContext` drop in host
-        // callbacks.
-        let script: JSString = code.into();
+    #[inline]
+    fn ctx_ref(&self) -> JSContextRef {
+        self.ctx().get_ref()
+    }
+
+    fn as_object(&self, value: &JscValue<'js>) -> Result<JSObject, JscError> {
+        value
+            .value
+            .to_object(self.ctx())
+            .map_err(|_| HostError::type_error(rjsi_core::E_TYPE, "value is not an object").into())
+    }
+}
+
+impl<'js, 'p: 'js> ScopeLike<'js, 'p, JscRuntime> for JscScope<'js, 'p> {
+    fn with_scope<'s2, F, T>(&'s2 mut self, f: F) -> T
+    where
+        'js: 's2,
+        F: FnOnce(&mut JscScope<'s2, 'js>) -> T,
+    {
+        let mut child = JscScope {
+            ctx: self.ctx,
+            _marker: PhantomData,
+        };
+        f(&mut child)
+    }
+
+    fn eval(&mut self, src: &str) -> Result<JscValue<'js>, JscError> {
+        let script: JSString = src.into();
         let mut exception: JSValueRef = null_mut();
         let value = unsafe {
             JSEvaluateScript(
@@ -465,43 +379,56 @@ impl<'js> JsScope<'js> for JscScope<'js> {
             )
         };
         if !exception.is_null() {
-            return Ok(self.wrap(JSValue::from(exception), true));
+            let value = JSValue::from(exception);
+            return Err(JscError::new(
+                value
+                    .to_js_string(self.ctx())
+                    .ok()
+                    .map(|s: JSString| s.to_string())
+                    .unwrap_or_else(|| "JavaScriptCore exception".to_string()),
+            ));
         }
-        Ok(self.wrap(JSValue::from(value), false))
+        Ok(wrap(JSValue::from(value), PhantomData))
     }
 
     fn global(&mut self) -> JscValue<'js> {
-        let g = self.ctx().get_global_object();
-        self.wrap(JSValue::from(g), false)
+        wrap(JSValue::from(self.ctx().get_global_object()), PhantomData)
     }
 
     fn undefined(&mut self) -> JscValue<'js> {
-        self.wrap(JSValue::undefined(self.ctx()), false)
+        wrap(JSValue::undefined(self.ctx()), PhantomData)
     }
+
     fn null(&mut self) -> JscValue<'js> {
-        self.wrap(JSValue::null(self.ctx()), false)
+        wrap(JSValue::null(self.ctx()), PhantomData)
     }
+
     fn boolean(&mut self, value: bool) -> JscValue<'js> {
-        self.wrap(JSValue::boolean(self.ctx(), value), false)
+        wrap(JSValue::boolean(self.ctx(), value), PhantomData)
     }
+
+    fn integer(&mut self, value: i32) -> JscValue<'js> {
+        wrap(JSValue::number(self.ctx(), value as f64), PhantomData)
+    }
+
     fn number(&mut self, value: f64) -> JscValue<'js> {
-        self.wrap(JSValue::number(self.ctx(), value), false)
+        wrap(JSValue::number(self.ctx(), value), PhantomData)
     }
+
     fn string(&mut self, value: &str) -> JscValue<'js> {
-        self.wrap(JSValue::string(self.ctx(), value), false)
+        wrap(JSValue::string(self.ctx(), value), PhantomData)
     }
 
     fn object(&mut self) -> JscValue<'js> {
-        let o = JSObject::<JSObjectGeneric>::new(self.ctx());
-        self.wrap(JSValue::from(o), false)
+        wrap(JSValue::from(JSObject::<JSObjectGeneric>::new(self.ctx())), PhantomData)
     }
 
     fn array(&mut self, len: u32) -> JscValue<'js> {
         let u = JSValue::undefined(self.ctx());
         let args: Vec<_> = (0..len).map(|_| u.clone()).collect();
         match JSObject::<JSObjectGeneric>::new_array(self.ctx(), &args) {
-            Ok(a) => self.wrap(JSValue::from(a), false),
-            Err(e) => self.wrap(e, true),
+            Ok(a) => wrap(JSValue::from(a), PhantomData),
+            Err(_) => wrap(JSValue::undefined(self.ctx()), PhantomData),
         }
     }
 
@@ -522,170 +449,183 @@ impl<'js> JsScope<'js> for JscScope<'js> {
             )
         };
         if !ex.is_null() {
-            return self.wrap(JSValue::from(ex), true);
+            return wrap(JSValue::undefined(self.ctx()), PhantomData);
         }
-        let buf = JSObject::<JSObjectGeneric>::from(o);
-        self.wrap(JSValue::from(buf), false)
+        wrap(JSValue::from(JSObject::<JSObjectGeneric>::from(o)), PhantomData)
     }
 
-    fn host_function<F>(
-        &mut self,
-        name: &'static str,
-        function: F,
-    ) -> Result<JscValue<'js>, JscValue<'js>>
+    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<JscValue<'js>, JscError>
     where
-        F: HostFunction<Self::Engine>,
+        F: FnOnce(&mut JscScope<'js, 'p>) -> Result<JscValue<'js>, JscError>,
+    {
+        match f(self) {
+            Ok(v) => TryCatchResult::Ok(v),
+            Err(e) => TryCatchResult::Exception(e),
+        }
+    }
+
+    /// Borrows the callers bytes - must outlive the buffer’s use.
+    fn array_buffer_zero_copy(&mut self, data: &'js [u8]) -> JscValue<'js> {
+        if data.is_empty() {
+            return self.array_buffer_copy(&[]);
+        }
+        let ptr = data.as_ptr() as *mut std::os::raw::c_void;
+        let len = data.len();
+        let mut ex: JSValueRef = null_mut();
+        let o = unsafe {
+            JSObjectMakeArrayBufferWithBytesNoCopy(
+                self.ctx_ref(),
+                ptr,
+                len as size_t,
+                Some(jsc_array_buffer_borrow_dealloc),
+                null_mut(),
+                &mut ex,
+            )
+        };
+        if !ex.is_null() {
+            return wrap(JSValue::undefined(self.ctx()), PhantomData);
+        }
+        wrap(JSValue::from(JSObject::<JSObjectGeneric>::from(o)), PhantomData)
+    }
+
+    fn function<F>(&mut self, f: F) -> Result<JscValue<'js>, JscError>
+    where
+        F: for<'a> Fn(&mut JscScope<'a, 'a>, Args<'a, JscRuntime>) -> Result<JscValue<'a>, JscError>
+            + Send
+            + Sync
+            + 'static,
     {
         let Some(rt) = active_runtime() else {
-            return Err(self.wrap(
-                JSValue::string(self.ctx(), "no active JscRuntimeContext"),
-                true,
-            ));
+            return Err(JscError::new("no active JscRuntimeContext"));
         };
-        let mut slots = match rt.host_slots.try_borrow_mut() {
-            Ok(s) => s,
-            Err(_) => {
-                return Err(self.wrap(
-                    JSValue::string(self.ctx(), "host function registration re-entrancy"),
-                    true,
-                ));
-            }
-        };
+        let mut slots = rt
+            .host_slots
+            .try_borrow_mut()
+            .map_err(|_| JscError::new("host function registration re-entrancy"))?;
         let id = slots.len();
         let wrapped: Box<dyn JscHostSlot> = Box::new(JscHostWrapper {
-            f: RefCell::new(function),
+            callback: Arc::new(f),
         });
         slots.push(wrapped);
         let func = JSObject::<JSObjectGeneric>::new_function_with_callback(
             self.ctx(),
-            name,
+            "rjsi_host",
             Some(jsc_host_trampoline),
         );
         let key = jsobject_ref(&func) as usize;
         drop(slots);
         rt.host_fn_by_object.borrow_mut().insert(key, id);
-        Ok(self.wrap(JSValue::from(func), false))
+        Ok(wrap(JSValue::from(func), PhantomData))
+    }
+}
+
+impl<'js> ValueLike<'js, JscRuntime> for JscValue<'js> {
+    fn is_undefined(&self) -> bool {
+        self.value.is_undefined(active_context_ref().expect("active JSC context"))
     }
 
-    fn value_type(&mut self, value: &JscValue<'js>) -> JsValueType {
-        if value.exception {
-            return JsValueType::Exception;
-        }
-        let v = &value.value;
-        let c = self.ctx();
-        if v.is_undefined(c) {
-            return JsValueType::Undefined;
-        }
-        if v.is_null(c) {
-            return JsValueType::Null;
-        }
-        if v.is_bool(c) {
-            return JsValueType::Boolean;
-        }
-        if v.is_number(c) {
-            return JsValueType::Number;
-        }
-        if v.is_string(c) {
-            return JsValueType::String;
-        }
-        let cref = self.ctx_ref();
-        if unsafe { JSValueIsSymbol(cref, v.get_ref()) } {
-            return JsValueType::Symbol;
-        }
-        if v.is_array(c) {
-            return JsValueType::Array;
-        }
-        if unsafe { JSValueIsDate(cref, v.get_ref()) } {
-            return JsValueType::Date;
-        }
-        if unsafe { JSValueIsObject(cref, v.get_ref()) } {
-            if let Ok(obj) = v.to_object(c)
-                && unsafe { JSObjectIsFunction(cref, jsobject_ref(&obj)) }
-            {
-                return JsValueType::Function;
-            }
-            let mut ex: JSValueRef = null_mut();
-            let ty = unsafe { JSValueGetTypedArrayType(cref, v.get_ref(), &mut ex) };
-            if !ex.is_null() {
-                return JsValueType::Unknown;
-            }
-            if ty == JSTypedArrayType_kJSTypedArrayTypeArrayBuffer {
-                return JsValueType::ArrayBuffer;
-            }
-            return JsValueType::Object;
-        }
-        JsValueType::Unknown
+    fn is_null(&self) -> bool {
+        self.value.is_null(active_context_ref().expect("active JSC context"))
     }
 
-    fn to_boolean(&mut self, value: &JscValue<'js>) -> Option<bool> {
-        if value.exception {
-            return None;
-        }
-        Some(value.value.to_bool(self.ctx()))
+    fn is_boolean(&self) -> bool {
+        self.value.is_bool(active_context_ref().expect("active JSC context"))
     }
 
-    fn to_number(&mut self, value: &JscValue<'js>) -> Option<f64> {
-        if value.exception {
-            return None;
-        }
-        value.value.to_number(self.ctx()).ok()
+    fn is_number(&self) -> bool {
+        self.value.is_number(active_context_ref().expect("active JSC context"))
     }
 
-    fn to_string(&mut self, value: &JscValue<'js>) -> Option<String> {
-        if value.exception {
-            return None;
+    fn is_string(&self) -> bool {
+        self.value.is_string(active_context_ref().expect("active JSC context"))
+    }
+
+    fn is_object(&self) -> bool {
+        unsafe { JSValueIsObject(active_context_ref().expect("active JSC context").get_ref(), self.value.get_ref()) }
+    }
+
+    fn is_array(&self) -> bool {
+        self.value.is_array(active_context_ref().expect("active JSC context"))
+    }
+
+    fn is_function(&self) -> bool {
+        let ctx = active_context_ref().expect("active JSC context");
+        if let Ok(obj) = self.value.to_object(ctx) {
+            unsafe { JSObjectIsFunction(ctx.get_ref(), jsobject_ref(&obj)) }
+        } else {
+            false
         }
-        value
-            .value
-            .to_js_string(self.ctx())
+    }
+
+    fn is_array_buffer(&self) -> bool {
+        let ctx = match active_context_ref() {
+            Some(c) => c,
+            None => return false,
+        };
+        let Ok(o) = self.value.to_object(ctx) else {
+            return false;
+        };
+        o.get_array_buffer(ctx).is_ok()
+    }
+
+    fn as_bool(&self, scope: &mut JscScope<'js, '_>) -> Option<bool> {
+        if self.is_boolean() {
+            Some(self.value.to_bool(scope.ctx()))
+        } else {
+            None
+        }
+    }
+
+    fn as_i32(&self, scope: &mut JscScope<'js, '_>) -> Option<i32> {
+        self.value.to_number(scope.ctx()).ok().map(|n| n as i32)
+    }
+
+    fn as_f64(&self, scope: &mut JscScope<'js, '_>) -> Option<f64> {
+        self.value.to_number(scope.ctx()).ok()
+    }
+
+    fn with_str<F, T>(&self, scope: &mut JscScope<'js, '_>, f: F) -> Option<T>
+    where
+        F: FnOnce(&str) -> T,
+    {
+        self.value
+            .to_js_string(scope.ctx())
+            .ok()
+            .map(|s: JSString| s.to_string())
+            .map(|s| f(&s))
+    }
+
+    fn to_string_lossy(&self, scope: &mut JscScope<'js, '_>) -> Option<String> {
+        self.value
+            .to_js_string(scope.ctx())
             .ok()
             .map(|s: JSString| s.to_string())
     }
 
-    fn property_key(&mut self, key: &str) -> JscPropertyKey<'js> {
-        JscPropertyKey(std::borrow::Cow::Owned(key.to_owned()))
-    }
-
-    fn get_property(
-        &mut self,
-        object: &JscValue<'js>,
-        key: &JscPropertyKey<'js>,
-    ) -> Result<Option<JscValue<'js>>, JscValue<'js>> {
-        if object.exception {
-            return Err(self.wrap(object.value.clone(), true));
-        }
-        let o = self.as_object(object)?;
-        let p: JSString = key.0.as_ref().into();
+    fn get(&self, scope: &mut JscScope<'js, '_>, key: &str) -> JscValue<'js> {
+        let o = match scope.as_object(self) {
+            Ok(o) => o,
+            Err(_) => return wrap(JSValue::undefined(scope.ctx()), PhantomData),
+        };
+        let p: JSString = key.into();
         let mut ex: JSValueRef = null_mut();
-        let v = unsafe { JSObjectGetProperty(self.ctx_ref(), jsobject_ref(&o), p.inner, &mut ex) };
+        let v = unsafe { JSObjectGetProperty(scope.ctx_ref(), jsobject_ref(&o), p.inner, &mut ex) };
         if !ex.is_null() {
-            return Err(self.wrap(JSValue::from(ex), true));
+            return wrap(
+                JSValue::undefined(scope.ctx()),
+                PhantomData,
+            );
         }
-        let val = JSValue::from(v);
-        if val.is_undefined(self.ctx()) {
-            return Ok(None);
-        }
-        Ok(Some(self.wrap(val, false)))
+        wrap(JSValue::from(v), PhantomData)
     }
 
-    fn set_property(
-        &mut self,
-        object: &JscValue<'js>,
-        key: &JscPropertyKey<'js>,
-        value: &JscValue<'js>,
-    ) -> Result<(), JscValue<'js>> {
-        if object.exception {
-            return Err(self.wrap(object.value.clone(), true));
-        }
-        if value.exception {
-            return Err(self.wrap(value.value.clone(), true));
-        }
-        let o = self.as_object(object)?;
-        let p: JSString = key.0.as_ref().into();
+    fn set(&self, scope: &mut JscScope<'js, '_>, key: &str, value: JscValue<'js>) {
+        let o = if let Ok(o) = scope.as_object(self) { o } else { return };
+        let p: JSString = key.into();
         let mut ex: JSValueRef = null_mut();
         unsafe {
             JSObjectSetProperty(
-                self.ctx_ref(),
+                scope.ctx_ref(),
                 jsobject_ref(&o),
                 p.inner,
                 value.value.get_ref(),
@@ -693,183 +633,141 @@ impl<'js> JsScope<'js> for JscScope<'js> {
                 &mut ex,
             );
         }
-        if !ex.is_null() {
-            return Err(self.wrap(JSValue::from(ex), true));
-        }
-        Ok(())
     }
 
-    fn has_property(
-        &mut self,
-        object: &JscValue<'js>,
-        key: &JscPropertyKey<'js>,
-    ) -> Result<bool, JscValue<'js>> {
-        if object.exception {
-            return Err(self.wrap(object.value.clone(), true));
-        }
-        let o = self.as_object(object)?;
-        let p: JSString = key.0.as_ref().into();
-        let b = unsafe { JSObjectHasProperty(self.ctx_ref(), jsobject_ref(&o), p.inner) };
-        Ok(b)
+    fn has(&self, scope: &mut JscScope<'js, '_>, key: &str) -> bool {
+        let o = match scope.as_object(self) {
+            Ok(o) => o,
+            Err(_) => return false,
+        };
+        let p: JSString = key.into();
+        unsafe { JSObjectHasProperty(scope.ctx_ref(), jsobject_ref(&o), p.inner) }
     }
 
-    fn delete_property(
-        &mut self,
-        object: &JscValue<'js>,
-        key: &JscPropertyKey<'js>,
-    ) -> Result<bool, JscValue<'js>> {
-        if object.exception {
-            return Err(self.wrap(object.value.clone(), true));
-        }
-        let o = self.as_object(object)?;
-        let p: JSString = key.0.as_ref().into();
+    fn delete(&self, scope: &mut JscScope<'js, '_>, key: &str) -> bool {
+        let o = match scope.as_object(self) {
+            Ok(o) => o,
+            Err(_) => return false,
+        };
+        let p: JSString = key.into();
         let mut ex: JSValueRef = null_mut();
-        let ok =
-            unsafe { JSObjectDeleteProperty(self.ctx_ref(), jsobject_ref(&o), p.inner, &mut ex) };
-        if !ex.is_null() {
-            return Err(self.wrap(JSValue::from(ex), true));
-        }
-        Ok(ok)
+        unsafe { JSObjectDeleteProperty(scope.ctx_ref(), jsobject_ref(&o), p.inner, &mut ex) }
     }
 
-    fn define_property(
-        &mut self,
-        object: &JscValue<'js>,
-        key: &JscPropertyKey<'js>,
-        value: &JscValue<'js>,
-        attributes: PropertyAttributes,
-    ) -> Result<(), JscValue<'js>> {
-        if object.exception {
-            return Err(self.wrap(object.value.clone(), true));
-        }
-        if value.exception {
-            return Err(self.wrap(value.value.clone(), true));
-        }
-        let o = self.as_object(object)?;
-        let p: JSString = key.0.as_ref().into();
-        let a = to_jsc_prop_attrs(attributes);
+    fn get_index(&self, scope: &mut JscScope<'js, '_>, i: u32) -> JscValue<'js> {
+        let o = match scope.as_object(self) {
+            Ok(o) => o,
+            Err(_) => return wrap(JSValue::undefined(scope.ctx()), PhantomData),
+        };
         let mut ex: JSValueRef = null_mut();
-        unsafe {
-            JSObjectSetProperty(
-                self.ctx_ref(),
-                jsobject_ref(&o),
-                p.inner,
-                value.value.get_ref(),
-                a,
-                &mut ex,
-            );
-        }
+        let v = unsafe { JSObjectGetPropertyAtIndex(scope.ctx_ref(), jsobject_ref(&o), i, &mut ex) };
         if !ex.is_null() {
-            return Err(self.wrap(JSValue::from(ex), true));
+            return wrap(JSValue::undefined(scope.ctx()), PhantomData);
         }
-        Ok(())
-    }
-
-    fn get_index(
-        &mut self,
-        object: &JscValue<'js>,
-        index: u32,
-    ) -> Result<Option<JscValue<'js>>, JscValue<'js>> {
-        if object.exception {
-            return Err(self.wrap(object.value.clone(), true));
-        }
-        let o = self.as_object(object)?;
-        let mut ex: JSValueRef = null_mut();
-        let v =
-            unsafe { JSObjectGetPropertyAtIndex(self.ctx_ref(), jsobject_ref(&o), index, &mut ex) };
-        if !ex.is_null() {
-            return Err(self.wrap(JSValue::from(ex), true));
-        }
-        let val = JSValue::from(v);
-        if val.is_undefined(self.ctx()) {
-            return Ok(None);
-        }
-        Ok(Some(self.wrap(val, false)))
+        wrap(JSValue::from(v), PhantomData)
     }
 
     fn set_index(
-        &mut self,
-        object: &JscValue<'js>,
-        index: u32,
-        value: &JscValue<'js>,
-    ) -> Result<(), JscValue<'js>> {
-        if object.exception {
-            return Err(self.wrap(object.value.clone(), true));
-        }
-        if value.exception {
-            return Err(self.wrap(value.value.clone(), true));
-        }
-        let o = self.as_object(object)?;
+        &self,
+        scope: &mut JscScope<'js, '_>,
+        i: u32,
+        value: JscValue<'js>,
+    ) {
+        let o = if let Ok(o) = scope.as_object(self) { o } else { return };
         let mut ex: JSValueRef = null_mut();
         unsafe {
             JSObjectSetPropertyAtIndex(
-                self.ctx_ref(),
+                scope.ctx_ref(),
                 jsobject_ref(&o),
-                index,
+                i,
                 value.value.get_ref(),
                 &mut ex,
             );
         }
-        if !ex.is_null() {
-            return Err(self.wrap(JSValue::from(ex), true));
-        }
-        Ok(())
     }
 
-    fn call_function(
-        &mut self,
-        function: &JscValue<'js>,
-        this: Option<&JscValue<'js>>,
-        args: &[JscValue<'js>],
-    ) -> Result<JscValue<'js>, JscValue<'js>> {
-        if function.exception {
-            return Err(self.wrap(function.value.clone(), true));
+    fn length(&self, scope: &mut JscScope<'js, '_>) -> u32 {
+        if !self.is_array() {
+            return 0;
         }
-        let fnobj = self.as_object(function)?;
-        if let Some(t) = this
-            && t.exception
-        {
-            return Err(self.wrap(t.value.clone(), true));
-        }
-        for a in args {
-            if a.exception {
-                return Err(self.wrap(a.value.clone(), true));
-            }
-        }
-        let this_v = if let Some(t) = this {
-            t.value.to_object(self.ctx()).ok()
-        } else {
-            None
+        let o = match scope.as_object(self) {
+            Ok(o) => o,
+            Err(_) => return 0,
         };
+        let p: JSString = "length".into();
+        let mut ex: JSValueRef = null_mut();
+        let v = unsafe { JSObjectGetProperty(scope.ctx_ref(), jsobject_ref(&o), p.inner, &mut ex) };
+        if !ex.is_null() {
+            return 0;
+        }
+        let lenv = wrap(JSValue::from(v), PhantomData);
+        lenv
+            .value
+            .to_number(scope.ctx())
+            .ok()
+            .map(|f| f as u32)
+            .unwrap_or(0)
+    }
+
+    fn with_bytes<F, T>(&self, scope: &mut JscScope<'js, '_>, f: F) -> Option<T>
+    where
+        F: FnOnce(&[u8]) -> T,
+    {
+        if !self.is_array_buffer() {
+            return None;
+        }
+        let o = scope.as_object(self).ok()?;
+        let buf = o.get_array_buffer(scope.ctx()).ok()?;
+        let s: &[u8] = buf;
+        Some(f(s))
+    }
+
+    fn call(
+        &self,
+        scope: &mut JscScope<'js, '_>,
+        this: JscValue<'js>,
+        args: &[JscValue<'js>],
+    ) -> Result<JscValue<'js>, JscError> {
+        let fnobj = scope.as_object(self)?;
+        let this_v = this.value.to_object(scope.ctx()).ok();
         let js_args: Vec<_> = args.iter().map(|a| a.value.clone()).collect();
-        match fnobj.call_as_function(self.ctx(), this_v.as_ref(), &js_args) {
-            Ok(v) => Ok(self.wrap(v, false)),
-            Err(e) => Err(self.wrap(e, true)),
+        fnobj
+            .call_as_function(scope.ctx(), this_v.as_ref(), &js_args)
+            .map(|v| wrap(v, PhantomData))
+            .map_err(|e| {
+                JscError::new(
+                    e.to_js_string(scope.ctx())
+                        .ok()
+                        .map(|s: JSString| s.to_string())
+                        .unwrap_or_else(|| "JavaScriptCore call failed".to_string()),
+                )
+            })
+    }
+}
+
+impl<'js> JsFunction<'js, JscRuntime> for JscValue<'js> {}
+
+impl PersistentLike<JscRuntime> for JscGlobal {
+    fn new<'s, 'p: 's>(scope: &mut JscScope<'s, 'p>, value: JscValue<'s>) -> Self {
+        unsafe { JSValueProtect(scope.ctx_ref(), value.value.get_ref()) };
+        Self {
+            context: scope.ctx_ref(),
+            value: value.value,
         }
     }
 
-    fn throw(&mut self, value: JscValue<'js>) -> JscValue<'js> {
-        self.wrap(value.value, true)
+    fn get<'s, 'p: 's>(&self, _scope: &mut JscScope<'s, 'p>) -> JscValue<'s> {
+        wrap(self.value.clone(), PhantomData)
     }
 }
 
-fn to_jsc_prop_attrs(p: PropertyAttributes) -> JSPropertyAttributes {
-    let mut a: u32 = 0;
-    if !p.is_writable() {
-        a |= kJSPropertyAttributeReadOnly;
+impl Drop for JscGlobal {
+    fn drop(&mut self) {
+        unsafe { JSValueUnprotect(self.context, self.value.get_ref()) };
     }
-    if !p.is_enumerable() {
-        a |= kJSPropertyAttributeDontEnum;
-    }
-    if !p.is_configurable() {
-        a |= kJSPropertyAttributeDontDelete;
-    }
-    a
 }
 
-impl<'js> JscValue<'js> {
-    /// Borrows the underlying `rusty_jsc` value.
-    pub fn as_js(&self) -> &JSValue {
-        &self.value
-    }
+fn wrap<'js>(value: JSValue, _m: PhantomData<&'js ()>) -> JscValue<'js> {
+    let v = JscValue { value, _m };
+    unsafe { std::mem::transmute(v) }
 }

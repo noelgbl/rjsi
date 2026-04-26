@@ -1,4 +1,4 @@
-//! Small host-side error type for the hot core boundary.
+//! Small host-side error type for the runtime-neutral boundary.
 
 use thiserror::Error;
 
@@ -12,8 +12,6 @@ pub const E_IO: &str = "E_IO";
 pub const E_NOT_SUPPORTED: &str = "E_NOT_SUPPORTED";
 pub const E_OUT_OF_RANGE: &str = "E_OUT_OF_RANGE";
 pub const E_TYPE: &str = "E_TYPE";
-
-pub type JsResult<T> = Result<T, RjsiJSError>;
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[error("{name}: {code}: {message}")]
@@ -51,15 +49,15 @@ impl HostError {
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[error(transparent)]
-pub struct RjsiJSError(#[from] pub HostError);
+pub struct RjsiError(#[from] pub HostError);
 
-impl From<anyhow::Error> for RjsiJSError {
+impl From<anyhow::Error> for RjsiError {
     fn from(value: anyhow::Error) -> Self {
         HostError::new(E_ERROR, value.to_string()).into()
     }
 }
 
-impl From<std::io::Error> for RjsiJSError {
+impl From<std::io::Error> for RjsiError {
     fn from(value: std::io::Error) -> Self {
         HostError::new(E_IO, value.to_string()).into()
     }

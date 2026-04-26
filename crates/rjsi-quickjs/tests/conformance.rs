@@ -1,7 +1,5 @@
-//! Shared [`rjsi_core::conformance`] scenarios for the QuickJS backend.
-
-use rjsi_conformance::{self as conformance};
-use rjsi_quickjs::QuickJsRuntimeContext;
+use rjsi_conformance as conformance;
+use rjsi_quickjs::{QuickJsRuntime, QuickJsRuntimeContext};
 
 fn rt() -> QuickJsRuntimeContext {
     QuickJsRuntimeContext::new()
@@ -9,40 +7,45 @@ fn rt() -> QuickJsRuntimeContext {
 
 #[test]
 fn eval_runs_in_scope() {
-    conformance::eval_runs(&rt());
+    conformance::eval_runs::<QuickJsRuntime>(&rt());
 }
 
 #[test]
 fn explicit_global_restores() {
-    conformance::explicit_global_restores(&rt());
+    conformance::explicit_global_restores::<QuickJsRuntime>(&rt());
 }
 
 #[test]
-fn static_property_key_get_set() {
-    conformance::static_property_get_set(&rt());
+fn property_get_set() {
+    conformance::static_property_get_set::<QuickJsRuntime>(&rt());
+}
+
+#[test]
+fn nested_scopes() {
+    conformance::nested_scopes::<QuickJsRuntime>(&rt());
 }
 
 #[test]
 fn constructors_and_host_function_work() {
-    conformance::constructors_and_host(&rt());
+    conformance::constructors_and_host::<QuickJsRuntime>(&rt());
 }
 
 #[test]
 fn primitives_roundtrip() {
-    conformance::primitives_roundtrip(&rt());
+    conformance::primitives_roundtrip::<QuickJsRuntime>(&rt());
 }
 
 #[test]
 fn array_index_get_set() {
-    conformance::array_index_get_set(&rt());
+    conformance::array_index_get_set::<QuickJsRuntime>(&rt());
 }
 
 #[test]
 fn run_full_conformance_suite() {
-    conformance::run_all(&rt());
+    conformance::run_all::<QuickJsRuntime>(&rt());
 }
 
 #[test]
 fn console_module_smoke() {
-    rjsi_console::smoke_install_and_log(&rt()).unwrap();
+    rjsi_console::smoke_install_and_log::<QuickJsRuntime>(&rt()).unwrap();
 }

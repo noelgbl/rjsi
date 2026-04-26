@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use rjsi_core::{Global, JsRuntime, JsScope, Source};
-use rjsi_quickjs::{QuickJsEngine, QuickJsRuntimeContext};
+use rjsi_core::{ContextLike, Global, ScopeLike, ValueLike};
+use rjsi_quickjs::{QuickJsRuntime, QuickJsRuntimeContext};
 
 fn bench_quickjs_hot_paths(c: &mut Criterion) {
     let runtime = QuickJsRuntimeContext::new();
@@ -8,50 +8,44 @@ fn bench_quickjs_hot_paths(c: &mut Criterion) {
         b.iter(|| {
             runtime
                 .with_scope(|scope| {
-                    let _ = scope.eval(Source::from_bytes("1 + 2 + 3"))?;
+                    let _ = scope.eval("1 + 2 + 3")?;
                     Ok(())
                 })
-                .unwrap()
+                .unwrap();
         })
     });
+
     c.bench_function("quickjs_root_restore", |b| {
         b.iter(|| {
-            runtime
+            let global = runtime
                 .with_scope(|scope| {
                     let value = scope.number(42.0);
-                    let global = Global::<QuickJsEngine>::new(scope, &value);
-                    let _ = global.get(scope);
+                    Ok(Global::<QuickJsRuntime>::new(scope, value))
+                })
+                .unwrap();
+            runtime
+                .with_scope(|scope| {
+                    let restored = global.get(scope);
+                    let _ = restored.as_f64(scope);
                     Ok(())
                 })
-                .unwrap()
+                .unwrap();
         })
     });
-    c.bench_function("quickjs_local_property_static_key", |b| {
+
+    c.bench_function("quickjs_property_set", |b| {
         b.iter(|| {
             runtime
                 .with_scope(|scope| {
-                    let object = scope.eval(Source::from_bytes("({})"))?;
-                    let key = scope.static_property_key("answer");
+                    let object = scope.object();
                     let value = scope.number(42.0);
-                    scope.set_property(&object, &key, &value).unwrap();
-                    let _ = scope.get_property(&object, &key).unwrap();
+                    object.set(scope, "answer", value);
                     Ok(())
                 })
-                .unwrap()
-        })
-    });
-    c.bench_function("quickjs_raw_call", |b| {
-        b.iter(|| {
-            runtime
-                .with_scope(|scope| {
-                    let function = scope.eval(Source::from_bytes("(x => x + 1)"))?;
-                    let arg = scope.number(41.0);
-                    let _ = scope.call_function(&function, None, &[arg]).unwrap();
-                    Ok(())
-                })
-                .unwrap()
+                .unwrap();
         })
     });
 }
+
 criterion_group!(benches, bench_quickjs_hot_paths);
 criterion_main!(benches);
