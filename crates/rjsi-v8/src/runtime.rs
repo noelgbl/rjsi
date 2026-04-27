@@ -73,18 +73,27 @@ fn ensure_v8_initialized() {
     });
 }
 
-struct V8RuntimeInner {
+/// Per-registered native class (internal fields + constructor for `instanceof`).
+#[derive(Clone)]
+pub(crate) struct NativeClassEntry {
+    pub(crate) fn_template: rv8::Global<rv8::FunctionTemplate>,
+    pub(crate) ctor_fn: rv8::Global<rv8::Function>,
+    pub(crate) finalizer: rjsi_core::FinalizerFn,
+}
+
+pub(crate) struct V8RuntimeInner {
     owner_thread: ThreadId,
     isolate: RefCell<rv8::OwnedIsolate>,
     context: rv8::Global<rv8::Context>,
-    host_functions: RefCell<Vec<Box<dyn Any>>>,
+    pub(crate) host_functions: RefCell<Vec<Box<dyn Any>>>,
+    pub(crate) native_classes: RefCell<std::collections::HashMap<std::any::TypeId, NativeClassEntry>>,
 }
 
 pub struct V8Runtime;
 
 #[derive(Clone)]
 pub struct V8RuntimeContext {
-    inner: Rc<V8RuntimeInner>,
+    pub(crate) inner: Rc<V8RuntimeInner>,
 }
 
 #[derive(Debug, Clone)]
@@ -93,7 +102,7 @@ pub struct V8Error {
 }
 
 impl V8Error {
-    fn new(message: impl Into<String>) -> Self {
+    pub(crate) fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
         }
@@ -179,6 +188,7 @@ impl V8RuntimeContext {
                 isolate: RefCell::new(isolate),
                 context,
                 host_functions: RefCell::new(Vec::new()),
+                native_classes: RefCell::new(std::collections::HashMap::new()),
             }),
         }
     }

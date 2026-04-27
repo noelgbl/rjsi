@@ -14,7 +14,7 @@ pub use capabilities::ScopeArrayBuffer;
 pub use context::ContextLike;
 pub use error::{
     E_ABORT, E_ERROR, E_INTERNAL, E_INVALID_ARG, E_INVALID_DATA, E_INVALID_STATE, E_IO,
-    E_NOT_SUPPORTED, E_OUT_OF_RANGE, E_TYPE, HostError, RjsiError,
+    E_NOT_SUPPORTED, E_OUT_OF_RANGE, E_TYPE, HostError, JsError, RjsiError,
 };
 pub use persistent::{Global, PersistentLike};
 pub use runtime::Runtime;
@@ -24,8 +24,16 @@ pub use value::{JsFunction, ValueLike, ValueExt};
 
 pub mod prelude {
     pub use crate::{
-        Args, ContextLike, FromJs, FromJsTuple, JsFunction, Global, HostError, IntoJs,
+        Args, ContextLike, FromJs, FromJsTuple, JsFunction, Global, HostError, IntoJs, JsError,
         PersistentLike, Runtime, ScopeArrayBuffer, ScopeLike, TryCatchResult, ValueLike,
         ZeroCopyBuf, bind, ValueExt,
     };
 }
+
+pub mod mock;
+
+pub use class::{
+    class_descriptor, AccessorDescriptor, BufferSource, ClassDescriptor, ClassRegistry,
+    ClassScopeExt, ConstructorFn, FinalizerFn, InstanceMethodFn, MethodDescriptor, NativeArg,
+    NativeClass, NativeRef, SymbolDescriptor, WellKnownSymbol,
+};

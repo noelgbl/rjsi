@@ -4,7 +4,6 @@
 //! Run: `cargo run --example host_function --features quickjs`
 
 use rjsi::quickjs::{QuickJsError, QuickJsRuntimeContext, QuickJsValue};
-
 use rjsi::{ContextLike, ScopeLike, ValueLike};
 
 fn main() -> Result<(), QuickJsError> {

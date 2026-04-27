@@ -7,9 +7,14 @@ edition = "2024"
 proc-macro = true
 
 [dependencies]
+heck.workspace = true
 proc-macro-crate = "3.4.0"
 proc-macro2 = "1.0.106"
 quote = "1.0.45"
 strum = "0.28.0"
 strum_macros = "0.28.0"
-syn = { version = "2.0.117", features = ["full"] }
+syn = { version = "2.0.117", features = ["full", "extra-traits"] }
+
+[dev-dependencies]
+trybuild = "1.0.105"
+rjsi-core = { path = "../rjsi-core" }

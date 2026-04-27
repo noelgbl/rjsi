@@ -9,3 +9,4 @@ tracing.workspace = true
 thiserror.workspace = true
 smallvec.workspace = true
 bytes.workspace = true
+once_cell.workspace = true

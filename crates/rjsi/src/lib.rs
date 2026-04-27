@@ -2,7 +2,7 @@
 pub use rjsi_console as console;
 pub use rjsi_core::*;
 #[cfg(feature = "macros")]
-pub use rjsi_macros::{FromJs, IntoJs};
+pub use rjsi_macros::{FromJs, IntoJs, JsClass, js_methods};
 #[cfg(feature = "jsc")]
 pub use rjsi_jsc as jsc;
 #[cfg(feature = "quickjs")]

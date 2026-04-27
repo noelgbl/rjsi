@@ -1,5 +1,6 @@
 //! V8 backend for RJSI
 
+mod class;
 mod runtime;
 mod value;
 

@@ -1,0 +1,8 @@
+[package]
+name = "rjsi-json"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rjsi-core = { path = "../rjsi-core" }
+tracing.workspace = true

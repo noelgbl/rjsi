@@ -13,6 +13,9 @@ pub const E_NOT_SUPPORTED: &str = "E_NOT_SUPPORTED";
 pub const E_OUT_OF_RANGE: &str = "E_OUT_OF_RANGE";
 pub const E_TYPE: &str = "E_TYPE";
 
+/// Historical / macro alias for [`HostError`] used in JS-facing APIs.
+pub type JsError = HostError;
+
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[error("{name}: {code}: {message}")]
 pub struct HostError {

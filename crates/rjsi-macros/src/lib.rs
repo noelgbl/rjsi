@@ -2,7 +2,33 @@ use proc_macro::TokenStream;
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use syn::{Data, DeriveInput, Fields, Index, parse_macro_input};
+use syn::{Data, DeriveInput, Fields, Index, ItemImpl, parse_macro_input};
+
+mod class;
+
+pub(crate) fn core_path() -> TokenStream2 {
+    match crate_name("rjsi-core") {
+        Ok(FoundCrate::Itself) => quote!(crate),
+        Ok(FoundCrate::Name(name)) => {
+            let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
+            quote!(::#ident)
+        }
+        Err(_) => quote!(::rjsi_core),
+    }
+}
+
+#[proc_macro_derive(JsClass, attributes(js_class))]
+pub fn derive_js_class(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    class::expand_js_class(input).into()
+}
+
+#[proc_macro_attribute]
+pub fn js_methods(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attr_ts = proc_macro2::TokenStream::from(attr);
+    let impl_block = parse_macro_input!(item as ItemImpl);
+    class::expand_js_methods(attr_ts, impl_block).into()
+}
 
 #[proc_macro_derive(IntoJs)]
 pub fn derive_into_js(input: TokenStream) -> TokenStream {

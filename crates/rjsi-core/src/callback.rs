@@ -46,6 +46,12 @@ impl<'s, R: Runtime> Args<'s, R> {
         self.raw.get(index).cloned()
     }
 
+    /// Raw JS argument at `index`, same as [`Self::value`].
+    #[inline]
+    pub fn raw(&self, index: usize) -> Option<R::Value<'s>> {
+        self.value(index)
+    }
+
     #[inline]
     pub fn this(&self) -> R::Value<'s> {
         self.this.clone()

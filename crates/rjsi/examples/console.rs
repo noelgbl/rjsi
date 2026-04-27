@@ -6,7 +6,7 @@ fn main() -> Result<(), QuickJsError> {
     let runtime = rjsi::quickjs::QuickJsRuntimeContext::new();
 
     runtime.with_scope(|scope| {
-        rjsi::console::init::<rjsi::quickjs::QuickJsRuntime>(scope)?;
+        rjsi::console::init(scope)?;
         scope.eval("console.log('Hello, world!')")?;
         Ok(())
     })?;

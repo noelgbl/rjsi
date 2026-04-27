@@ -31,6 +31,12 @@ impl<'s, R: Runtime> IntoJs<'s, R> for i32 {
     }
 }
 
+impl<'s, R: Runtime> IntoJs<'s, R> for u32 {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        Ok(scope.integer(self as i32))
+    }
+}
+
 impl<'s, R: Runtime> IntoJs<'s, R> for f64 {
     fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
         Ok(scope.number(self))
@@ -46,6 +52,17 @@ impl<'s, R: Runtime> IntoJs<'s, R> for &str {
 impl<'s, R: Runtime> IntoJs<'s, R> for String {
     fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
         Ok(scope.string(&self))
+    }
+}
+
+impl<'s, R: Runtime> IntoJs<'s, R> for (f64, f64) {
+    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
+        let array = scope.array(2);
+        let n0 = scope.number(self.0);
+        let n1 = scope.number(self.1);
+        array.set_index(scope, 0, n0);
+        array.set_index(scope, 1, n1);
+        Ok(array)
     }
 }
 
@@ -94,6 +111,15 @@ impl<'s, R: Runtime> FromJs<'s, R> for i32 {
         value
             .as_i32(scope)
             .ok_or_else(|| HostError::type_error(E_TYPE, "expected integer").into())
+    }
+}
+
+impl<'s, R: Runtime> FromJs<'s, R> for u32 {
+    fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
+        let n = value
+            .as_i32(scope)
+            .ok_or_else(|| HostError::type_error(E_TYPE, "expected integer"))?;
+        u32::try_from(n).map_err(|_| HostError::type_error(E_TYPE, "expected non-negative integer").into())
     }
 }
 
