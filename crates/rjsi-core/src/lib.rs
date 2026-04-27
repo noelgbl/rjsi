@@ -7,6 +7,7 @@ pub mod runtime;
 pub mod scope;
 pub mod convert;
 pub mod value;
+pub mod class;
 
 pub use callback::{Args, Callback, FromJsTuple, bind};
 pub use capabilities::ScopeArrayBuffer;
@@ -19,12 +20,12 @@ pub use persistent::{Global, PersistentLike};
 pub use runtime::Runtime;
 pub use scope::{ScopeLike, TryCatchResult};
 pub use convert::{FromJs, IntoJs, ZeroCopyBuf};
-pub use value::{JsFunction, ValueLike};
+pub use value::{JsFunction, ValueLike, ValueExt};
 
 pub mod prelude {
     pub use crate::{
         Args, ContextLike, FromJs, FromJsTuple, JsFunction, Global, HostError, IntoJs,
         PersistentLike, Runtime, ScopeArrayBuffer, ScopeLike, TryCatchResult, ValueLike,
-        ZeroCopyBuf, bind,
+        ZeroCopyBuf, bind, ValueExt,
     };
 }

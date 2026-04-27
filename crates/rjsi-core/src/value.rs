@@ -1,4 +1,4 @@
-use crate::runtime::Runtime;
+use crate::{FromJs, runtime::Runtime};
 
 pub trait ValueLike<'s, R: Runtime>: Clone + Sized {
     fn is_undefined(&self) -> bool;
@@ -43,3 +43,20 @@ pub trait ValueLike<'s, R: Runtime>: Clone + Sized {
 }
 
 pub trait JsFunction<'s, R: Runtime>: Clone + Sized {}
+
+pub trait ValueExt<'s, R: Runtime>: ValueLike<'s, R> {
+    fn coerce<T: FromJs<'s, R>>(
+        self,
+        scope: &mut R::Scope<'s, '_>,
+    ) -> Result<T, R::Error>;
+}
+
+impl<'s, R: Runtime> ValueExt<'s, R> for R::Value<'s> {
+    #[inline]
+    fn coerce<T: FromJs<'s, R>>(
+        self,
+        scope: &mut R::Scope<'s, '_>,
+    ) -> Result<T, R::Error> {
+        T::from_js(scope, self)
+    }
+}
