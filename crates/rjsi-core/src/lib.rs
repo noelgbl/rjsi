@@ -13,8 +13,8 @@ pub use callback::{Args, Callback, FromJsTuple, bind};
 pub use capabilities::ScopeArrayBuffer;
 pub use context::ContextLike;
 pub use error::{
-    E_ABORT, E_ERROR, E_INTERNAL, E_INVALID_ARG, E_INVALID_DATA, E_INVALID_STATE, E_IO,
-    E_NOT_SUPPORTED, E_OUT_OF_RANGE, E_TYPE, HostError, JsError, RjsiError,
+    E_ABORT, E_ERROR, E_INTERNAL, E_INVALID_ARG, E_INVALID_DATA, E_INVALID_STATE, E_IO, E_NOT_SUPPORTED,
+    E_OUT_OF_RANGE, E_TYPE, EngineError, EngineErrorKind, Error, HostError, JsException,
 };
 pub use persistent::{Global, PersistentLike};
 pub use runtime::Runtime;
@@ -24,7 +24,8 @@ pub use value::{JsFunction, ValueLike, ValueExt};
 
 pub mod prelude {
     pub use crate::{
-        Args, ContextLike, FromJs, FromJsTuple, JsFunction, Global, HostError, IntoJs, JsError,
+        Args, ContextLike, EngineError, EngineErrorKind, Error, FromJs, FromJsTuple, Global,
+        HostError, IntoJs, JsException, JsFunction,
         PersistentLike, Runtime, ScopeArrayBuffer, ScopeLike, TryCatchResult, ValueLike,
         ZeroCopyBuf, bind, ValueExt,
     };

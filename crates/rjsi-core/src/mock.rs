@@ -14,7 +14,8 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     error::E_TYPE,
-    Args, ClassRegistry, ConstructorFn, ContextLike, HostError, JsFunction, NativeClass,
+    Args, ClassRegistry, ConstructorFn, ContextLike, EngineError, HostError, JsException,
+    JsFunction, NativeClass,
     PersistentLike, Runtime, ScopeLike, TryCatchResult, ValueLike,
 };
 
@@ -55,6 +56,18 @@ impl std::error::Error for MockError {}
 
 impl From<HostError> for MockError {
     fn from(value: HostError) -> Self {
+        Self::new(value.to_string())
+    }
+}
+
+impl From<JsException> for MockError {
+    fn from(value: JsException) -> Self {
+        Self::new(value.to_string())
+    }
+}
+
+impl From<EngineError> for MockError {
+    fn from(value: EngineError) -> Self {
         Self::new(value.to_string())
     }
 }
@@ -260,13 +273,13 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, MockRuntime> for MockScope<'js, 'p> {
         MockValue::String(String::from_utf8_lossy(bytes).into_owned())
     }
 
-    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<MockValue, MockError>
+    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<MockValue>
     where
         F: FnOnce(&mut MockScope<'js, 'p>) -> Result<MockValue, MockError>,
     {
         match f(self) {
             Ok(v) => TryCatchResult::Ok(v),
-            Err(e) => TryCatchResult::Exception(e),
+            Err(e) => TryCatchResult::Engine(EngineError::internal("mock", e.to_string())),
         }
     }
 

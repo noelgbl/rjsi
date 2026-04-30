@@ -1,15 +1,14 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
-use std::fmt;
 use std::pin::pin;
 use std::rc::Rc;
 use std::sync::{Arc, Once};
 use std::thread::{self, ThreadId};
 
 use rjsi_core::{
-    Args, Callback, ContextLike, JsFunction, HostError, Runtime, ScopeLike, TryCatchResult,
-    ValueLike,
+    Args, Callback, ContextLike, EngineError, Error as RjsiError, HostError, JsException,
+    JsFunction, Runtime, ScopeLike, TryCatchResult, ValueLike,
 };
 use v8 as rv8;
 
@@ -96,31 +95,48 @@ pub struct V8RuntimeContext {
     pub(crate) inner: Rc<V8RuntimeInner>,
 }
 
-#[derive(Debug, Clone)]
-pub struct V8Error {
-    message: String,
+pub(crate) fn v8_engine_error(message: impl Into<String>) -> RjsiError {
+    EngineError::api_failure("v8", message).into()
 }
 
-impl V8Error {
-    pub(crate) fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
+fn v8_prop_string(
+    scope: &mut rv8::PinScope<'_, '_>,
+    object: rv8::Local<'_, rv8::Object>,
+    key: &str,
+) -> Option<String> {
+    let key = rv8::String::new(scope, key)?;
+    let value = object.get(scope, key.into())?;
+    let value = value.to_rust_string_lossy(scope);
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn v8_exception_from_value(
+    scope: &mut rv8::PinScope<'_, '_>,
+    value: rv8::Local<'_, rv8::Value>,
+) -> JsException {
+    let display = value.to_rust_string_lossy(scope);
+    if let Some(obj) = value.to_object(scope) {
+        let mut ex = JsException::new(display)
+            .with_is_error_object(value.is_native_error());
+        if let Some(name) = v8_prop_string(scope, obj, "name") {
+            ex = ex.with_name(name);
         }
+        if let Some(message) = v8_prop_string(scope, obj, "message") {
+            ex = ex.with_message(message);
+        }
+        if let Some(stack) = v8_prop_string(scope, obj, "stack") {
+            ex = ex.with_stack(stack);
+        }
+        if let Some(code) = v8_prop_string(scope, obj, "code") {
+            ex = ex.with_code(code);
+        }
+        return ex;
     }
-}
-
-impl fmt::Display for V8Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for V8Error {}
-
-impl From<HostError> for V8Error {
-    fn from(value: HostError) -> Self {
-        Self::new(value.to_string())
-    }
+    JsException::new(display)
 }
 
 struct V8HostFunctionState {
@@ -193,10 +209,10 @@ impl V8RuntimeContext {
         }
     }
 
-    fn assert_owner_thread(&self) -> Result<(), V8Error> {
+    fn assert_owner_thread(&self) -> Result<(), RjsiError> {
         if thread::current().id() != self.inner.owner_thread {
-            return Err(HostError::new(
-                rjsi_core::E_INVALID_STATE,
+            return Err(EngineError::thread_violation(
+                "v8",
                 "V8 runtime accessed from a non-owner thread",
             )
             .into());
@@ -207,8 +223,8 @@ impl V8RuntimeContext {
     fn with_active_scope<R>(
         &self,
         isolate: &mut rv8::Isolate,
-        f: impl for<'js> FnOnce(&mut V8Scope<'js, 'js>) -> Result<R, V8Error>,
-    ) -> Result<R, V8Error> {
+        f: impl for<'js> FnOnce(&mut V8Scope<'js, 'js>) -> Result<R, RjsiError>,
+    ) -> Result<R, RjsiError> {
         let isolate_ptr = isolate as *mut rv8::Isolate;
         let mut handle_scope = rv8::HandleScope::new(isolate);
         let mut handle_scope = unsafe {
@@ -240,7 +256,7 @@ impl Runtime for V8Runtime {
     type Function<'s> = V8Value<'s>;
     type Persistent = V8Global;
     type Context = V8RuntimeContext;
-    type Error = V8Error;
+    type Error = RjsiError;
 
     fn name() -> &'static str {
         "v8"
@@ -254,8 +270,8 @@ impl Runtime for V8Runtime {
 impl ContextLike<V8Runtime> for V8RuntimeContext {
     fn with_scope<T>(
         &self,
-        f: impl for<'s> FnOnce(&mut V8Scope<'s, 's>) -> Result<T, V8Error>,
-    ) -> Result<T, V8Error> {
+        f: impl for<'s> FnOnce(&mut V8Scope<'s, 's>) -> Result<T, RjsiError>,
+    ) -> Result<T, RjsiError> {
         self.assert_owner_thread()?;
         let active = ACTIVE_ISOLATE.with(Cell::get);
         if !active.is_null() {
@@ -290,17 +306,16 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, V8Runtime> for V8Scope<'js, 'p> {
         f(&mut child)
     }
 
-    fn eval(&mut self, src: &str) -> Result<V8Value<'js>, V8Error> {
+    fn eval(&mut self, src: &str) -> Result<V8Value<'js>, RjsiError> {
         let scope = pin!(rv8::TryCatch::new(self.scope()));
         let mut scope = scope.init();
-        let err = V8Error::new("V8 exception");
         let code = rv8::String::new(&mut scope, src)
-            .ok_or_else(|| V8Error::new("failed to allocate V8 source string"))?;
+            .ok_or_else(|| v8_engine_error("failed to allocate V8 source string"))?;
         let script = rv8::Script::compile(&mut scope, code, None)
-            .ok_or_else(|| err.clone())?;
+            .ok_or_else(|| JsException::new("V8 exception"))?;
         let value = script
             .run(&mut scope)
-            .ok_or_else(|| err)?;
+            .ok_or_else(|| JsException::new("V8 exception"))?;
         Ok(V8Value::from_local(value))
     }
 
@@ -358,9 +373,9 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, V8Runtime> for V8Scope<'js, 'p> {
         V8Value::from_local(buffer)
     }
 
-    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<V8Value<'js>, V8Error>
+    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<V8Value<'js>>
     where
-        F: FnOnce(&mut V8Scope<'js, 'p>) -> Result<V8Value<'js>, V8Error>,
+        F: FnOnce(&mut V8Scope<'js, 'p>) -> Result<V8Value<'js>, RjsiError>,
     {
         let runtime = self.runtime;
         let try_catch = pin!(rv8::TryCatch::new(self.scope()));
@@ -372,16 +387,17 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, V8Runtime> for V8Scope<'js, 'p> {
         };
         let out = f(&mut sub);
         if try_scope.has_caught() {
-            let message = try_scope
+            let exception = try_scope
                 .exception()
-                .map(|v| v.to_rust_string_lossy(&*try_scope))
-                .filter(|m| !m.is_empty())
-                .unwrap_or_else(|| "V8 exception".to_string());
-            return TryCatchResult::Exception(V8Error::new(message));
+                .map(|v| v8_exception_from_value(&mut try_scope, v))
+                .unwrap_or_else(|| JsException::new("V8 exception"));
+            return TryCatchResult::Exception(exception);
         }
         match out {
             Ok(v) => TryCatchResult::Ok(v),
-            Err(e) => TryCatchResult::Exception(e),
+            Err(RjsiError::Exception(e)) => TryCatchResult::Exception(e),
+            Err(RjsiError::Host(e)) => TryCatchResult::Host(e),
+            Err(RjsiError::Engine(e)) => TryCatchResult::Engine(e),
         }
     }
 
@@ -410,9 +426,9 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, V8Runtime> for V8Scope<'js, 'p> {
         ))
     }
 
-    fn function<F>(&mut self, f: F) -> Result<V8Value<'js>, V8Error>
+    fn function<F>(&mut self, f: F) -> Result<V8Value<'js>, RjsiError>
     where
-        F: for<'a> Fn(&mut V8Scope<'a, 'a>, Args<'a, V8Runtime>) -> Result<V8Value<'a>, V8Error>
+        F: for<'a> Fn(&mut V8Scope<'a, 'a>, Args<'a, V8Runtime>) -> Result<V8Value<'a>, RjsiError>
             + Send
             + Sync
             + 'static,
@@ -428,7 +444,7 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, V8Runtime> for V8Scope<'js, 'p> {
             .data(external.into())
             .length(0)
             .build(self.scope())
-            .ok_or_else(|| V8Error::new("failed to create V8 function"))?;
+            .ok_or_else(|| v8_engine_error("failed to create V8 function"))?;
         Ok(V8Value::from_local(function))
     }
 }
@@ -614,18 +630,17 @@ impl<'js> ValueLike<'js, V8Runtime> for V8Value<'js> {
         scope: &mut V8Scope<'js, '_>,
         this: V8Value<'js>,
         args: &[V8Value<'js>],
-    ) -> Result<V8Value<'js>, V8Error> {
+    ) -> Result<V8Value<'js>, RjsiError> {
         let function: rv8::Local<'js, rv8::Function> = self
             .local
             .try_into()
             .map_err(|_| HostError::type_error(rjsi_core::E_TYPE, "value is not callable"))?;
         let scope_tc = pin!(rv8::TryCatch::new(scope.scope()));
         let mut scope_tc = scope_tc.init();
-        let err = V8Error::new("V8 exception");
         let argv = args.iter().map(|arg| arg.local).collect::<Vec<_>>();
         let value = function
             .call(&mut scope_tc, this.local, &argv)
-            .ok_or(err)?;
+            .ok_or_else(|| JsException::new("V8 exception"))?;
         Ok(V8Value::from_local(value))
     }
 }

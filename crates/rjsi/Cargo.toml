@@ -11,26 +11,6 @@ jsc = ["dep:rjsi-jsc"]
 console = ["dep:rjsi-console"]
 macros = ["dep:rjsi-macros"]
 
-[[example]]
-name = "hello_world"
-required-features = ["quickjs"]
-
-[[example]]
-name = "add"
-required-features = ["quickjs"]
-
-[[example]]
-name = "console"
-required-features = ["quickjs", "console"]
-
-[[example]]
-name = "host_function"
-required-features = ["quickjs"]
-
-[[example]]
-name = "host_function_macros"
-required-features = ["quickjs", "macros"]
-
 [dependencies]
 anyhow.workspace = true
 tracing.workspace = true

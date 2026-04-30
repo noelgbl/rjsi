@@ -4,12 +4,12 @@ use std::any::TypeId;
 use std::ops::DerefMut;
 
 use rjsi_core::{
-    Args, ClassDescriptor, ClassRegistry, ConstructorFn, HostError, NativeClass, NativeRef,
-    Runtime, ScopeLike, ValueLike,
+    Args, ClassDescriptor, ClassRegistry, ConstructorFn, Error as RjsiError, HostError,
+    NativeClass, NativeRef, Runtime, ScopeLike, ValueLike,
 };
 use v8 as rv8;
 
-use crate::runtime::{NativeClassEntry, V8Runtime, V8RuntimeContext, V8Scope};
+use crate::runtime::{v8_engine_error, NativeClassEntry, V8Runtime, V8RuntimeContext, V8Scope};
 use crate::value::V8Value;
 
 struct ClassCtorPayload {
@@ -86,13 +86,13 @@ impl ClassRegistry<V8Runtime> for V8RuntimeContext {
         &self,
         scope: &mut V8Scope<'s, 's>,
         descriptor: &'static ClassDescriptor<V8Runtime>,
-    ) -> Result<(), crate::runtime::V8Error> {
+    ) -> Result<(), RjsiError> {
         let tid = TypeId::of::<T>();
         if self.inner.native_classes.borrow().contains_key(&tid) {
             return Ok(());
         }
 
-        let (fn_tpl_g, ctor_g) = (|| -> Result<(rv8::Global<rv8::FunctionTemplate>, rv8::Global<rv8::Function>), crate::runtime::V8Error> {
+        let (fn_tpl_g, ctor_g) = (|| -> Result<(rv8::Global<rv8::FunctionTemplate>, rv8::Global<rv8::Function>), RjsiError> {
             let pin = scope.scope();
 
             let tpl = if let Some(ctor) = descriptor.constructor {
@@ -112,7 +112,7 @@ impl ClassRegistry<V8Runtime> for V8RuntimeContext {
             };
 
             let name = rv8::String::new(pin, descriptor.name).ok_or_else(|| {
-                crate::runtime::V8Error::new("failed to allocate V8 class name string")
+                v8_engine_error("failed to allocate V8 class name string")
             })?;
             tpl.set_class_name(name);
 
@@ -120,7 +120,7 @@ impl ClassRegistry<V8Runtime> for V8RuntimeContext {
             let _ = inst_tpl.set_internal_field_count(T::SLOT_COUNT);
 
             let ctor_fn = tpl.get_function(pin).ok_or_else(|| {
-                crate::runtime::V8Error::new("FunctionTemplate::get_function failed")
+                v8_engine_error("FunctionTemplate::get_function failed")
             })?;
 
             let ctor_g = rv8::Global::new(pin, ctor_fn);
@@ -151,7 +151,7 @@ impl ClassRegistry<V8Runtime> for V8RuntimeContext {
     fn wrap_native<'s, T: NativeClass>(
         scope: &mut <V8Runtime as Runtime>::Scope<'s, 's>,
         value: T,
-    ) -> Result<<V8Runtime as Runtime>::Value<'s>, crate::runtime::V8Error> {
+    ) -> Result<<V8Runtime as Runtime>::Value<'s>, RjsiError> {
         let tid = TypeId::of::<T>();
         let entry = scope
             .runtime
@@ -172,7 +172,7 @@ impl ClassRegistry<V8Runtime> for V8RuntimeContext {
         let inst_tpl = tpl.instance_template(pin);
         let obj = inst_tpl
             .new_instance(pin)
-            .ok_or_else(|| crate::runtime::V8Error::new("ObjectTemplate::new_instance failed"))?;
+            .ok_or_else(|| v8_engine_error("ObjectTemplate::new_instance failed"))?;
 
         let raw = Box::into_raw(Box::new(value)).cast::<std::ffi::c_void>();
         let ext = rv8::External::new(pin, raw);

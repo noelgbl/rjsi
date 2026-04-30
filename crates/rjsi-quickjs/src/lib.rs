@@ -1,14 +1,13 @@
 //! QuickJS backend for RJSI
 
-use std::fmt;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::{self, ThreadId};
 
 use rjsi_core::{
-    Args, Callback, ContextLike, JsFunction, HostError, PersistentLike, Runtime, ScopeLike,
-    TryCatchResult, ValueLike,
+    Args, Callback, ContextLike, EngineError, Error as RjsiError, HostError, JsException,
+    JsFunction, PersistentLike, Runtime, ScopeLike, TryCatchResult, ValueLike,
 };
 use rquickjs::function::{IntoJsFunc, ParamRequirement, Params as QjsParams, Rest, This};
 use rquickjs::{
@@ -29,44 +28,18 @@ struct QuickJsRuntimeInner {
     context: QjsContext,
 }
 
-#[derive(Debug, Clone)]
-pub struct QuickJsError {
-    message: String,
+fn quickjs_engine_error(message: impl Into<String>) -> RjsiError {
+    EngineError::api_failure("quickjs", message).into()
 }
 
-impl QuickJsError {
-    fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-
-    fn from_caught(err: CaughtError<'_>) -> Self {
-        match err {
-            CaughtError::Exception(ex) => Self::new(format!("{ex:?}")),
-            CaughtError::Value(value) => Self::new(format!("{value:?}")),
-            CaughtError::Error(err) => Self::from(err),
-        }
-    }
-}
-
-impl fmt::Display for QuickJsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for QuickJsError {}
-
-impl From<HostError> for QuickJsError {
-    fn from(value: HostError) -> Self {
-        Self::new(value.to_string())
-    }
-}
-
-impl From<rquickjs::Error> for QuickJsError {
-    fn from(value: rquickjs::Error) -> Self {
-        Self::new(format!("{value:?}"))
+fn quickjs_caught_to_error(err: CaughtError<'_>) -> RjsiError {
+    match err {
+        CaughtError::Exception(ex) => JsException::new(format!("{ex:?}"))
+            .with_name("Error")
+            .with_is_error_object(true)
+            .into(),
+        CaughtError::Value(value) => JsException::new(format!("{value:?}")).into(),
+        CaughtError::Error(err) => quickjs_engine_error(format!("{err:?}")),
     }
 }
 
@@ -103,10 +76,10 @@ impl QuickJsRuntimeContext {
         }
     }
 
-    fn assert_owner_thread(&self) -> Result<(), QuickJsError> {
+    fn assert_owner_thread(&self) -> Result<(), RjsiError> {
         if thread::current().id() != self.inner.owner_thread {
-            return Err(HostError::new(
-                rjsi_core::E_INVALID_STATE,
+            return Err(EngineError::thread_violation(
+                "quickjs",
                 "QuickJS runtime accessed from a non-owner thread",
             )
             .into());
@@ -155,7 +128,7 @@ impl Runtime for QuickJsRuntime {
     type Function<'s> = QuickJsValue<'s>;
     type Persistent = QuickJsGlobal;
     type Context = QuickJsRuntimeContext;
-    type Error = QuickJsError;
+    type Error = RjsiError;
 
     fn name() -> &'static str {
         "quickjs"
@@ -169,8 +142,8 @@ impl Runtime for QuickJsRuntime {
 impl ContextLike<QuickJsRuntime> for QuickJsRuntimeContext {
     fn with_scope<T>(
         &self,
-        f: impl for<'s> FnOnce(&mut QuickJsScope<'s, 's>) -> Result<T, QuickJsError>,
-    ) -> Result<T, QuickJsError> {
+        f: impl for<'s> FnOnce(&mut QuickJsScope<'s, 's>) -> Result<T, RjsiError>,
+    ) -> Result<T, RjsiError> {
         self.assert_owner_thread()?;
         self.inner.context.with(|ctx| {
             let mut scope = QuickJsScope {
@@ -196,10 +169,10 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, QuickJsRuntime> for QuickJsScope<'js, 'p> 
         f(&mut child)
     }
 
-    fn eval(&mut self, src: &str) -> Result<QuickJsValue<'js>, QuickJsError> {
+    fn eval(&mut self, src: &str) -> Result<QuickJsValue<'js>, RjsiError> {
         match self.ctx.eval::<Value<'js>, _>(src).catch(&self.ctx) {
             Ok(value) => Ok(QuickJsValue { value }),
-            Err(err) => Err(QuickJsError::from_caught(err)),
+            Err(err) => Err(quickjs_caught_to_error(err)),
         }
     }
 
@@ -283,13 +256,15 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, QuickJsRuntime> for QuickJsScope<'js, 'p> 
             })
     }
 
-    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<QuickJsValue<'js>, QuickJsError>
+    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<QuickJsValue<'js>>
     where
-        F: FnOnce(&mut QuickJsScope<'js, 'p>) -> Result<QuickJsValue<'js>, QuickJsError>,
+        F: FnOnce(&mut QuickJsScope<'js, 'p>) -> Result<QuickJsValue<'js>, RjsiError>,
     {
         match f(self) {
             Ok(v) => TryCatchResult::Ok(v),
-            Err(e) => TryCatchResult::Exception(e),
+            Err(RjsiError::Exception(e)) => TryCatchResult::Exception(e),
+            Err(RjsiError::Host(e)) => TryCatchResult::Host(e),
+            Err(RjsiError::Engine(e)) => TryCatchResult::Engine(e),
         }
     }
 
@@ -299,12 +274,12 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, QuickJsRuntime> for QuickJsScope<'js, 'p> 
         self.array_buffer_copy(data)
     }
 
-    fn function<F>(&mut self, f: F) -> Result<QuickJsValue<'js>, QuickJsError>
+    fn function<F>(&mut self, f: F) -> Result<QuickJsValue<'js>, RjsiError>
     where
         F: for<'a> Fn(
                 &mut QuickJsScope<'a, 'a>,
                 Args<'a, QuickJsRuntime>,
-            ) -> Result<QuickJsValue<'a>, QuickJsError>
+            ) -> Result<QuickJsValue<'a>, RjsiError>
             + Send
             + Sync
             + 'static,
@@ -315,7 +290,7 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, QuickJsRuntime> for QuickJsScope<'js, 'p> 
                 callback: Arc::new(f),
             },
         )
-        .map_err(QuickJsError::from)?;
+        .map_err(|e| quickjs_engine_error(format!("{e:?}")))?;
         Ok(QuickJsValue {
             value: function.into_value(),
         })
@@ -483,7 +458,7 @@ impl<'js> ValueLike<'js, QuickJsRuntime> for QuickJsValue<'js> {
         _scope: &mut QuickJsScope<'js, '_>,
         this: QuickJsValue<'js>,
         args: &[QuickJsValue<'js>],
-    ) -> Result<QuickJsValue<'js>, QuickJsError> {
+    ) -> Result<QuickJsValue<'js>, RjsiError> {
         let function = self
             .value
             .clone()
@@ -494,7 +469,7 @@ impl<'js> ValueLike<'js, QuickJsRuntime> for QuickJsValue<'js> {
             .call::<_, Value<'js>>((This(this.value), Rest(args)))
             .catch(&function.ctx().clone())
             .map(|value| QuickJsValue { value })
-            .map_err(QuickJsError::from_caught)
+            .map_err(quickjs_caught_to_error)
     }
 }
 

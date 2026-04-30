@@ -1,12 +1,7 @@
-//! Register a **native (host) function** with the full `Args` API: pull typed
-//! values from `arguments` by index and return a new JS value.
-//!
-//! Run: `cargo run --example host_function --features quickjs`
-
-use rjsi::quickjs::{QuickJsError, QuickJsRuntimeContext, QuickJsValue};
+use rjsi::quickjs::{QuickJsRuntimeContext, QuickJsValue};
 use rjsi::{ContextLike, ScopeLike, ValueLike};
 
-fn main() -> Result<(), QuickJsError> {
+fn main() -> Result<(), rjsi::Error> {
     let runtime = QuickJsRuntimeContext::new();
     runtime.with_scope(|scope| {
         // `function` needs a `Send` + `'static` closure, so the callback cannot
@@ -25,9 +20,9 @@ fn main() -> Result<(), QuickJsError> {
         global.set(scope, "addHost", add);
 
         let out = scope.eval("addHost(20, 22);")?;
-        let sum = out.as_i32(scope).ok_or_else(|| {
-            QuickJsError::from(rjsi::HostError::type_error(rjsi::E_TYPE, "expected int result"))
-        })?;
+        let sum = out
+            .as_i32(scope)
+            .ok_or_else(|| rjsi::HostError::type_error(rjsi::E_TYPE, "expected int result"))?;
         assert_eq!(sum, 42);
         println!("addHost(20, 22) => {sum}");
 

@@ -4,7 +4,6 @@ mod layout;
 
 use std::cell::{RefCell, UnsafeCell};
 use std::collections::HashMap;
-use std::fmt;
 use std::marker::PhantomData;
 use std::ptr::null_mut;
 use std::rc::Rc;
@@ -13,8 +12,8 @@ use std::thread::{self, ThreadId};
 
 use layout::jsobject_ref;
 use rjsi_core::{
-    Args, Callback, ContextLike, JsFunction, HostError, PersistentLike, Runtime, ScopeLike,
-    TryCatchResult, ValueLike,
+    Args, Callback, ContextLike, EngineError, Error as RjsiError, HostError, JsException,
+    JsFunction, PersistentLike, Runtime, ScopeLike, TryCatchResult, ValueLike,
 };
 use rusty_jsc::{JSContext, JSObject, JSObjectGeneric, JSString, JSValue};
 use rusty_jsc_sys::{
@@ -113,31 +112,52 @@ pub struct JscGlobal {
     value: JSValue,
 }
 
-#[derive(Debug, Clone)]
-pub struct JscError {
-    message: String,
+fn jsc_engine_error(message: impl Into<String>) -> RjsiError {
+    EngineError::api_failure("javascriptcore", message).into()
 }
 
-impl JscError {
-    fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
+fn jsc_value_to_string(ctx: &JSContext, value: &JSValue) -> String {
+    value
+        .to_js_string(ctx)
+        .ok()
+        .map(|s: JSString| s.to_string())
+        .unwrap_or_else(|| "JavaScriptCore exception".to_string())
+}
+
+fn jsc_object_prop_string(ctx: &JSContext, object: &JSObject, key: &str) -> Option<String> {
+    let k: JSString = key.into();
+    let mut ex: JSValueRef = null_mut();
+    let v = unsafe { JSObjectGetProperty(ctx.get_ref(), jsobject_ref(object), k.inner, &mut ex) };
+    if !ex.is_null() {
+        return None;
+    }
+    let s = JSValue::from(v)
+        .to_js_string(ctx)
+        .ok()
+        .map(|js: JSString| js.to_string());
+    s.filter(|v| !v.is_empty())
+}
+
+fn jsc_exception_from_value(ctx: &JSContext, value: &JSValue) -> JsException {
+    let display = jsc_value_to_string(ctx, value);
+    if let Ok(object) = value.to_object(ctx) {
+        let mut ex = JsException::new(display);
+        if let Some(name) = jsc_object_prop_string(ctx, &object, "name") {
+            ex = ex.with_name(name);
         }
+        if let Some(message) = jsc_object_prop_string(ctx, &object, "message") {
+            ex = ex.with_message(message);
+        }
+        if let Some(stack) = jsc_object_prop_string(ctx, &object, "stack") {
+            ex = ex.with_stack(stack);
+        }
+        if let Some(code) = jsc_object_prop_string(ctx, &object, "code") {
+            ex = ex.with_code(code);
+        }
+        let is_error_object = ex.name.is_some() || ex.message.is_some() || ex.stack.is_some();
+        return ex.with_is_error_object(is_error_object);
     }
-}
-
-impl fmt::Display for JscError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl std::error::Error for JscError {}
-
-impl From<HostError> for JscError {
-    fn from(value: HostError) -> Self {
-        Self::new(value.to_string())
-    }
+    JsException::new(display)
 }
 
 trait JscHostSlot: 'static {
@@ -282,10 +302,10 @@ impl JscRuntimeContext {
         }
     }
 
-    fn assert_owner_thread(&self) -> Result<(), JscError> {
+    fn assert_owner_thread(&self) -> Result<(), RjsiError> {
         if thread::current().id() != self.inner.owner_thread {
-            return Err(HostError::new(
-                rjsi_core::E_INVALID_STATE,
+            return Err(EngineError::thread_violation(
+                "javascriptcore",
                 "JSC runtime used from a non-owner thread",
             )
             .into());
@@ -306,7 +326,7 @@ impl Runtime for JscRuntime {
     type Function<'s> = JscValue<'s>;
     type Persistent = JscGlobal;
     type Context = JscRuntimeContext;
-    type Error = JscError;
+    type Error = RjsiError;
 
     fn name() -> &'static str {
         "javascriptcore"
@@ -320,8 +340,8 @@ impl Runtime for JscRuntime {
 impl ContextLike<JscRuntime> for JscRuntimeContext {
     fn with_scope<T>(
         &self,
-        f: impl for<'s> FnOnce(&mut JscScope<'s, 's>) -> Result<T, JscError>,
-    ) -> Result<T, JscError> {
+        f: impl for<'s> FnOnce(&mut JscScope<'s, 's>) -> Result<T, RjsiError>,
+    ) -> Result<T, RjsiError> {
         self.assert_owner_thread()?;
         let ctx_ptr: *mut JSContext = self.inner.context.get();
         let _ctxg = JscContextGuard::set(ctx_ptr);
@@ -344,7 +364,7 @@ impl<'js, 'p> JscScope<'js, 'p> {
         self.ctx().get_ref()
     }
 
-    fn as_object(&self, value: &JscValue<'js>) -> Result<JSObject, JscError> {
+    fn as_object(&self, value: &JscValue<'js>) -> Result<JSObject, RjsiError> {
         value
             .value
             .to_object(self.ctx())
@@ -365,7 +385,7 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, JscRuntime> for JscScope<'js, 'p> {
         f(&mut child)
     }
 
-    fn eval(&mut self, src: &str) -> Result<JscValue<'js>, JscError> {
+    fn eval(&mut self, src: &str) -> Result<JscValue<'js>, RjsiError> {
         let script: JSString = src.into();
         let mut exception: JSValueRef = null_mut();
         let value = unsafe {
@@ -380,13 +400,7 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, JscRuntime> for JscScope<'js, 'p> {
         };
         if !exception.is_null() {
             let value = JSValue::from(exception);
-            return Err(JscError::new(
-                value
-                    .to_js_string(self.ctx())
-                    .ok()
-                    .map(|s: JSString| s.to_string())
-                    .unwrap_or_else(|| "JavaScriptCore exception".to_string()),
-            ));
+            return Err(jsc_exception_from_value(self.ctx(), &value).into());
         }
         Ok(wrap(JSValue::from(value), PhantomData))
     }
@@ -454,13 +468,15 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, JscRuntime> for JscScope<'js, 'p> {
         wrap(JSValue::from(JSObject::<JSObjectGeneric>::from(o)), PhantomData)
     }
 
-    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<JscValue<'js>, JscError>
+    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<JscValue<'js>>
     where
-        F: FnOnce(&mut JscScope<'js, 'p>) -> Result<JscValue<'js>, JscError>,
+        F: FnOnce(&mut JscScope<'js, 'p>) -> Result<JscValue<'js>, RjsiError>,
     {
         match f(self) {
             Ok(v) => TryCatchResult::Ok(v),
-            Err(e) => TryCatchResult::Exception(e),
+            Err(RjsiError::Exception(e)) => TryCatchResult::Exception(e),
+            Err(RjsiError::Host(e)) => TryCatchResult::Host(e),
+            Err(RjsiError::Engine(e)) => TryCatchResult::Engine(e),
         }
     }
 
@@ -488,20 +504,20 @@ impl<'js, 'p: 'js> ScopeLike<'js, 'p, JscRuntime> for JscScope<'js, 'p> {
         wrap(JSValue::from(JSObject::<JSObjectGeneric>::from(o)), PhantomData)
     }
 
-    fn function<F>(&mut self, f: F) -> Result<JscValue<'js>, JscError>
+    fn function<F>(&mut self, f: F) -> Result<JscValue<'js>, RjsiError>
     where
-        F: for<'a> Fn(&mut JscScope<'a, 'a>, Args<'a, JscRuntime>) -> Result<JscValue<'a>, JscError>
+        F: for<'a> Fn(&mut JscScope<'a, 'a>, Args<'a, JscRuntime>) -> Result<JscValue<'a>, RjsiError>
             + Send
             + Sync
             + 'static,
     {
         let Some(rt) = active_runtime() else {
-            return Err(JscError::new("no active JscRuntimeContext"));
+            return Err(jsc_engine_error("no active JscRuntimeContext"));
         };
         let mut slots = rt
             .host_slots
             .try_borrow_mut()
-            .map_err(|_| JscError::new("host function registration re-entrancy"))?;
+            .map_err(|_| jsc_engine_error("host function registration re-entrancy"))?;
         let id = slots.len();
         let wrapped: Box<dyn JscHostSlot> = Box::new(JscHostWrapper {
             callback: Arc::new(f),
@@ -727,21 +743,14 @@ impl<'js> ValueLike<'js, JscRuntime> for JscValue<'js> {
         scope: &mut JscScope<'js, '_>,
         this: JscValue<'js>,
         args: &[JscValue<'js>],
-    ) -> Result<JscValue<'js>, JscError> {
+    ) -> Result<JscValue<'js>, RjsiError> {
         let fnobj = scope.as_object(self)?;
         let this_v = this.value.to_object(scope.ctx()).ok();
         let js_args: Vec<_> = args.iter().map(|a| a.value.clone()).collect();
         fnobj
             .call_as_function(scope.ctx(), this_v.as_ref(), &js_args)
             .map(|v| wrap(v, PhantomData))
-            .map_err(|e| {
-                JscError::new(
-                    e.to_js_string(scope.ctx())
-                        .ok()
-                        .map(|s: JSString| s.to_string())
-                        .unwrap_or_else(|| "JavaScriptCore call failed".to_string()),
-                )
-            })
+            .map_err(|e| jsc_exception_from_value(scope.ctx(), &e).into())
     }
 }
 

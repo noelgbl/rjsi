@@ -1,15 +1,23 @@
-use crate::{callback::Args, runtime::Runtime};
+use crate::{
+    callback::Args,
+    error::{EngineError, HostError, JsException},
+    runtime::Runtime,
+};
 
-pub enum TryCatchResult<V, E> {
+pub enum TryCatchResult<V> {
     Ok(V),
-    Exception(E),
+    Exception(JsException),
+    Host(HostError),
+    Engine(EngineError),
 }
 
-impl<V, E> TryCatchResult<V, E> {
-    pub fn into_result(self) -> Result<V, E> {
+impl<V> TryCatchResult<V> {
+    pub fn into_result(self) -> Result<V, crate::Error> {
         match self {
             TryCatchResult::Ok(v) => Ok(v),
-            TryCatchResult::Exception(e) => Err(e),
+            TryCatchResult::Exception(e) => Err(e.into()),
+            TryCatchResult::Host(e) => Err(e.into()),
+            TryCatchResult::Engine(e) => Err(e.into()),
         }
     }
 }
@@ -33,7 +41,7 @@ pub trait ScopeLike<'s, 'p: 's, R: Runtime> {
     fn array(&mut self, len: u32) -> R::Value<'s>;
     fn array_buffer_copy(&mut self, bytes: &[u8]) -> R::Value<'s>;
 
-    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<R::Value<'s>, R::Error>
+    fn try_catch<F>(&mut self, f: F) -> TryCatchResult<R::Value<'s>>
     where
         F: FnOnce(&mut R::Scope<'_, '_>) -> Result<R::Value<'s>, R::Error>;
 

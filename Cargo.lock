@@ -348,6 +348,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-add"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+]
+
+[[package]]
+name = "example-console"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+]
+
+[[package]]
+name = "example-hello-world"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+]
+
+[[package]]
+name = "example-host-function"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+]
+
+[[package]]
+name = "example-macros"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
