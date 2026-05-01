@@ -13,55 +13,55 @@ impl<'rt, E: Engine> Context<'rt, E> {
         f(&mut self.raw)
     }
 
-    pub fn eval_with_filename<'cx>(
+    pub fn eval_with_filename(
         &mut self,
         src: &str,
         filename: &str,
-    ) -> JsResult<'cx, E, Value<'cx, E>> {
+    ) -> JsResult<'rt, E, Value<'rt, E>> {
         E::eval(&mut self.raw, src, Some(filename)).map(Value::new)
     }
 
-    pub fn eval<'cx>(&mut self, src: &str) -> JsResult<'cx, E, Value<'cx, E>> {
+    pub fn eval(&mut self, src: &str) -> JsResult<'rt, E, Value<'rt, E>> {
         E::eval(&mut self.raw, src, None).map(Value::new)
     }
 
-    pub fn globals<'cx>(&mut self) -> Object<'cx, E> {
+    pub fn globals(&mut self) -> Object<'rt, E> {
         Object::new(E::global_object(&mut self.raw))
     }
 
-    pub fn new_object<'cx>(&mut self) -> JsResult<'cx, E, Object<'cx, E>> {
+    pub fn new_object(&mut self) -> JsResult<'rt, E, Object<'rt, E>> {
         E::object_new(&mut self.raw).map(Object::new)
     }
 
-    pub fn undefined<'cx>(&mut self) -> Value<'cx, E> {
+    pub fn undefined(&mut self) -> Value<'rt, E> {
         Value::new(E::make_undefined(&mut self.raw))
     }
 
-    pub fn null<'cx>(&mut self) -> Value<'cx, E> {
+    pub fn null(&mut self) -> Value<'rt, E> {
         Value::new(E::make_null(&mut self.raw))
     }
 
-    pub fn boolean<'cx>(&mut self, v: bool) -> Value<'cx, E> {
+    pub fn boolean(&mut self, v: bool) -> Value<'rt, E> {
         Value::new(E::make_bool(&mut self.raw, v))
     }
 
-    pub fn integer<'cx>(&mut self, v: i32) -> Value<'cx, E> {
+    pub fn integer(&mut self, v: i32) -> Value<'rt, E> {
         Value::new(E::make_i32(&mut self.raw, v))
     }
 
-    pub fn number<'cx>(&mut self, v: f64) -> Value<'cx, E> {
+    pub fn number(&mut self, v: f64) -> Value<'rt, E> {
         Value::new(E::make_f64(&mut self.raw, v))
     }
 
-    pub fn string<'cx>(&mut self, s: &str) -> JsResult<'cx, E, Value<'cx, E>> {
+    pub fn string(&mut self, s: &str) -> JsResult<'rt, E, Value<'rt, E>> {
         E::make_string(&mut self.raw, s).map(Value::new)
     }
 
-    pub fn function<'cx, F>(
+    pub fn function<F>(
         &mut self,
         name: &str,
         func: F,
-    ) -> JsResult<'cx, E, crate::Function<'cx, E>>
+    ) -> JsResult<'rt, E, crate::Function<'rt, E>>
     where
         F: crate::args::RawHostFn<E> + 'static,
     {

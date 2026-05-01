@@ -56,7 +56,7 @@ pub struct StaticKeySlot(pub u32);
 pub trait KeyCache<E: Engine> {
     fn get_or_intern<'cx>(
         &mut self,
-        cx: &mut crate::Context<'_, E>,
+        cx: &mut crate::Context<'cx, E>,
         slot: StaticKeySlot,
     ) -> JsResult<'cx, E, Key<'cx, E>>;
 }
@@ -64,7 +64,7 @@ pub trait KeyCache<E: Engine> {
 pub trait InternKey<E: Engine> {
     fn intern_str<'cx>(
         &mut self,
-        cx: &mut crate::Context<'_, E>,
+        cx: &mut crate::Context<'cx, E>,
         s: &str,
     ) -> JsResult<'cx, E, Key<'cx, E>>;
 }

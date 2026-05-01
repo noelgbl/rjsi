@@ -19,47 +19,47 @@ pub trait Engine: Sized + 'static {
 
     fn raw_args_get<'cx>(args: &Self::RawArgs<'cx>, index: usize) -> Option<Self::Value<'cx>>;
 
-    fn eval<'cx>(
-        cx: &mut Self::Context<'_>,
+    fn eval<'rt>(
+        cx: &mut Self::Context<'rt>,
         src: &str,
         filename: Option<&str>,
-    ) -> JsResult<'cx, Self, Self::Value<'cx>>;
+    ) -> JsResult<'rt, Self, Self::Value<'rt>>;
 
-    fn global_object<'cx>(cx: &mut Self::Context<'_>) -> Self::Object<'cx>;
+    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt>;
 
-    fn object_new<'cx>(cx: &mut Self::Context<'_>) -> JsResult<'cx, Self, Self::Object<'cx>>;
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<'rt, Self, Self::Object<'rt>>;
 
-    fn object_get<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-    ) -> JsResult<'cx, Self, Self::Value<'cx>>;
+    fn object_get<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, Self::Value<'rt>>;
 
-    fn object_set<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-        val: Self::Value<'cx>,
-    ) -> JsResult<'cx, Self, ()>;
+    fn object_set<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+        val: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()>;
 
-    fn object_has<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-    ) -> JsResult<'cx, Self, bool>;
+    fn object_has<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, bool>;
 
-    fn object_delete<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-    ) -> JsResult<'cx, Self, bool>;
+    fn object_delete<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, bool>;
 
-    fn function_call<'cx>(
-        cx: &mut Self::Context<'_>,
-        func: &Self::Function<'cx>,
-        this: Self::Value<'cx>,
-        args: &[Self::Value<'cx>],
-    ) -> JsResult<'cx, Self, Self::Value<'cx>>;
+    fn function_call<'rt>(
+        cx: &mut Self::Context<'rt>,
+        func: &Self::Function<'rt>,
+        this: Self::Value<'rt>,
+        args: &[Self::Value<'rt>],
+    ) -> JsResult<'rt, Self, Self::Value<'rt>>;
 
     fn value_is_undefined<'cx>(val: &Self::Value<'cx>) -> bool;
     fn value_is_null<'cx>(val: &Self::Value<'cx>) -> bool;
@@ -72,36 +72,36 @@ pub trait Engine: Sized + 'static {
     fn value_is_symbol<'cx>(val: &Self::Value<'cx>) -> bool;
     fn value_is_bigint<'cx>(val: &Self::Value<'cx>) -> bool;
 
-    fn make_undefined<'cx>(cx: &mut Self::Context<'_>) -> Self::Value<'cx>;
-    fn make_null<'cx>(cx: &mut Self::Context<'_>) -> Self::Value<'cx>;
-    fn make_bool<'cx>(cx: &mut Self::Context<'_>, v: bool) -> Self::Value<'cx>;
-    fn make_i32<'cx>(cx: &mut Self::Context<'_>, v: i32) -> Self::Value<'cx>;
-    fn make_f64<'cx>(cx: &mut Self::Context<'_>, v: f64) -> Self::Value<'cx>;
+    fn make_undefined<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt>;
+    fn make_null<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt>;
+    fn make_bool<'rt>(cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt>;
+    fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt>;
+    fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt>;
 
-    fn make_string<'cx>(
-        cx: &mut Self::Context<'_>,
+    fn make_string<'rt>(
+        cx: &mut Self::Context<'rt>,
         s: &str,
-    ) -> JsResult<'cx, Self, Self::Value<'cx>>;
+    ) -> JsResult<'rt, Self, Self::Value<'rt>>;
 
-    fn make_function<'cx, F>(
-        cx: &mut Self::Context<'_>,
+    fn make_function<'rt, F>(
+        cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<'cx, Self, Self::Function<'cx>>
+    ) -> JsResult<'rt, Self, Self::Function<'rt>>
     where
         F: crate::args::RawHostFn<Self> + 'static;
 
     fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool>;
 
-    fn value_to_f64<'cx>(
-        cx: &mut Self::Context<'_>,
-        val: &Self::Value<'cx>,
-    ) -> JsResult<'cx, Self, f64>;
+    fn value_to_f64<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: &Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, f64>;
 
-    fn value_to_string_utf8<'cx>(
-        cx: &mut Self::Context<'_>,
-        val: &Self::Value<'cx>,
-    ) -> JsResult<'cx, Self, String>;
+    fn value_to_string_utf8<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: &Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, String>;
 
     fn object_to_value<'cx>(obj: Self::Object<'cx>) -> Self::Value<'cx>;
 

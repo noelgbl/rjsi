@@ -20,7 +20,7 @@ impl<'cx, E: Engine> Function<'cx, E> {
 
     pub fn call(
         &self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         this: Value<'cx, E>,
         args: &[Value<'cx, E>],
     ) -> JsResult<'cx, E, Value<'cx, E>> {
@@ -31,8 +31,8 @@ impl<'cx, E: Engine> Function<'cx, E> {
         E::function_call(&mut cx.raw, &self.raw, this.raw, raw_args).map(Value::new)
     }
 
-    pub fn call_no_args(&self, cx: &mut Context<'_, E>) -> JsResult<'cx, E, Value<'cx, E>> {
-        let this: Value<'_, E> = Value::new(E::make_undefined(&mut cx.raw));
+    pub fn call_no_args(&self, cx: &mut Context<'cx, E>) -> JsResult<'cx, E, Value<'cx, E>> {
+        let this: Value<'cx, E> = Value::new(E::make_undefined(&mut cx.raw));
         E::function_call(&mut cx.raw, &self.raw, this.raw, &[]).map(Value::new)
     }
 

@@ -67,11 +67,11 @@ impl<'cx, E: Engine> Value<'cx, E> {
         E::value_to_bool(&self.raw)
     }
 
-    pub fn to_f64(&self, cx: &mut Context<'_, E>) -> JsResult<'cx, E, f64> {
+    pub fn to_f64(&self, cx: &mut Context<'cx, E>) -> JsResult<'cx, E, f64> {
         E::value_to_f64(&mut cx.raw, &self.raw)
     }
 
-    pub fn to_string(&self, cx: &mut Context<'_, E>) -> JsResult<'cx, E, String> {
+    pub fn to_string(&self, cx: &mut Context<'cx, E>) -> JsResult<'cx, E, String> {
         E::value_to_string_utf8(&mut cx.raw, &self.raw)
     }
 

@@ -20,7 +20,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn get(
         &self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
     ) -> JsResult<'cx, E, Value<'cx, E>> {
         E::object_get(&mut cx.raw, &self.raw, key.into_key()).map(Value::new)
@@ -28,7 +28,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn set(
         &self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
         val: Value<'cx, E>,
     ) -> JsResult<'cx, E, ()> {
@@ -37,7 +37,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn has(
         &self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
     ) -> JsResult<'cx, E, bool> {
         E::object_has(&mut cx.raw, &self.raw, key.into_key())
@@ -45,7 +45,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn delete(
         &self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
     ) -> JsResult<'cx, E, bool> {
         E::object_delete(&mut cx.raw, &self.raw, key.into_key())
@@ -53,7 +53,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn get_typed<V>(
         &self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
     ) -> JsResult<'cx, E, V>
     where
@@ -65,7 +65,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn set_typed<V>(
         &self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
         val: V,
     ) -> JsResult<'cx, E, ()>

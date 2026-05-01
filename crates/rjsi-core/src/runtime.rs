@@ -20,7 +20,7 @@ pub trait PromiseBridge<E: Engine> {
 
     fn future_to_promise<'cx, F, T>(
         &mut self,
-        cx: &mut Context<'_, E>,
+        cx: &mut Context<'cx, E>,
         fut: F,
     ) -> JsResult<'cx, E, E::Value<'cx>>
     where

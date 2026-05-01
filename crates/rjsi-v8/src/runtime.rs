@@ -69,7 +69,7 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
 impl InternKey<crate::engine::V8Engine> for V8Runtime {
     fn intern_str<'cx>(
         &mut self,
-        cx: &mut Context<'_, crate::engine::V8Engine>,
+        cx: &mut Context<'cx, crate::engine::V8Engine>,
         s: &str,
     ) -> JsResult<'cx, crate::engine::V8Engine, Key<'cx, crate::engine::V8Engine>> {
         let cx_raw = rjsi_core::__cx::context_mut(cx);
@@ -83,7 +83,7 @@ impl InternKey<crate::engine::V8Engine> for V8Runtime {
 impl KeyCache<crate::engine::V8Engine> for V8Runtime {
     fn get_or_intern<'cx>(
         &mut self,
-        cx: &mut Context<'_, crate::engine::V8Engine>,
+        cx: &mut Context<'cx, crate::engine::V8Engine>,
         slot: StaticKeySlot,
     ) -> JsResult<'cx, crate::engine::V8Engine, Key<'cx, crate::engine::V8Engine>> {
         let idx = slot.0 as usize;

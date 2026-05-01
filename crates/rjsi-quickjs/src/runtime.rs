@@ -49,19 +49,19 @@ impl Runtime<QuickJsEngine> for QuickJsRuntime {
 impl InternKey<QuickJsEngine> for QuickJsRuntime {
     fn intern_str<'cx>(
         &mut self,
-        cx: &mut Context<'_, QuickJsEngine>,
+        cx: &mut Context<'cx, QuickJsEngine>,
         s: &str,
     ) -> JsResult<'cx, QuickJsEngine, Key<'cx, QuickJsEngine>> {
         let cx_raw = rjsi_core::__cx::context_mut(cx);
         let res = Atom::from_str(cx_raw.clone(), s);
-        map_err(cx_raw, res).map(|a| Key::new(unsafe { crate::engine::cast_key(a) }))
+        map_err(cx_raw, res).map(|a| Key::new(a))
     }
 }
 
 impl KeyCache<QuickJsEngine> for QuickJsRuntime {
     fn get_or_intern<'cx>(
         &mut self,
-        cx: &mut Context<'_, QuickJsEngine>,
+        cx: &mut Context<'cx, QuickJsEngine>,
         slot: StaticKeySlot,
     ) -> JsResult<'cx, QuickJsEngine, Key<'cx, QuickJsEngine>> {
         let idx = slot.0 as usize;
@@ -79,6 +79,6 @@ impl KeyCache<QuickJsEngine> for QuickJsRuntime {
 
         let cx_raw = rjsi_core::__cx::context_mut(cx);
         let res = Atom::from_str(cx_raw.clone(), &s);
-        map_err(cx_raw, res).map(|a| Key::new(unsafe { crate::engine::cast_key(a) }))
+        map_err(cx_raw, res).map(|a| Key::new(a))
     }
 }

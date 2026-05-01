@@ -1,4 +1,4 @@
-use rjsi_core::{Engine, JsResult, Runtime, Value};
+use rjsi_core::{Engine, Runtime, Value};
 
 fn expect_js<T, E>(r: Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
@@ -11,11 +11,11 @@ where
 {
     runtime
         .with_scope(|cx| {
-            let value = cx.eval("21 + 21")?;
+            let value = cx.eval("21 + 21").unwrap();
             assert!(value.is_number());
-            JsResult::Ok(())
+            
         })
-        .unwrap();
+        ;
 }
 
 pub fn explicit_global_restores<E, R>(runtime: &mut R)
@@ -27,20 +27,19 @@ where
         .with_scope(|cx| {
             let global = cx.globals();
             let value = cx.number(42.0);
-            global.set(cx, "answer", value)?;
-            JsResult::Ok(())
-        })
-        .unwrap();
+            global.set(cx, "answer", value).unwrap();
+            
+        });
 
     runtime
         .with_scope(|cx| {
             let global = cx.globals();
-            let restored = global.get(cx, "answer")?;
+            let restored = global.get(cx, "answer").unwrap();
             let n = expect_js(restored.to_f64(cx), "global restore");
             assert_eq!(n, 42.0);
-            JsResult::Ok(())
+            
         })
-        .unwrap();
+        ;
 }
 
 pub fn static_property_get_set<E, R>(runtime: &mut R)
@@ -52,13 +51,13 @@ where
         .with_scope(|cx| {
             let object = expect_js(cx.new_object(), "new object");
             let value = cx.number(42.0);
-            object.set(cx, "answer", value)?;
-            let restored = object.get(cx, "answer")?;
+            object.set(cx, "answer", value).unwrap();
+            let restored = object.get(cx, "answer").unwrap();
             let n = expect_js(restored.to_f64(cx), "object get");
             assert_eq!(n, 42.0);
-            JsResult::Ok(())
+            
         })
-        .unwrap();
+        ;
 }
 
 pub fn nested_scopes<E, R>(runtime: &mut R)
@@ -76,9 +75,9 @@ where
             }
             let n = expect_js(outer_value.to_f64(cx), "outer value");
             assert_eq!(n, 1.0);
-            JsResult::<'_, E, ()>::Ok(())
+            
         })
-        .unwrap();
+        ;
 }
 
 pub fn constructors_and_host<E, R>(runtime: &mut R)
@@ -92,22 +91,22 @@ where
             let object_value: Value<'_, E> = object.into_value();
             assert!(object_value.is_object());
 
-            let array_value = cx.eval("new Array(2)")?;
+            let array_value = cx.eval("new Array(2)").unwrap();
             assert!(array_value.is_array());
 
-            let buffer_value = cx.eval("new ArrayBuffer(3)")?;
+            let buffer_value = cx.eval("new ArrayBuffer(3)").unwrap();
             assert!(buffer_value.is_object());
 
-            let fn_value = cx.eval("(n) => n + 1")?;
+            let fn_value = cx.eval("(n) => n + 1").unwrap();
             let function = expect_js(fn_value.try_as_function(), "conformance: function");
             let arg = cx.number(41.0);
             let this = cx.undefined();
             let result = expect_js(function.call(cx, this, &[arg]), "conformance: call");
             let n = expect_js(result.to_f64(cx), "conformance: call result");
             assert_eq!(n, 42.0);
-            JsResult::Ok(())
+            
         })
-        .unwrap();
+        ;
 }
 
 pub fn primitives_roundtrip<E, R>(runtime: &mut R)
@@ -127,9 +126,9 @@ where
 
             let b = cx.boolean(false);
             assert_eq!(b.to_bool(), Some(false));
-            JsResult::<'_, E, ()>::Ok(())
+            
         })
-        .unwrap();
+        ;
 }
 
 pub fn array_index_get_set<E, R>(runtime: &mut R)
@@ -139,17 +138,17 @@ where
 {
     runtime
         .with_scope(|cx| {
-            let array_value = cx.eval("new Array(3)")?;
+            let array_value = cx.eval("new Array(3)").unwrap();
             assert!(array_value.is_array());
             let array_obj = expect_js(array_value.try_as_object(), "array object");
             let n = cx.number(99.0);
-            array_obj.set(cx, 1u32, n)?;
-            let got = array_obj.get(cx, 1u32)?;
+            array_obj.set(cx, 1u32, n).unwrap();
+            let got = array_obj.get(cx, 1u32).unwrap();
             let n = expect_js(got.to_f64(cx), "array index");
             assert_eq!(n, 99.0);
-            JsResult::Ok(())
+            
         })
-        .unwrap();
+        ;
 }
 
 pub fn run_all<E, R>(runtime: &mut R)

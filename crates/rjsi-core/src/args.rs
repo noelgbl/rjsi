@@ -92,25 +92,25 @@ pub trait RawHostFn<E: Engine> {
     fn call<'cx, 'rt>(
         &mut self,
         cx: &mut CallbackCx<'cx, 'rt, E>,
-        this: Value<'cx, E>,
-        args: Args<'cx, E>,
-    ) -> JsResult<'cx, E, Value<'cx, E>>;
+        this: Value<'rt, E>,
+        args: Args<'rt, E>,
+    ) -> JsResult<'rt, E, Value<'rt, E>>;
 }
 
 impl<E: Engine, F> RawHostFn<E> for F
 where
     F: for<'cx, 'rt> FnMut(
         &mut CallbackCx<'cx, 'rt, E>,
-        Value<'cx, E>,
-        Args<'cx, E>,
-    ) -> JsResult<'cx, E, Value<'cx, E>>,
+        Value<'rt, E>,
+        Args<'rt, E>,
+    ) -> JsResult<'rt, E, Value<'rt, E>>,
 {
     fn call<'cx, 'rt>(
         &mut self,
         cx: &mut CallbackCx<'cx, 'rt, E>,
-        this: Value<'cx, E>,
-        args: Args<'cx, E>,
-    ) -> JsResult<'cx, E, Value<'cx, E>> {
+        this: Value<'rt, E>,
+        args: Args<'rt, E>,
+    ) -> JsResult<'rt, E, Value<'rt, E>> {
         self(cx, this, args)
     }
 }

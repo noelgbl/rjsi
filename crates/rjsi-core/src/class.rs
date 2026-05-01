@@ -36,13 +36,13 @@ pub trait NativeObject<E: Engine> {
 pub trait JsClass<E: Engine>: 'static {
     const NAME: &'static str;
 
-    fn prototype<'cx, 'rt>(cx: &mut Context<'rt, E>, proto: E::Object<'cx>)
+    fn prototype<'cx>(cx: &mut Context<'cx, E>, proto: E::Object<'cx>)
     -> JsResult<'cx, E, ()>;
 
     fn constructor<'cx, 'rt>(
         cx: &mut CallbackCx<'cx, 'rt, E>,
-        args: Args<'cx, E>,
-    ) -> JsResult<'cx, E, Self>
+        args: Args<'rt, E>,
+    ) -> JsResult<'rt, E, Self>
     where
         Self: Sized;
 }

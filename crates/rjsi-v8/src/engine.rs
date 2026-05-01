@@ -102,11 +102,11 @@ impl Engine for V8Engine {
         unreachable!("Use Runtime::with_scope instead for V8")
     }
 
-    fn raw_args_len<'cx>(args: &Self::RawArgs<'cx>) -> usize {
+    fn raw_args_len<'rt>(args: &Self::RawArgs<'rt>) -> usize {
         args.inner().length() as usize
     }
 
-    fn raw_args_get<'cx>(args: &Self::RawArgs<'cx>, index: usize) -> Option<Self::Value<'cx>> {
+    fn raw_args_get<'rt>(args: &Self::RawArgs<'rt>, index: usize) -> Option<Self::Value<'rt>> {
         let i = index as i32;
         if i < args.inner().length() {
             Some(unsafe { cast_local(args.inner().get(i)) })
@@ -115,11 +115,11 @@ impl Engine for V8Engine {
         }
     }
 
-    fn eval<'cx>(
-        cx: &mut Self::Context<'_>,
+    fn eval<'rt>(
+        cx: &mut Self::Context<'rt>,
         src: &str,
         filename: Option<&str>,
-    ) -> JsResult<'cx, Self, Self::Value<'cx>> {
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let code = v8::String::new(scope, src).unwrap();
 
@@ -165,24 +165,24 @@ impl Engine for V8Engine {
         }
     }
 
-    fn global_object<'cx>(cx: &mut Self::Context<'_>) -> Self::Object<'cx> {
+    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
         let scope = unsafe { get_scope(cx) };
         let context = scope.get_current_context();
         let global = context.global(scope);
         unsafe { cast_local(global) }
     }
 
-    fn object_new<'cx>(cx: &mut Self::Context<'_>) -> JsResult<'cx, Self, Self::Object<'cx>> {
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<'rt, Self, Self::Object<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let obj = v8::Object::new(scope);
         Ok(unsafe { cast_local(obj) })
     }
 
-    fn object_get<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-    ) -> JsResult<'cx, Self, Self::Value<'cx>> {
+    fn object_get<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -203,12 +203,12 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_set<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-        val: Self::Value<'cx>,
-    ) -> JsResult<'cx, Self, ()> {
+    fn object_set<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+        val: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -233,11 +233,11 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_has<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-    ) -> JsResult<'cx, Self, bool> {
+    fn object_has<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -258,11 +258,11 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_delete<'cx>(
-        cx: &mut Self::Context<'_>,
-        obj: &Self::Object<'cx>,
-        key: PropertyKey<'cx, Self>,
-    ) -> JsResult<'cx, Self, bool> {
+    fn object_delete<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -287,12 +287,12 @@ impl Engine for V8Engine {
         }
     }
 
-    fn function_call<'cx>(
-        cx: &mut Self::Context<'_>,
-        func: &Self::Function<'cx>,
-        this: Self::Value<'cx>,
-        args: &[Self::Value<'cx>],
-    ) -> JsResult<'cx, Self, Self::Value<'cx>> {
+    fn function_call<'rt>(
+        cx: &mut Self::Context<'rt>,
+        func: &Self::Function<'rt>,
+        this: Self::Value<'rt>,
+        args: &[Self::Value<'rt>],
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let try_catch_obj = v8::TryCatch::new(scope);
         let try_catch_pin = std::pin::pin!(try_catch_obj);
@@ -306,62 +306,62 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_is_undefined<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_undefined<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_undefined()
     }
-    fn value_is_null<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_null<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_null()
     }
-    fn value_is_boolean<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_boolean<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_boolean()
     }
-    fn value_is_number<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_number<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_number()
     }
-    fn value_is_string<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_string<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_string()
     }
-    fn value_is_object<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_object<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_object()
     }
-    fn value_is_function<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_function<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_function()
     }
-    fn value_is_array<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_array<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_array()
     }
-    fn value_is_symbol<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_symbol<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_symbol()
     }
-    fn value_is_bigint<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_bigint<'rt>(val: &Self::Value<'rt>) -> bool {
         val.is_big_int()
     }
 
-    fn make_undefined<'cx>(cx: &mut Self::Context<'_>) -> Self::Value<'cx> {
+    fn make_undefined<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::undefined(scope).into()) }
     }
-    fn make_null<'cx>(cx: &mut Self::Context<'_>) -> Self::Value<'cx> {
+    fn make_null<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::null(scope).into()) }
     }
-    fn make_bool<'cx>(cx: &mut Self::Context<'_>, v: bool) -> Self::Value<'cx> {
+    fn make_bool<'rt>(cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::Boolean::new(scope, v).into()) }
     }
-    fn make_i32<'cx>(cx: &mut Self::Context<'_>, v: i32) -> Self::Value<'cx> {
+    fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::Integer::new(scope, v).into()) }
     }
-    fn make_f64<'cx>(cx: &mut Self::Context<'_>, v: f64) -> Self::Value<'cx> {
+    fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::Number::new(scope, v).into()) }
     }
 
-    fn make_string<'cx>(
-        cx: &mut Self::Context<'_>,
+    fn make_string<'rt>(
+        cx: &mut Self::Context<'rt>,
         s: &str,
-    ) -> JsResult<'cx, Self, Self::Value<'cx>> {
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         if let Some(v) = v8::String::new(scope, s) {
             Ok(unsafe { cast_local(v.into()) })
@@ -370,11 +370,11 @@ impl Engine for V8Engine {
         }
     }
 
-    fn make_function<'cx, F>(
-        cx: &mut Self::Context<'_>,
+    fn make_function<'rt, F>(
+        cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<'cx, Self, Self::Function<'cx>>
+    ) -> JsResult<'rt, Self, Self::Function<'rt>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -396,7 +396,7 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
+    fn value_to_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
         if val.is_boolean() {
             Some(val.is_true())
         } else {
@@ -404,10 +404,10 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_f64<'cx>(
-        cx: &mut Self::Context<'_>,
-        val: &Self::Value<'cx>,
-    ) -> JsResult<'cx, Self, f64> {
+    fn value_to_f64<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: &Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, f64> {
         let scope = unsafe { get_scope(cx) };
         if let Some(num) = val.to_number(&mut **scope) {
             Ok(num.value())
@@ -416,10 +416,10 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_string_utf8<'cx>(
-        cx: &mut Self::Context<'_>,
-        val: &Self::Value<'cx>,
-    ) -> JsResult<'cx, Self, std::string::String> {
+    fn value_to_string_utf8<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: &Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, std::string::String> {
         let scope = unsafe { get_scope(cx) };
         if let Some(str) = val.to_string(&mut **scope) {
             let isolate: &v8::Isolate = &**scope;
@@ -429,23 +429,23 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_to_value<'cx>(obj: Self::Object<'cx>) -> Self::Value<'cx> {
+    fn object_to_value<'rt>(obj: Self::Object<'rt>) -> Self::Value<'rt> {
         obj.into()
     }
 
-    fn value_to_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
+    fn value_to_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
         val.try_into().ok()
     }
 
-    fn function_to_value<'cx>(f: Self::Function<'cx>) -> Self::Value<'cx> {
+    fn function_to_value<'rt>(f: Self::Function<'rt>) -> Self::Value<'rt> {
         f.into()
     }
 
-    fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
+    fn value_to_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
         val.try_into().ok()
     }
 
-    fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> {
+    fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> {
         f.into()
     }
 }
