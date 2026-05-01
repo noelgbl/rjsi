@@ -198,25 +198,27 @@ impl Engine for QuickJsEngine {
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
-        let func_cell = std::cell::RefCell::new(func);
-        let qjs_func = rquickjs::Function::new(cx.clone(), move |ctx: rquickjs::Ctx<'_>, this: rquickjs::function::This<rquickjs::Value<'_>>, args: rquickjs::function::Rest<rquickjs::Value<'_>>| -> rquickjs::Result<rquickjs::Value<'_>> {
+        fn call_host_fn<'js, F: rjsi_core::RawHostFn<QuickJsEngine> + 'static>(
+            func_cell: &std::cell::RefCell<F>,
+            ctx: rquickjs::Ctx<'js>,
+            this: rquickjs::function::This<rquickjs::Value<'js>>,
+            args: rquickjs::function::Rest<rquickjs::Value<'js>>,
+        ) -> rquickjs::Result<rquickjs::Value<'js>> {
             let mut context = rjsi_core::Context::new(ctx.clone());
             let scope = rjsi_core::Scope::new(&mut context);
             let mut callback_cx = rjsi_core::CallbackCx::new(scope);
 
-            let this_core =
-                rjsi_core::Value::new(this.0);
+            let this_core = rjsi_core::Value::new(this.0);
 
             let mut argv = Vec::with_capacity(args.0.len());
             for a in args.0 {
                 argv.push(a);
             }
-
             let args_core = rjsi_core::Args::new(QuickJsArgs { argv });
 
             let res = func_cell.borrow_mut().call(&mut callback_cx, this_core, args_core);
             match res {
-                Ok(v) => Ok(v.as_raw().clone()),
+                Ok(v) => Ok(v.into_raw()),
                 Err(rjsi_core::JsError::Exception(ex)) => {
                     ctx.throw(ex);
                     Err(rquickjs::Error::Exception)
@@ -233,6 +235,11 @@ impl Engine for QuickJsEngine {
                     Err(rquickjs::Error::Exception)
                 }
             }
+        }
+
+        let func_cell = std::cell::RefCell::new(func);
+        let qjs_func = rquickjs::Function::new(cx.clone(), move |ctx, this, args| {
+            call_host_fn(&func_cell, ctx, this, args)
         });
 
         if let Ok(f) = &qjs_func {
