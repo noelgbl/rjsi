@@ -1,6 +1,6 @@
 # RJSI - Rust JavaScript Interface
 
-RJSI provides a unified, minimal-overhead interface for interacting with different JavaScript engines in Rust and allows swapping them out at build time. Additionally, a default set of Web APIs are implemented to be used with each engine.
+RJSI provides a unified, minimal-overhead interface for interacting with different JavaScript engines in Rust and allows swapping them out at build time. Additionally, a default set of Web APIs is provided compatible with all engines.
 
 ## Supported Engines
 
