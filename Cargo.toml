@@ -18,10 +18,8 @@ members = [
     "crates/rjsi-quickjs",
     "crates/rjsi-jsc",
     "examples/add",
-    "examples/console",
     "examples/hello-world",
     "examples/host-function",
-    "examples/macros",
 ]
 
 [workspace.dependencies]

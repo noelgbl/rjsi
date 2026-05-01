@@ -1,4 +1,4 @@
-use rjsi::quickjs::QuickJsRuntime;
+use rjsi::DefaultRuntime;
 use rjsi::{Args, CallbackCx, Engine, JsError, JsResult, Runtime, Value};
 
 fn add<'cx, 'rt, E: Engine>(
@@ -16,7 +16,7 @@ fn add<'cx, 'rt, E: Engine>(
 }
 
 fn main() {
-    let mut runtime = QuickJsRuntime::new();
+    let mut runtime = DefaultRuntime::new();
 
     runtime.with_scope(|cx| {
         let add = cx.function("add", add)?;

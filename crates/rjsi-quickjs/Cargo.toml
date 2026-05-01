@@ -13,7 +13,3 @@ criterion = "0.8.2"
 rjsi-console = { path = "../rjsi-console" }
 rjsi-conformance = { path = "../rjsi-conformance" }
 rjsi-macros = { path = "../rjsi-macros" }
-
-[[bench]]
-name = "quickjs_paths"
-harness = false

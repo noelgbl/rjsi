@@ -34,7 +34,4 @@ pub use symbol::Symbol;
 pub use value::Value;
 
 #[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
+pub mod mock;

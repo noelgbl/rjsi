@@ -3,14 +3,9 @@ name = "rjsi-v8"
 version = "0.1.0"
 edition = "2024"
 
-[features]
-default = []
-v8 = []
-
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
 v8 = "147.4.0"
-smallvec.workspace = true
 
 [dev-dependencies]
 criterion = "0.8.2"

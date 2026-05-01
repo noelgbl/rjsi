@@ -355,13 +355,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-console"
-version = "0.1.0"
-dependencies = [
- "rjsi",
-]
-
-[[package]]
 name = "example-hello-world"
 version = "0.1.0"
 dependencies = [
@@ -374,13 +367,6 @@ version = "0.1.0"
 dependencies = [
  "rjsi",
  "rquickjs",
-]
-
-[[package]]
-name = "example-macros"
-version = "0.1.0"
-dependencies = [
- "rjsi",
 ]
 
 [[package]]
@@ -985,7 +971,6 @@ dependencies = [
  "rjsi-conformance",
  "rjsi-console",
  "rjsi-core",
- "smallvec",
  "v8",
 ]
 

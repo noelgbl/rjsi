@@ -9,3 +9,14 @@ pub use rjsi_macros::{FromJs, IntoJs, JsClass, js_methods};
 pub use rjsi_quickjs as quickjs;
 #[cfg(feature = "v8")]
 pub use rjsi_v8 as v8;
+
+#[cfg(any(
+    feature = "default-runtime-quickjs",
+    feature = "default-runtime-v8"
+))]
+pub mod default;
+#[cfg(any(
+    feature = "default-runtime-quickjs",
+    feature = "default-runtime-v8"
+))]
+pub use default::*;

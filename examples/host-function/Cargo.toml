@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rjsi = { path = "../../crates/rjsi", features = ["quickjs"] }
+rjsi = { path = "../../crates/rjsi", features = ["default-runtime-quickjs"] }
 rquickjs = "0.11"
