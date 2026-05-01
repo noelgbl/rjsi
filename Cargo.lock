@@ -1670,7 +1670,7 @@ dependencies = [
  "rjsi-conformance",
  "rjsi-console",
  "rjsi-core",
- "timezone_provider 0.0.11",
+ "timezone_provider",
  "v8",
 ]
 
@@ -2023,7 +2023,7 @@ dependencies = [
  "ixdtf",
  "jiff-tzdb",
  "num-traits",
- "timezone_provider 0.0.16",
+ "timezone_provider",
  "tinystr",
  "tzif",
  "writeable",
@@ -2102,17 +2102,6 @@ name = "timezone_provider"
 version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d1fc912f1a2ced7bc0cfed255b2ab58cdcf8df442f11bc02c8f3b9245588d4c"
-dependencies = [
- "tinystr",
- "zerotrie",
- "zerovec",
-]
-
-[[package]]
-name = "timezone_provider"
-version = "0.0.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14fab21f70d8ca989ca76d399d26f4487747ac2def3816d93eaa966f8dfa2ea7"
 dependencies = [
  "tinystr",
  "zerotrie",
