@@ -1,7 +1,31 @@
-use rjsi_core::{Engine, Runtime, Value};
+use rjsi_core::{Args, CallbackCx, Engine, JsError, JsResult, Runtime, Value};
 
 fn expect_js<T, E>(r: Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
+}
+
+fn conformance_sum_args<'cx, 'rt, E: Engine>(
+    cb: &mut CallbackCx<'cx, 'rt, E>,
+    _this: Value<'rt, E>,
+    args: Args<'rt, E>,
+) -> JsResult<'rt, E, Value<'rt, E>> {
+    let cx = cb.cx();
+    let mut acc = 0.0f64;
+    for i in 0..args.len() {
+        let v = args
+            .get(i)
+            .ok_or_else(|| JsError::type_err("missing arg"))?;
+        acc += v.to_f64(cx)?;
+    }
+    Ok(cx.number(acc))
+}
+
+fn conformance_greet<'cx, 'rt, E: Engine>(
+    cb: &mut CallbackCx<'cx, 'rt, E>,
+    _this: Value<'rt, E>,
+    _args: Args<'rt, E>,
+) -> JsResult<'rt, E, Value<'rt, E>> {
+    cb.cx().string("hello")
 }
 
 pub fn eval_runs<E, R>(runtime: &mut R)
@@ -128,6 +152,240 @@ where
     });
 }
 
+pub fn null_undefined_discriminators<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let u = cx.undefined();
+        assert!(u.is_undefined());
+        assert!(!u.is_null());
+        assert!(u.is_nullish());
+
+        let n = cx.null();
+        assert!(n.is_null());
+        assert!(!n.is_undefined());
+        assert!(n.is_nullish());
+    });
+}
+
+pub fn boolean_true_roundtrip<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let t = cx.boolean(true);
+        assert_eq!(t.to_bool(), Some(true));
+        let back = cx.eval("true").unwrap();
+        assert_eq!(back.to_bool(), Some(true));
+    });
+}
+
+pub fn integer_i32_extremes<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        for v in [0i32, -1, i32::MAX, i32::MIN] {
+            let js = cx.integer(v);
+            let n = expect_js(js.to_f64(cx), "i32 to f64");
+            assert_eq!(n, f64::from(v));
+        }
+    });
+}
+
+pub fn eval_with_filename_basic<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let v = cx
+            .eval_with_filename("7 * 6", "conformance-suite.js")
+            .unwrap();
+        let n = expect_js(v.to_f64(cx), "eval with filename");
+        assert_eq!(n, 42.0);
+    });
+}
+
+pub fn object_has_delete_own_property<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let o = expect_js(cx.new_object(), "object");
+        assert!(!expect_js(o.has(cx, "k"), "missing before set"));
+
+        let one = cx.number(1.0);
+        o.set(cx, "k", one).unwrap();
+        assert!(expect_js(o.has(cx, "k"), "present after set"));
+
+        let deleted = expect_js(o.delete(cx, "k"), "delete");
+        assert!(deleted);
+        assert!(!expect_js(o.has(cx, "k"), "gone after delete"));
+
+        let deleted_again = expect_js(o.delete(cx, "k"), "delete missing");
+        assert!(deleted_again);
+    });
+}
+
+pub fn object_get_missing_is_undefined<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let o = expect_js(cx.new_object(), "object");
+        let v = o.get(cx, "absent").unwrap();
+        assert!(v.is_undefined());
+    });
+}
+
+pub fn unicode_string_property_key<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let o = expect_js(cx.new_object(), "object");
+        let key = "café";
+        let ok = expect_js(cx.string("ok"), "ok string");
+        o.set(cx, key, ok).unwrap();
+        let got = expect_js(o.get(cx, key).unwrap().to_string(cx), "utf8 get");
+        assert_eq!(got, "ok");
+    });
+}
+
+pub fn host_function_sums_arguments<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let sum = expect_js(cx.function("sumArgs", conformance_sum_args), "host fn");
+        let global = cx.globals();
+        global.set(cx, "sumArgs", sum.into_value()).unwrap();
+        let v = cx.eval("sumArgs(1, 2, 3, 4)").unwrap();
+        assert_eq!(expect_js(v.to_f64(cx), "sum"), 10.0);
+    });
+}
+
+pub fn host_function_returns_string<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let greet = expect_js(cx.function("greet", conformance_greet), "host greet");
+        cx.globals().set(cx, "greet", greet.into_value()).unwrap();
+        let v = cx.eval("greet()").unwrap();
+        assert_eq!(expect_js(v.to_string(cx), "greet result"), "hello");
+    });
+}
+
+pub fn js_function_call_no_args<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let f = expect_js(cx.eval("() => 123").unwrap().try_as_function(), "fn");
+        let out = expect_js(f.call_no_args(cx), "call no args");
+        assert_eq!(expect_js(out.to_f64(cx), "n"), 123.0);
+    });
+}
+
+pub fn strict_mode_this_undefined_when_calling_with_undefined<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let v = cx
+            .eval(
+                "'use strict'; \
+                 (function () { return this; }).call(undefined)",
+            )
+            .unwrap();
+        assert!(v.is_undefined());
+    });
+}
+
+pub fn eval_syntax_error_surfaces<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let res = cx.eval("@@@not_valid_js@@@");
+        assert!(res.is_err(), "expected syntax error");
+        let err = res.err().expect("err");
+        assert!(
+            matches!(err, JsError::Exception(_)),
+            "expected JS exception for syntax error"
+        );
+    });
+}
+
+pub fn json_parse_roundtrip<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let v = cx.eval("JSON.parse('{\"x\":9}').x").unwrap();
+        assert_eq!(expect_js(v.to_f64(cx), "json x"), 9.0);
+    });
+}
+
+pub fn array_spread_and_length<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let v = cx.eval("[...[1, 2], 3].length").unwrap();
+        assert_eq!(expect_js(v.to_f64(cx), "len"), 3.0);
+    });
+}
+
+pub fn template_literal_basic<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let v = cx.eval("`${1}${2}`").unwrap();
+        assert_eq!(expect_js(v.to_string(cx), "tpl"), "12");
+    });
+}
+
+pub fn optional_chaining_and_nullish_coalescing<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let v = cx.eval("null?.x ?? 5").unwrap();
+        assert_eq!(expect_js(v.to_f64(cx), "??"), 5.0);
+    });
+}
+
+pub fn number_to_string_coercion<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let v = cx.eval("String(3.25)").unwrap();
+        assert_eq!(expect_js(v.to_string(cx), "str"), "3.25");
+    });
+}
+
 pub fn run_all<E, R>(runtime: &mut R)
 where
     E: Engine,
@@ -136,7 +394,25 @@ where
     eval_runs(runtime);
     explicit_global_restores(runtime);
     static_property_get_set(runtime);
+    nested_scopes(runtime);
     constructors_and_host(runtime);
     primitives_roundtrip(runtime);
     array_index_get_set(runtime);
+    null_undefined_discriminators(runtime);
+    boolean_true_roundtrip(runtime);
+    integer_i32_extremes(runtime);
+    eval_with_filename_basic(runtime);
+    object_has_delete_own_property(runtime);
+    object_get_missing_is_undefined(runtime);
+    unicode_string_property_key(runtime);
+    host_function_sums_arguments(runtime);
+    host_function_returns_string(runtime);
+    js_function_call_no_args(runtime);
+    strict_mode_this_undefined_when_calling_with_undefined(runtime);
+    eval_syntax_error_surfaces(runtime);
+    json_parse_roundtrip(runtime);
+    array_spread_and_length(runtime);
+    template_literal_basic(runtime);
+    optional_chaining_and_nullish_coalescing(runtime);
+    number_to_string_coercion(runtime);
 }
