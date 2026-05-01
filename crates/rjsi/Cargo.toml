@@ -7,9 +7,12 @@ edition = "2024"
 default = []
 quickjs = ["dep:rjsi-quickjs"]
 v8 = ["dep:rjsi-v8"]
+boa = ["dep:rjsi-boa"]
+jsc = ["dep:rjsi-jsc"]
 default-runtime-quickjs = ["dep:rjsi-quickjs"]
 default-runtime-v8 = ["dep:rjsi-v8"]
-jsc = ["dep:rjsi-jsc"]
+default-runtime-boa = ["dep:rjsi-boa"]
+default-runtime-jsc = ["jsc"]
 console = ["dep:rjsi-console"]
 macros = ["dep:rjsi-macros"]
 
@@ -20,5 +23,6 @@ rjsi-core = { path = "../rjsi-core" }
 rjsi-macros = { path = "../rjsi-macros", optional = true }
 rjsi-quickjs = { path = "../rjsi-quickjs", optional = true }
 rjsi-v8 = { path = "../rjsi-v8", optional = true }
+rjsi-boa = { path = "../rjsi-boa", optional = true }
 rjsi-console = { path = "../rjsi-console", optional = true }
 rjsi-jsc = { path = "../rjsi-jsc", optional = true }

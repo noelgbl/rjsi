@@ -1,0 +1,320 @@
+use std::ops::{Deref, DerefMut};
+use std::path::Path;
+
+use boa_engine::{
+    Context as BoaCx, JsResult as BoaJsResult, JsString, JsSymbol, JsValue, NativeFunction,
+    Source,
+    object::{FunctionObjectBuilder, JsObject, ObjectInitializer},
+    property::PropertyKey as BoaPropertyKey,
+    script::Script,
+};
+use rjsi_core::{Engine, JsError, JsResult, PropertyKey};
+
+pub struct BoaEngine;
+
+pub struct BoaContext<'rt> {
+    pub(crate) inner: &'rt mut BoaCx,
+}
+
+impl<'rt> Deref for BoaContext<'rt> {
+    type Target = BoaCx;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner
+    }
+}
+
+impl<'rt> DerefMut for BoaContext<'rt> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.inner
+    }
+}
+
+pub struct BoaArgs {
+    pub(crate) argv: Vec<JsValue>,
+}
+
+pub(crate) fn map_js<'cx, T>(cx: &mut BoaCx, res: BoaJsResult<T>) -> JsResult<'cx, BoaEngine, T> {
+    res.map_err(|e| JsError::Exception(e.to_opaque(cx)))
+}
+
+fn property_key<'cx>(
+    key: PropertyKey<'cx, BoaEngine>,
+) -> JsResult<'cx, BoaEngine, BoaPropertyKey> {
+    match key {
+        PropertyKey::Str(s) => Ok(JsString::from(s).into()),
+        PropertyKey::Interned(k) => Ok(k.into()),
+        PropertyKey::Symbol(s) => Ok(s.into()),
+        PropertyKey::Index(i) => Ok(i.into()),
+    }
+}
+
+impl Engine for BoaEngine {
+    type Runtime = crate::runtime::BoaRuntime;
+    type Context<'rt> = BoaContext<'rt>;
+    type Scope<'cx> = ();
+    type Value<'cx> = JsValue;
+    type Object<'cx> = JsObject;
+    type Function<'cx> = JsObject;
+    type String<'cx> = JsString;
+    type Symbol<'cx> = JsSymbol;
+    type Key<'cx> = JsString;
+    type Error<'cx> = boa_engine::JsError;
+    type RawArgs<'cx> = BoaArgs;
+
+    fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+        BoaContext {
+            inner: &mut runtime.context,
+        }
+    }
+
+    fn raw_args_len<'cx>(args: &Self::RawArgs<'cx>) -> usize {
+        args.argv.len()
+    }
+
+    fn raw_args_get<'cx>(args: &Self::RawArgs<'cx>, index: usize) -> Option<Self::Value<'cx>> {
+        args.argv.get(index).cloned()
+    }
+
+    fn eval<'rt>(
+        cx: &mut Self::Context<'rt>,
+        src: &str,
+        filename: Option<&str>,
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+        let source = match filename {
+            Some(path) => Source::from_reader(src.as_bytes(), Some(Path::new(path))),
+            None => Source::from_bytes(src),
+        };
+        let parsed = Script::parse(source, None, cx.deref_mut());
+        let script = map_js(cx.deref_mut(), parsed)?;
+        let evaluated = script.evaluate(cx.deref_mut());
+        map_js(cx.deref_mut(), evaluated)
+    }
+
+    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
+        cx.global_object().clone()
+    }
+
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<'rt, Self, Self::Object<'rt>> {
+        let obj = ObjectInitializer::new(cx.deref_mut()).build();
+        Ok(obj)
+    }
+
+    fn object_get<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+        let k = property_key(key)?;
+        let res = obj.get(k, cx.deref_mut());
+        map_js(cx.deref_mut(), res)
+    }
+
+    fn object_set<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+        val: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
+        let k = property_key(key)?;
+        let res = obj.set(k, val, true, cx.deref_mut());
+        map_js(cx.deref_mut(), res)?;
+        Ok(())
+    }
+
+    fn object_has<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, bool> {
+        let k = property_key(key)?;
+        let res = obj.has_property(k, cx.deref_mut());
+        map_js(cx.deref_mut(), res)
+    }
+
+    fn object_delete<'rt>(
+        cx: &mut Self::Context<'rt>,
+        obj: &Self::Object<'rt>,
+        key: PropertyKey<'rt, Self>,
+    ) -> JsResult<'rt, Self, bool> {
+        let k = property_key(key)?;
+        let res = obj.delete_property_or_throw(k, cx.deref_mut());
+        map_js(cx.deref_mut(), res)
+    }
+
+    fn function_call<'rt>(
+        cx: &mut Self::Context<'rt>,
+        func: &Self::Function<'rt>,
+        this: Self::Value<'rt>,
+        args: &[Self::Value<'rt>],
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+        let res = func.call(&this, args, cx.deref_mut());
+        map_js(cx.deref_mut(), res)
+    }
+
+    fn value_is_undefined<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_undefined()
+    }
+
+    fn value_is_null<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_null()
+    }
+
+    fn value_is_boolean<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_boolean()
+    }
+
+    fn value_is_number<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_number()
+    }
+
+    fn value_is_string<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_string()
+    }
+
+    fn value_is_object<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_object()
+    }
+
+    fn value_is_function<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_callable()
+    }
+
+    fn value_is_array<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.as_object().is_some_and(|o| o.is_array())
+    }
+
+    fn value_is_symbol<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_symbol()
+    }
+
+    fn value_is_bigint<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_bigint()
+    }
+
+    fn make_undefined<'rt>(_: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+        JsValue::undefined()
+    }
+
+    fn make_null<'rt>(_: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+        JsValue::null()
+    }
+
+    fn make_bool<'rt>(_: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
+        JsValue::from(v)
+    }
+
+    fn make_i32<'rt>(_: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
+        JsValue::from(v)
+    }
+
+    fn make_f64<'rt>(_: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
+        JsValue::rational(v)
+    }
+
+    fn make_string<'rt>(
+        _: &mut Self::Context<'rt>,
+        s: &str,
+    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+        Ok(JsValue::from(JsString::from(s)))
+    }
+
+    fn make_function<'rt, F>(
+        cx: &mut Self::Context<'rt>,
+        name: &str,
+        func: F,
+    ) -> JsResult<'rt, Self, Self::Function<'rt>>
+    where
+        F: rjsi_core::RawHostFn<Self> + 'static,
+    {
+        let realm = cx.deref_mut().realm().clone();
+        let func_cell = std::cell::RefCell::new(func);
+
+        let native = unsafe {
+            NativeFunction::from_closure(move |this, args, boa_cx: &mut BoaCx| {
+                let wrapper = BoaContext { inner: boa_cx };
+                let mut rjsi_cx = rjsi_core::Context::new(wrapper);
+                let scope = rjsi_core::Scope::new(&mut rjsi_cx);
+                let mut callback_cx = rjsi_core::CallbackCx::new(scope);
+
+                let this_core = rjsi_core::Value::new(this.clone());
+                let argv: Vec<JsValue> = args.to_vec();
+                let args_core = rjsi_core::Args::new(BoaArgs { argv });
+
+                let res = func_cell
+                    .borrow_mut()
+                    .call(&mut callback_cx, this_core, args_core);
+
+                match res {
+                    Ok(v) => Ok(v.into_raw()),
+                    Err(JsError::Exception(ex)) => {
+                        let err = boa_engine::JsError::from_opaque(ex);
+                        Err(err)
+                    }
+                    Err(e) => {
+                        let msg = match e {
+                            JsError::Host(h) => h.to_string(),
+                            JsError::TypeError(t) => format!("TypeError: {t}"),
+                            JsError::RangeError(r) => format!("RangeError: {r}"),
+                            JsError::Exception(_) => "Unknown Error".to_string(),
+                        };
+                        Err(boa_engine::JsNativeError::error()
+                            .with_message(msg)
+                            .into())
+                    }
+                }
+            })
+        };
+
+        let js_fn = FunctionObjectBuilder::new(&realm, native)
+            .name(JsString::from(name))
+            .length(0)
+            .constructor(false)
+            .build();
+
+        Ok(js_fn.into())
+    }
+
+    fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
+        val.as_boolean()
+    }
+
+    fn value_to_f64<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: &Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, f64> {
+        let n = val.to_number(cx.deref_mut());
+        map_js(cx.deref_mut(), n)
+    }
+
+    fn value_to_string_utf8<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: &Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, String> {
+        let s = val.to_string(cx.deref_mut());
+        let s = map_js(cx.deref_mut(), s)?;
+        Ok(s.to_std_string_lossy())
+    }
+
+    fn object_to_value<'cx>(obj: Self::Object<'cx>) -> Self::Value<'cx> {
+        obj.into()
+    }
+
+    fn value_to_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
+        val.as_object().map(|o| o.clone())
+    }
+
+    fn function_to_value<'cx>(f: Self::Function<'cx>) -> Self::Value<'cx> {
+        f.into()
+    }
+
+    fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
+        val.as_object()
+            .filter(|o| o.is_callable())
+            .map(|o| o.clone())
+    }
+
+    fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> {
+        f
+    }
+}

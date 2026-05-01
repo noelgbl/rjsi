@@ -1,7 +1,7 @@
 # RJSI - Rust JavaScript Interface
 
-RJSI provides a unified, minimal-overhead interface for interacting with different JavaScript engines in Rust and allows swapping them out at build time.
+RJSI provides a unified, minimal-overhead interface for interacting with different JavaScript engines in Rust and allows swapping them out at build time. Additionally, a default set of Web APIs are implemented to be used with each engine.
 
 ## Supported Engines
 
-RJSI currently supports V8, QuickJS, and JavaScriptCore. JavaScriptCore currently only compiles on macOS and iOS and will be dynamically linked.
+RJSI currently supports V8, QuickJS, JavaScriptCore, Boa and Hermes. JavaScriptCore currently only compiles on macOS and iOS and will be dynamically linked.

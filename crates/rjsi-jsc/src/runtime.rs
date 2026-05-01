@@ -47,10 +47,10 @@ impl InternKey<crate::engine::JscEngine> for JscRuntime {
         cx: &mut Context<'cx, crate::engine::JscEngine>,
         s: &str,
     ) -> JsResult<'cx, crate::engine::JscEngine, Key<'cx, crate::engine::JscEngine>> {
-        let js_str = rusty_jsc::JSString::from(s);
+        let js_str = crate::engine::ManagedJSString::new(s);
         let cx_raw = rjsi_core::__cx::context_mut(cx);
-        let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx_raw.ctx, js_str.inner) };
-        Ok(Key::new(rusty_jsc::JSValue::from(val)))
+        let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx_raw.ctx, js_str.0) };
+        Ok(Key::new(crate::engine::JscKey::new(cx_raw.ctx, val)))
     }
 }
 

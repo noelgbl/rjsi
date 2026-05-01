@@ -7,6 +7,8 @@ edition = "2024"
 default = ["quickjs"]
 quickjs = ["rjsi/default-runtime-quickjs"]
 v8 = ["rjsi/default-runtime-v8"]
+boa = ["rjsi/default-runtime-boa"]
+jsc = ["rjsi/default-runtime-jsc"]
 
 [dependencies]
 rjsi = { path = "../../crates/rjsi" }
