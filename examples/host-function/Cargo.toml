@@ -3,6 +3,10 @@ name = "example-host-function"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["quickjs"]
+quickjs = ["rjsi/default-runtime-quickjs"]
+v8 = ["rjsi/default-runtime-v8"]
+
 [dependencies]
-rjsi = { path = "../../crates/rjsi", features = ["default-runtime-quickjs"] }
-rquickjs = "0.11"
+rjsi = { path = "../../crates/rjsi" }

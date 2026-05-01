@@ -366,7 +366,6 @@ name = "example-host-function"
 version = "0.1.0"
 dependencies = [
  "rjsi",
- "rquickjs",
 ]
 
 [[package]]
