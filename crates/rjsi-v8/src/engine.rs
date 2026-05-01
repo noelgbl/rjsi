@@ -43,8 +43,11 @@ fn host_fn_callback<'s, 'i>(
     type HostFnTrait = dyn rjsi_core::RawHostFn<V8Engine>;
     let func_ref = unsafe { &mut *(func_ptr as *mut Box<HostFnTrait>) };
 
+    let context = scope.get_current_context();
+    let mut context_scope = v8::ContextScope::new(scope, context);
+
     let cx_raw = V8Context {
-        scope: scope as *mut _ as *mut std::ffi::c_void,
+        scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
         _phantom: std::marker::PhantomData,
     };
 
@@ -68,19 +71,19 @@ fn host_fn_callback<'s, 'i>(
             let err_val = match e {
                 rjsi_core::JsError::Exception(ex) => ex,
                 rjsi_core::JsError::TypeError(m) => {
-                    let msg = v8::String::new(scope, m).unwrap();
-                    v8::Exception::type_error(scope, msg)
+                    let msg = v8::String::new(&mut context_scope, &m).unwrap();
+                    v8::Exception::type_error(&mut context_scope, msg)
                 }
                 rjsi_core::JsError::RangeError(m) => {
-                    let msg = v8::String::new(scope, m).unwrap();
-                    v8::Exception::range_error(scope, msg)
+                    let msg = v8::String::new(&mut context_scope, &m).unwrap();
+                    v8::Exception::range_error(&mut context_scope, msg)
                 }
                 rjsi_core::JsError::Host(h) => {
-                    let msg = v8::String::new(scope, &h.to_string()).unwrap();
-                    v8::Exception::error(scope, msg)
+                    let msg = v8::String::new(&mut context_scope, &h.to_string()).unwrap();
+                    v8::Exception::error(&mut context_scope, msg)
                 }
             };
-            scope.throw_exception(err_val);
+            context_scope.throw_exception(err_val);
         }
     }
 }
