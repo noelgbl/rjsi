@@ -1,12 +1,12 @@
-//! `JsClass` / `#[js_methods]` — only reference [`rjsi_core`] (no engine crates).
+//! `JsClass` / `#[js_methods]` — only reference [`rjsi_core`] (no engine
+//! crates).
 
 mod attrs;
 
+use attrs::{JsMethodsAttrs, parse_js_class_on_struct, strip_js_attrs_from_impl};
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::{DeriveInput, ItemImpl};
-
-use attrs::{parse_js_class_on_struct, strip_js_attrs_from_impl, JsMethodsAttrs};
 
 use crate::core_path;
 

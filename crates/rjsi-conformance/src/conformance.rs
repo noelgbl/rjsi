@@ -1,151 +1,166 @@
-use rjsi_core::{bind, ContextLike, Global, Runtime, ScopeLike, ValueLike};
+use rjsi_core::{Engine, Runtime, Value};
 
 fn expect_js<T, E>(r: Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
 }
 
-pub fn eval_runs<R>(runtime: &R::Context)
+pub fn eval_runs<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
     runtime
-        .with_scope(|scope| {
-            let value = scope.eval("21 + 21")?;
+        .with(|cx| {
+            let value = cx.eval("21 + 21")?;
             assert!(value.is_number());
             Ok(())
         })
         .unwrap();
 }
 
-pub fn explicit_global_restores<R>(runtime: &R::Context)
+pub fn explicit_global_restores<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
-    let global = runtime
-        .with_scope(|scope| {
-            let value = scope.number(42.0);
-            Ok(Global::<R>::new(scope, value))
+    runtime
+        .with(|cx| {
+            let global = cx.globals();
+            let value = cx.number(42.0);
+            global.set(cx, "answer", value)?;
+            Ok(())
         })
         .unwrap();
+
     runtime
-        .with_scope(|scope| {
-            let restored = global.get(scope);
-            assert_eq!(restored.as_f64(scope), Some(42.0));
+        .with(|cx| {
+            let global = cx.globals();
+            let restored = global.get(cx, "answer")?;
+            let n = expect_js(restored.to_f64(cx), "global restore");
+            assert_eq!(n, 42.0);
             Ok(())
         })
         .unwrap();
 }
 
-pub fn static_property_get_set<R>(runtime: &R::Context)
+pub fn static_property_get_set<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
     runtime
-        .with_scope(|scope| {
-            let object = scope.object();
-            let value = scope.number(42.0);
-            object.set(scope, "answer", value);
-            let restored = object.get(scope, "answer");
-            assert_eq!(restored.as_f64(scope), Some(42.0));
+        .with(|cx| {
+            let object = expect_js(cx.new_object(), "new object");
+            let value = cx.number(42.0);
+            object.set(cx, "answer", value)?;
+            let restored = object.get(cx, "answer")?;
+            let n = expect_js(restored.to_f64(cx), "object get");
+            assert_eq!(n, 42.0);
             Ok(())
         })
         .unwrap();
 }
 
-pub fn nested_scopes<R>(runtime: &R::Context)
+pub fn nested_scopes<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
     runtime
-        .with_scope(|outer| {
-            let outer_value = outer.number(1.0);
-            outer.with_scope(|inner| {
-                let inner_value = inner.number(2.0);
-                assert_eq!(inner_value.as_f64(inner), Some(2.0));
-            });
-            assert_eq!(outer_value.as_f64(outer), Some(1.0));
+        .with(|cx| {
+            let outer_value = cx.number(1.0);
+            {
+                let inner_value = cx.number(2.0);
+                let n = expect_js(inner_value.to_f64(cx), "inner value");
+                assert_eq!(n, 2.0);
+            }
+            let n = expect_js(outer_value.to_f64(cx), "outer value");
+            assert_eq!(n, 1.0);
             Ok(())
         })
         .unwrap();
 }
 
-pub fn constructors_and_host<R>(runtime: &R::Context)
+pub fn constructors_and_host<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
     runtime
-        .with_scope(|scope| {
-            let object = scope.object();
-            assert!(object.is_object());
+        .with(|cx| {
+            let object = expect_js(cx.new_object(), "new object");
+            let object_value: Value<'_, E> = object.into_value();
+            assert!(object_value.is_object());
 
-            let array = scope.array(2);
-            assert!(array.is_array());
+            let array_value = cx.eval("new Array(2)")?;
+            assert!(array_value.is_array());
 
-            let buffer = scope.array_buffer_copy(&[1, 2, 3]);
-            assert!(buffer.is_object());
+            let buffer_value = cx.eval("new ArrayBuffer(3)")?;
+            assert!(buffer_value.is_object());
 
-            let function = expect_js(
-                scope.function(bind(|_scope, (n,): (f64,)| Ok(n + 1.0))),
-                "conformance: function",
-            );
-            let arg = scope.number(41.0);
-            let this = scope.global();
-            let result = expect_js(function.call(scope, this, &[arg]), "conformance: call");
-            assert_eq!(result.as_f64(scope), Some(42.0));
+            let fn_value = cx.eval("(n) => n + 1")?;
+            let function = expect_js(fn_value.try_as_function(), "conformance: function");
+            let arg = cx.number(41.0);
+            let this = cx.undefined();
+            let result = expect_js(function.call(cx, this, &[arg]), "conformance: call");
+            let n = expect_js(result.to_f64(cx), "conformance: call result");
+            assert_eq!(n, 42.0);
             Ok(())
         })
         .unwrap();
 }
 
-pub fn primitives_roundtrip<R>(runtime: &R::Context)
+pub fn primitives_roundtrip<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
     runtime
-        .with_scope(|scope| {
-            let n = scope.number(-1.5);
-            assert_eq!(n.as_f64(scope), Some(-1.5));
-            let s = scope.string("conformance");
-            assert_eq!(s.with_str(scope, str::to_owned).as_deref(), Some("conformance"));
-            let b = scope.boolean(false);
-            assert!(!b.as_bool(scope).unwrap_or(false));
+        .with(|cx| {
+            let n = cx.number(-1.5);
+            let n = expect_js(n.to_f64(cx), "number roundtrip");
+            assert_eq!(n, -1.5);
+
+            let s = expect_js(cx.string("conformance"), "string create");
+            let s = expect_js(s.to_string(cx), "string utf8");
+            assert_eq!(s, "conformance");
+
+            let b = cx.boolean(false);
+            assert_eq!(b.to_bool(), Some(false));
             Ok(())
         })
         .unwrap();
 }
 
-pub fn array_index_get_set<R>(runtime: &R::Context)
+pub fn array_index_get_set<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
     runtime
-        .with_scope(|scope| {
-            let a = scope.array(3);
-            let n = scope.number(99.0);
-            a.set_index(scope, 1, n);
-            let got = a.get_index(scope, 1);
-            assert_eq!(got.as_f64(scope), Some(99.0));
+        .with(|cx| {
+            let array_value = cx.eval("new Array(3)")?;
+            assert!(array_value.is_array());
+            let array_obj = expect_js(array_value.try_as_object(), "array object");
+            let n = cx.number(99.0);
+            array_obj.set(cx, 1u32, n)?;
+            let got = array_obj.get(cx, 1u32)?;
+            let n = expect_js(got.to_f64(cx), "array index");
+            assert_eq!(n, 99.0);
             Ok(())
         })
         .unwrap();
 }
 
-pub fn run_all<R>(runtime: &R::Context)
+pub fn run_all<E, R>(runtime: &mut R)
 where
-    R: Runtime,
-    R::Context: ContextLike<R>,
+    E: Engine,
+    R: Runtime<E>,
 {
-    eval_runs::<R>(runtime);
-    explicit_global_restores::<R>(runtime);
-    static_property_get_set::<R>(runtime);
-    constructors_and_host::<R>(runtime);
-    primitives_roundtrip::<R>(runtime);
-    array_index_get_set::<R>(runtime);
+    eval_runs::<E, R>(runtime);
+    explicit_global_restores::<E, R>(runtime);
+    static_property_get_set::<E, R>(runtime);
+    constructors_and_host::<E, R>(runtime);
+    primitives_roundtrip::<E, R>(runtime);
+    array_index_get_set::<E, R>(runtime);
 }

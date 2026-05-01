@@ -1,6 +1,5 @@
 use rjsi_core::{
-    class_descriptor, ClassDescriptor, ClassRegistry, ContextLike, NativeClass, NativeRef,
-    Runtime,
+    ClassDescriptor, ClassRegistry, ContextLike, NativeClass, NativeRef, Runtime, class_descriptor
 };
 use rjsi_v8::{V8Runtime, V8RuntimeContext};
 

@@ -1,13 +1,12 @@
-use rjsi::{ContextLike, Error, ScopeLike, ValueExt};
+use rjsi::quickjs::QuickJsRuntime;
+use rjsi::Runtime;
 
-fn main() -> Result<(), Error> {
-    let runtime = rjsi::quickjs::QuickJsRuntimeContext::new();
-    let result: i32 = runtime.with_scope(|scope| {
-        let value = scope.eval("1 + 2 + 3")?;
-        value.coerce(scope)
-    })?;
+fn main() {
+    let mut runtime = QuickJsRuntime::new();
+    let result: f64 = runtime.with(|cx| {
+        let value = cx.eval("1 + 2 + 3").unwrap();
+        value.to_f64(cx).unwrap()
+    });
 
     println!("1 + 2 + 3 = {result}");
-
-    Ok(())
 }

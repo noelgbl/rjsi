@@ -42,10 +42,11 @@ pub fn derive_from_js(input: TokenStream) -> TokenStream {
     expand_from_js(&input).into()
 }
 
-/// `proc_macro_crate` returns `Itself` for all targets in the `rjsi` package; expanding to
-/// `crate` breaks examples, which are separate crates. Emit `::rjsi` for that case: the
-/// `rjsi` crate re-exports `Runtime`, `HostError`, and the ser traits, and the path still
-/// resolves from the `rjsi` library itself.
+/// `proc_macro_crate` returns `Itself` for all targets in the `rjsi` package;
+/// expanding to `crate` breaks examples, which are separate crates. Emit
+/// `::rjsi` for that case: the `rjsi` crate re-exports `Runtime`, `HostError`,
+/// and the ser traits, and the path still resolves from the `rjsi` library
+/// itself.
 fn runtime_path() -> TokenStream2 {
     match crate_name("rjsi") {
         Ok(FoundCrate::Itself) => quote!(::rjsi),
@@ -168,14 +169,16 @@ fn expand_from_js(input: &DeriveInput) -> TokenStream2 {
             }
             Fields::Unnamed(fields) => {
                 let bindings = fields.unnamed.iter().enumerate().map(|(index, _)| {
-                    let binding = syn::Ident::new(&format!("field_{index}"), proc_macro2::Span::call_site());
+                    let binding =
+                        syn::Ident::new(&format!("field_{index}"), proc_macro2::Span::call_site());
                     let index_u32 = index as u32;
                     quote! {
                         let #binding = #path::ValueLike::get_index(&value, scope, #index_u32);
                     }
                 });
                 let readers = fields.unnamed.iter().enumerate().map(|(index, field)| {
-                    let binding = syn::Ident::new(&format!("field_{index}"), proc_macro2::Span::call_site());
+                    let binding =
+                        syn::Ident::new(&format!("field_{index}"), proc_macro2::Span::call_site());
                     let ty = &field.ty;
                     quote! {
                         <#ty as #path::FromJs<'s, R>>::from_js(scope, #binding)?

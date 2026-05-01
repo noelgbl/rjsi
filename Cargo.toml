@@ -11,6 +11,7 @@ members = [
     "crates/rjsi-v8",
     "crates/rjsi-quickjs",
     "crates/rjsi-jsc",
+    "crates/rjsi-jsi",
     "examples/add",
     "examples/console",
     "examples/hello-world",

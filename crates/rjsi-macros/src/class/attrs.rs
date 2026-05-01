@@ -2,10 +2,9 @@
 #![allow(dead_code)]
 
 use heck::ToLowerCamelCase;
-use syn::{
-    Attribute, LitStr, Meta, Signature, Token, parse::Parse, parse::ParseStream,
-    punctuated::Punctuated,
-};
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+use syn::{Attribute, LitStr, Meta, Signature, Token};
 
 #[derive(Clone)]
 pub struct JsClassAttrs {
@@ -111,7 +110,9 @@ pub fn classify_method(attrs: &[Attribute], sig: &Signature) -> syn::Result<Meth
 
     for attr in attrs {
         let id = attr.path().get_ident().map(|i| i.to_string());
-        let Some(id) = id else { continue };
+        let Some(id) = id else {
+            continue;
+        };
         match id.as_str() {
             "js_skip" => skip = true,
             "js_constructor" => is_ctor = true,
@@ -163,10 +164,7 @@ fn getter_prop_name(sig: &Signature) -> syn::Result<String> {
 
 fn setter_prop_name(sig: &Signature) -> syn::Result<String> {
     let s = sig.ident.to_string();
-    let prop = s
-        .strip_prefix("set_")
-        .unwrap_or(&s)
-        .to_string();
+    let prop = s.strip_prefix("set_").unwrap_or(&s).to_string();
     Ok(prop)
 }
 
@@ -186,15 +184,8 @@ fn is_js_bridge_attr(attr: &Attribute) -> bool {
         .map(|i| {
             matches!(
                 i.to_string().as_str(),
-                "js_constructor"
-                    | "js_static"
-                    | "js_get"
-                    | "js_set"
-                    | "js_skip"
-                    | "js_symbol"
-            ) || i
-                .to_string()
-                .starts_with("js_")
+                "js_constructor" | "js_static" | "js_get" | "js_set" | "js_skip" | "js_symbol"
+            ) || i.to_string().starts_with("js_")
         })
         .unwrap_or(false)
 }

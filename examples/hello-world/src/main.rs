@@ -1,15 +1,13 @@
-use rjsi::quickjs::QuickJsRuntimeContext;
-use rjsi::{ContextLike, Error, ScopeLike, ValueExt};
+use rjsi::Runtime;
+use rjsi::quickjs::QuickJsRuntime;
 
-fn main() -> Result<(), Error> {
-    let runtime = QuickJsRuntimeContext::new();
+fn main() {
+    let mut runtime = QuickJsRuntime::new();
 
-    let result: String = runtime.with_scope(|scope| {
-        let value = scope.eval("'Hello from QuickJS via RJSI'")?;
-        value.coerce(scope)
-    })?;
+    let result: String = runtime.with(|cx| {
+        let value = cx.eval("'Hello from QuickJS via RJSI'").unwrap();
+        value.to_string(cx).unwrap()
+    });
 
     println!("{result}");
-
-    Ok(())
 }

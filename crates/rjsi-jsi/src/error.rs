@@ -6,7 +6,8 @@ pub enum JsError<'cx, E: Engine> {
     Exception(E::Value<'cx>),
     TypeError(&'static str),
     RangeError(&'static str),
-    Host(Box<dyn std::error::Error + Send + Sync + 'static>),
+
+    Rust(Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 impl<'cx, E: Engine> std::fmt::Debug for JsError<'cx, E> {
@@ -15,7 +16,7 @@ impl<'cx, E: Engine> std::fmt::Debug for JsError<'cx, E> {
             JsError::Exception(_) => f.write_str("JsError::Exception(..)"),
             JsError::TypeError(m) => f.debug_tuple("TypeError").field(m).finish(),
             JsError::RangeError(m) => f.debug_tuple("RangeError").field(m).finish(),
-            JsError::Host(e) => f.debug_tuple("Host").field(&e.to_string()).finish(),
+            JsError::Rust(e) => f.debug_tuple("Rust").field(&e.to_string()).finish(),
         }
     }
 }
@@ -29,7 +30,7 @@ impl<'cx, E: Engine> JsError<'cx, E> {
         JsError::RangeError(msg)
     }
 
-    pub fn from_host(e: impl std::error::Error + Send + Sync + 'static) -> Self {
-        JsError::Host(Box::new(e))
+    pub fn from_rust(e: impl std::error::Error + Send + Sync + 'static) -> Self {
+        JsError::Rust(Box::new(e))
     }
 }

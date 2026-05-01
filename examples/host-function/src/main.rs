@@ -1,31 +1,30 @@
-use rjsi::quickjs::{QuickJsRuntimeContext, QuickJsValue};
-use rjsi::{ContextLike, ScopeLike, ValueLike};
+use rjsi::quickjs::QuickJsRuntime;
+use rjsi::{Runtime, Value, __cx};
+use rquickjs::Function;
 
-fn main() -> Result<(), rjsi::Error> {
-    let runtime = QuickJsRuntimeContext::new();
-    runtime.with_scope(|scope| {
-        // `function` needs a `Send` + `'static` closure, so the callback cannot
-        // close over the outer stack — only `scope` and `args` for each call.
-        let add: QuickJsValue<'_> = scope.function(
-            |scope, args: rjsi::Args<'_, rjsi::quickjs::QuickJsRuntime>| {
-                // Require two integer arguments; wrong arity or type surfaces as
-                // `R::Error` and is turned into a catchable JS exception.
-                let a: i32 = args.get(scope, 0)?;
-                let b: i32 = args.get(scope, 1)?;
-                Ok(scope.integer(a + b))
-            },
-        )?;
+fn main() {
+    let mut runtime = QuickJsRuntime::new();
+    runtime.with(|cx| {
+        // In `rjsi`, you can access the underlying engine context to perform
+        // engine-specific operations, like creating host functions.
+        let raw_cx = __cx::context_mut(cx).clone();
 
-        let global = scope.global();
-        global.set(scope, "addHost", add);
+        // Use `rquickjs` native functionality to create a closure-based host function.
+        let add = Function::new(raw_cx, |a: i32, b: i32| -> i32 {
+            a + b
+        }).unwrap();
 
-        let out = scope.eval("addHost(20, 22);")?;
-        let sum = out
-            .as_i32(scope)
-            .ok_or_else(|| rjsi::HostError::type_error(rjsi::E_TYPE, "expected int result"))?;
+        // Convert the engine-specific function into a generic `rjsi` Value.
+        let val = add.into_value();
+        let rjsi_val = Value::new(unsafe { std::mem::transmute(val) });
+
+        let global = cx.globals();
+        global.set(cx, "addHost", rjsi_val).unwrap();
+
+        let out = cx.eval("addHost(20, 22);").unwrap();
+        let sum = out.to_f64(cx).unwrap() as i32;
+
         assert_eq!(sum, 42);
         println!("addHost(20, 22) => {sum}");
-
-        Ok(())
-    })
+    });
 }

@@ -9,6 +9,7 @@ pub struct MockEngine;
 #[derive(Default)]
 pub struct MockRuntime {
     pub atoms: Vec<String>,
+
     pub static_slots: Vec<Option<u32>>,
 }
 

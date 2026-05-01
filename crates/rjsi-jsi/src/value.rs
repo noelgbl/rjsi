@@ -1,7 +1,6 @@
 use crate::function::Function;
 use crate::{Context, Engine, JsError, JsResult, Object};
 
-#[repr(transparent)]
 pub struct Value<'cx, E: Engine> {
     pub(crate) raw: E::Value<'cx>,
 }
@@ -71,7 +70,7 @@ impl<'cx, E: Engine> Value<'cx, E> {
         E::value_to_f64(&mut cx.raw, &self.raw)
     }
 
-    pub fn to_string(&self, cx: &mut Context<'_, E>) -> JsResult<'cx, E, String> {
+    pub fn to_string_utf8(&self, cx: &mut Context<'_, E>) -> JsResult<'cx, E, String> {
         E::value_to_string_utf8(&mut cx.raw, &self.raw)
     }
 

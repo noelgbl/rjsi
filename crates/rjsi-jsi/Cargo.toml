@@ -1,0 +1,8 @@
+[package]
+name = "rjsi-jsi"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+jsi-sys = "0.3.0-alpha.5"
+rjsi-core = { path = "../rjsi-core" }

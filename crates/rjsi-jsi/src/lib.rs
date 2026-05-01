@@ -20,12 +20,14 @@ pub use class::{
 };
 pub use context::{__cx, Context};
 pub use convert::{FromJs, ToJs};
+#[cfg(feature = "serde")]
+pub use convert::{FromJsSerde, ToJsSerde};
 pub use engine::Engine;
 pub use error::{JsError, JsResult};
 pub use function::Function;
 pub use keys::{InternKey, IntoKey, Key, KeyCache, PropertyKey, StaticKeySlot};
 pub use object::Object;
-pub use runtime::{BlockingTaskPool, LocalJsSpawn, MicrotaskDrainPolicy, PromiseBridge, Runtime};
+pub use runtime::{BlockingTaskPool, JsRuntime, LocalJsSpawn, MicrotaskDrainPolicy, PromiseBridge};
 pub use scope::{
     CallbackCx, CallbackScope, CanEscape, CanScheduleMicrotask, CanThrow, EscapableScope, HandleScope, ModuleScope, Scope, ScopeKind, TryCatch, TryCatchScope
 };
