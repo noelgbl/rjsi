@@ -1,4 +1,4 @@
-use rjsi_core::{Engine, Runtime, Value};
+use rjsi_core::{Engine, JsResult, Runtime, Value};
 
 fn expect_js<T, E>(r: Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
@@ -10,10 +10,10 @@ where
     R: Runtime<E>,
 {
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let value = cx.eval("21 + 21")?;
             assert!(value.is_number());
-            Ok(())
+            JsResult::Ok(())
         })
         .unwrap();
 }
@@ -24,21 +24,21 @@ where
     R: Runtime<E>,
 {
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let global = cx.globals();
             let value = cx.number(42.0);
             global.set(cx, "answer", value)?;
-            Ok(())
+            JsResult::Ok(())
         })
         .unwrap();
 
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let global = cx.globals();
             let restored = global.get(cx, "answer")?;
             let n = expect_js(restored.to_f64(cx), "global restore");
             assert_eq!(n, 42.0);
-            Ok(())
+            JsResult::Ok(())
         })
         .unwrap();
 }
@@ -49,14 +49,14 @@ where
     R: Runtime<E>,
 {
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let object = expect_js(cx.new_object(), "new object");
             let value = cx.number(42.0);
             object.set(cx, "answer", value)?;
             let restored = object.get(cx, "answer")?;
             let n = expect_js(restored.to_f64(cx), "object get");
             assert_eq!(n, 42.0);
-            Ok(())
+            JsResult::Ok(())
         })
         .unwrap();
 }
@@ -67,7 +67,7 @@ where
     R: Runtime<E>,
 {
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let outer_value = cx.number(1.0);
             {
                 let inner_value = cx.number(2.0);
@@ -76,7 +76,7 @@ where
             }
             let n = expect_js(outer_value.to_f64(cx), "outer value");
             assert_eq!(n, 1.0);
-            Ok(())
+            JsResult::<'_, E, ()>::Ok(())
         })
         .unwrap();
 }
@@ -87,7 +87,7 @@ where
     R: Runtime<E>,
 {
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let object = expect_js(cx.new_object(), "new object");
             let object_value: Value<'_, E> = object.into_value();
             assert!(object_value.is_object());
@@ -105,7 +105,7 @@ where
             let result = expect_js(function.call(cx, this, &[arg]), "conformance: call");
             let n = expect_js(result.to_f64(cx), "conformance: call result");
             assert_eq!(n, 42.0);
-            Ok(())
+            JsResult::Ok(())
         })
         .unwrap();
 }
@@ -116,7 +116,7 @@ where
     R: Runtime<E>,
 {
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let n = cx.number(-1.5);
             let n = expect_js(n.to_f64(cx), "number roundtrip");
             assert_eq!(n, -1.5);
@@ -127,7 +127,7 @@ where
 
             let b = cx.boolean(false);
             assert_eq!(b.to_bool(), Some(false));
-            Ok(())
+            JsResult::<'_, E, ()>::Ok(())
         })
         .unwrap();
 }
@@ -138,7 +138,7 @@ where
     R: Runtime<E>,
 {
     runtime
-        .with(|cx| {
+        .with_scope(|cx| {
             let array_value = cx.eval("new Array(3)")?;
             assert!(array_value.is_array());
             let array_obj = expect_js(array_value.try_as_object(), "array object");
@@ -147,7 +147,7 @@ where
             let got = array_obj.get(cx, 1u32)?;
             let n = expect_js(got.to_f64(cx), "array index");
             assert_eq!(n, 99.0);
-            Ok(())
+            JsResult::Ok(())
         })
         .unwrap();
 }
@@ -157,10 +157,10 @@ where
     E: Engine,
     R: Runtime<E>,
 {
-    eval_runs::<E, R>(runtime);
-    explicit_global_restores::<E, R>(runtime);
-    static_property_get_set::<E, R>(runtime);
-    constructors_and_host::<E, R>(runtime);
-    primitives_roundtrip::<E, R>(runtime);
-    array_index_get_set::<E, R>(runtime);
+    eval_runs(runtime);
+    explicit_global_restores(runtime);
+    static_property_get_set(runtime);
+    constructors_and_host(runtime);
+    primitives_roundtrip(runtime);
+    array_index_get_set(runtime);
 }

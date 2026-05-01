@@ -30,7 +30,7 @@ impl Default for QuickJsRuntime {
 }
 
 impl Runtime<QuickJsEngine> for QuickJsRuntime {
-    fn with<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, QuickJsEngine>) -> R) -> R {
+    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, QuickJsEngine>) -> R) -> R {
         self.ctx.clone().with(|qctx: Ctx<'_>| {
             let mut cx = Context::new(qctx);
             f(&mut cx)

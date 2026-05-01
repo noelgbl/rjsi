@@ -83,6 +83,14 @@ pub trait Engine: Sized + 'static {
         s: &str,
     ) -> JsResult<'cx, Self, Self::Value<'cx>>;
 
+    fn make_function<'cx, F>(
+        cx: &mut Self::Context<'_>,
+        name: &str,
+        func: F,
+    ) -> JsResult<'cx, Self, Self::Function<'cx>>
+    where
+        F: crate::args::RawHostFn<Self> + 'static;
+
     fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool>;
 
     fn value_to_f64<'cx>(

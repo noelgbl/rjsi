@@ -209,4 +209,58 @@ impl Engine for QuickJsEngine {
         val.into_function().map(|f| unsafe { cast_function(f) })
     }
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> { unsafe { cast_object(f.into_value().into_object().unwrap()) } }
+
+    fn make_function<'cx, F>(
+        cx: &mut Self::Context<'_>,
+        name: &str,
+        func: F,
+    ) -> JsResult<'cx, Self, Self::Function<'cx>>
+    where
+        F: rjsi_core::RawHostFn<Self> + 'static,
+    {
+        let func_cell = std::cell::RefCell::new(func);
+        let qjs_func = rquickjs::Function::new(cx.clone(), move |ctx: rquickjs::Ctx<'_>, this: rquickjs::function::This<rquickjs::Value<'_>>, args: rquickjs::function::Rest<rquickjs::Value<'_>>| -> rquickjs::Result<rquickjs::Value<'_>> {
+            let mut context = rjsi_core::Context::new(ctx.clone());
+            let scope = rjsi_core::Scope::new(&mut context);
+            let mut callback_cx = rjsi_core::CallbackCx::new(scope);
+
+            let this_core =
+                rjsi_core::Value::new(unsafe { cast_value(this.0) });
+
+            let mut argv = Vec::with_capacity(args.0.len());
+            for a in args.0 {
+                argv.push(unsafe { cast_value(a) });
+            }
+
+            let args_core = rjsi_core::Args::new(QuickJsArgs { argv });
+
+            let res = func_cell.borrow_mut().call(&mut callback_cx, this_core, args_core);
+            match res {
+                Ok(v) => Ok(unsafe { cast_value(v.as_raw().clone()) }),
+                Err(rjsi_core::JsError::Exception(ex)) => {
+                    ctx.throw(unsafe { cast_value(ex) });
+                    Err(rquickjs::Error::Exception)
+                }
+                Err(e) => {
+                    let msg = match e {
+                        rjsi_core::JsError::Host(h) => h.to_string(),
+                        rjsi_core::JsError::TypeError(t) => format!("TypeError: {}", t),
+                        rjsi_core::JsError::RangeError(r) => format!("RangeError: {}", r),
+                        _ => "Unknown Error".to_string(),
+                    };
+                    let err = rquickjs::Exception::from_message(ctx.clone(), &msg).unwrap();
+                    ctx.throw(err.into_value());
+                    Err(rquickjs::Error::Exception)
+                }
+            }
+        });
+
+        if let Ok(f) = &qjs_func {
+            if let Some(obj) = f.as_object() {
+                let _ = obj.set("name", name);
+            }
+        }
+
+        map_err(cx, qjs_func.map(|f| unsafe { cast_function(f) }))
+    }
 }

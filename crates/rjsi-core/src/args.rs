@@ -1,6 +1,6 @@
 use core::iter::FusedIterator;
 
-use crate::{CallbackCx, Engine, JsResult};
+use crate::{CallbackCx, Engine, JsResult, Value};
 
 #[repr(transparent)]
 pub struct Args<'cx, E: Engine> {
@@ -24,8 +24,8 @@ impl<'cx, E: Engine> Args<'cx, E> {
         self.len() == 0
     }
 
-    pub fn get(&self, index: usize) -> Option<E::Value<'cx>> {
-        E::raw_args_get(&self.raw, index)
+    pub fn get(&self, index: usize) -> Option<Value<'cx, E>> {
+        E::raw_args_get(&self.raw, index).map(Value::new)
     }
 
     pub fn iter(&self) -> ArgsIter<'_, 'cx, E> {
@@ -92,7 +92,25 @@ pub trait RawHostFn<E: Engine> {
     fn call<'cx, 'rt>(
         &mut self,
         cx: &mut CallbackCx<'cx, 'rt, E>,
-        this: E::Value<'cx>,
+        this: Value<'cx, E>,
         args: Args<'cx, E>,
-    ) -> JsResult<'cx, E, E::Value<'cx>>;
+    ) -> JsResult<'cx, E, Value<'cx, E>>;
+}
+
+impl<E: Engine, F> RawHostFn<E> for F
+where
+    F: for<'cx, 'rt> FnMut(
+        &mut CallbackCx<'cx, 'rt, E>,
+        Value<'cx, E>,
+        Args<'cx, E>,
+    ) -> JsResult<'cx, E, Value<'cx, E>>,
+{
+    fn call<'cx, 'rt>(
+        &mut self,
+        cx: &mut CallbackCx<'cx, 'rt, E>,
+        this: Value<'cx, E>,
+        args: Args<'cx, E>,
+    ) -> JsResult<'cx, E, Value<'cx, E>> {
+        self(cx, this, args)
+    }
 }

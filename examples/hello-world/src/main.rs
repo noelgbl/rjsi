@@ -4,7 +4,7 @@ use rjsi::quickjs::QuickJsRuntime;
 fn main() {
     let mut runtime = QuickJsRuntime::new();
 
-    let result: String = runtime.with(|cx| {
+    let result: String = runtime.with_scope(|cx| {
         let value = cx.eval("'Hello from QuickJS via RJSI'").unwrap();
         value.to_string(cx).unwrap()
     });

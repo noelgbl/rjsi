@@ -56,6 +56,17 @@ impl<'rt, E: Engine> Context<'rt, E> {
     pub fn string<'cx>(&mut self, s: &str) -> JsResult<'cx, E, Value<'cx, E>> {
         E::make_string(&mut self.raw, s).map(Value::new)
     }
+
+    pub fn function<'cx, F>(
+        &mut self,
+        name: &str,
+        func: F,
+    ) -> JsResult<'cx, E, crate::Function<'cx, E>>
+    where
+        F: crate::args::RawHostFn<E> + 'static,
+    {
+        E::make_function(&mut self.raw, name, func).map(crate::Function::new)
+    }
 }
 
 #[doc(hidden)]
