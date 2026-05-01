@@ -5,6 +5,8 @@ pub use rjsi_console as console;
 pub use rjsi_core::*;
 #[cfg(feature = "jsc")]
 pub use rjsi_jsc as jsc;
+#[cfg(feature = "hermes")]
+pub use rjsi_hermes as hermes;
 #[cfg(feature = "macros")]
 pub use rjsi_macros::{FromJs, IntoJs, JsClass, js_methods};
 #[cfg(feature = "quickjs")]
@@ -17,6 +19,7 @@ pub use rjsi_v8 as v8;
     feature = "default-runtime-v8",
     feature = "default-runtime-boa",
     feature = "default-runtime-jsc",
+    feature = "default-runtime-hermes",
 ))]
 pub mod default;
 #[cfg(any(
@@ -24,5 +27,6 @@ pub mod default;
     feature = "default-runtime-v8",
     feature = "default-runtime-boa",
     feature = "default-runtime-jsc",
+    feature = "default-runtime-hermes",
 ))]
 pub use default::*;

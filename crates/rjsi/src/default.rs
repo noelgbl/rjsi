@@ -4,6 +4,7 @@
         feature = "default-runtime-v8",
         feature = "default-runtime-boa",
         feature = "default-runtime-jsc",
+        feature = "default-runtime-hermes",
     ),
 ))]
 compile_error!(
@@ -12,7 +13,11 @@ compile_error!(
 
 #[cfg(all(
     feature = "default-runtime-v8",
-    any(feature = "default-runtime-boa", feature = "default-runtime-jsc",),
+    any(
+        feature = "default-runtime-boa",
+        feature = "default-runtime-jsc",
+        feature = "default-runtime-hermes",
+    ),
 ))]
 compile_error!(
     "`default-runtime-v8` is mutually exclusive with other `default-runtime-*` features"
@@ -21,11 +26,18 @@ compile_error!(
 #[cfg(all(feature = "default-runtime-boa", feature = "default-runtime-jsc"))]
 compile_error!("`default-runtime-boa` and `default-runtime-jsc` are mutually exclusive");
 
+#[cfg(all(feature = "default-runtime-boa", feature = "default-runtime-hermes"))]
+compile_error!("`default-runtime-boa` and `default-runtime-hermes` are mutually exclusive");
+
+#[cfg(all(feature = "default-runtime-jsc", feature = "default-runtime-hermes"))]
+compile_error!("`default-runtime-jsc` and `default-runtime-hermes` are mutually exclusive");
+
 #[cfg(all(
     feature = "default-runtime-quickjs",
     not(feature = "default-runtime-v8"),
     not(feature = "default-runtime-boa"),
     not(feature = "default-runtime-jsc"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultEngine = rjsi_quickjs::QuickJsEngine;
 
@@ -34,6 +46,7 @@ pub type DefaultEngine = rjsi_quickjs::QuickJsEngine;
     not(feature = "default-runtime-quickjs"),
     not(feature = "default-runtime-boa"),
     not(feature = "default-runtime-jsc"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultEngine = rjsi_v8::V8Engine;
 
@@ -42,6 +55,7 @@ pub type DefaultEngine = rjsi_v8::V8Engine;
     not(feature = "default-runtime-quickjs"),
     not(feature = "default-runtime-v8"),
     not(feature = "default-runtime-jsc"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultEngine = rjsi_boa::BoaEngine;
 
@@ -50,14 +64,25 @@ pub type DefaultEngine = rjsi_boa::BoaEngine;
     not(feature = "default-runtime-quickjs"),
     not(feature = "default-runtime-v8"),
     not(feature = "default-runtime-boa"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultEngine = rjsi_jsc::JscEngine;
+
+#[cfg(all(
+    feature = "default-runtime-hermes",
+    not(feature = "default-runtime-quickjs"),
+    not(feature = "default-runtime-v8"),
+    not(feature = "default-runtime-boa"),
+    not(feature = "default-runtime-jsc"),
+))]
+pub type DefaultEngine = rjsi_hermes::HermesEngine;
 
 #[cfg(all(
     feature = "default-runtime-quickjs",
     not(feature = "default-runtime-v8"),
     not(feature = "default-runtime-boa"),
     not(feature = "default-runtime-jsc"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultRuntime = rjsi_quickjs::QuickJsRuntime;
 
@@ -66,6 +91,7 @@ pub type DefaultRuntime = rjsi_quickjs::QuickJsRuntime;
     not(feature = "default-runtime-quickjs"),
     not(feature = "default-runtime-boa"),
     not(feature = "default-runtime-jsc"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultRuntime = rjsi_v8::V8Runtime;
 
@@ -74,6 +100,7 @@ pub type DefaultRuntime = rjsi_v8::V8Runtime;
     not(feature = "default-runtime-quickjs"),
     not(feature = "default-runtime-v8"),
     not(feature = "default-runtime-jsc"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultRuntime = rjsi_boa::BoaRuntime;
 
@@ -82,8 +109,18 @@ pub type DefaultRuntime = rjsi_boa::BoaRuntime;
     not(feature = "default-runtime-quickjs"),
     not(feature = "default-runtime-v8"),
     not(feature = "default-runtime-boa"),
+    not(feature = "default-runtime-hermes"),
 ))]
 pub type DefaultRuntime = rjsi_jsc::JscRuntime;
+
+#[cfg(all(
+    feature = "default-runtime-hermes",
+    not(feature = "default-runtime-quickjs"),
+    not(feature = "default-runtime-v8"),
+    not(feature = "default-runtime-boa"),
+    not(feature = "default-runtime-jsc"),
+))]
+pub type DefaultRuntime = rjsi_hermes::HermesRuntime;
 
 #[cfg(any(
     all(
@@ -92,6 +129,7 @@ pub type DefaultRuntime = rjsi_jsc::JscRuntime;
             feature = "default-runtime-v8",
             feature = "default-runtime-boa",
             feature = "default-runtime-jsc",
+            feature = "default-runtime-hermes",
         )),
     ),
     all(
@@ -100,6 +138,7 @@ pub type DefaultRuntime = rjsi_jsc::JscRuntime;
             feature = "default-runtime-quickjs",
             feature = "default-runtime-boa",
             feature = "default-runtime-jsc",
+            feature = "default-runtime-hermes",
         )),
     ),
     all(
@@ -108,6 +147,7 @@ pub type DefaultRuntime = rjsi_jsc::JscRuntime;
             feature = "default-runtime-quickjs",
             feature = "default-runtime-v8",
             feature = "default-runtime-jsc",
+            feature = "default-runtime-hermes",
         )),
     ),
     all(
@@ -116,6 +156,16 @@ pub type DefaultRuntime = rjsi_jsc::JscRuntime;
             feature = "default-runtime-quickjs",
             feature = "default-runtime-v8",
             feature = "default-runtime-boa",
+            feature = "default-runtime-hermes",
+        )),
+    ),
+    all(
+        feature = "default-runtime-hermes",
+        not(any(
+            feature = "default-runtime-quickjs",
+            feature = "default-runtime-v8",
+            feature = "default-runtime-boa",
+            feature = "default-runtime-jsc",
         )),
     ),
 ))]
@@ -136,6 +186,7 @@ mod tls {
             feature = "default-runtime-v8",
             feature = "default-runtime-boa",
             feature = "default-runtime-jsc",
+            feature = "default-runtime-hermes",
         )),
     ),
     all(
@@ -144,6 +195,7 @@ mod tls {
             feature = "default-runtime-quickjs",
             feature = "default-runtime-boa",
             feature = "default-runtime-jsc",
+            feature = "default-runtime-hermes",
         )),
     ),
     all(
@@ -152,6 +204,7 @@ mod tls {
             feature = "default-runtime-quickjs",
             feature = "default-runtime-v8",
             feature = "default-runtime-jsc",
+            feature = "default-runtime-hermes",
         )),
     ),
     all(
@@ -160,13 +213,23 @@ mod tls {
             feature = "default-runtime-quickjs",
             feature = "default-runtime-v8",
             feature = "default-runtime-boa",
+            feature = "default-runtime-hermes",
+        )),
+    ),
+    all(
+        feature = "default-runtime-hermes",
+        not(any(
+            feature = "default-runtime-quickjs",
+            feature = "default-runtime-v8",
+            feature = "default-runtime-boa",
+            feature = "default-runtime-jsc",
         )),
     ),
 ))]
 pub fn with_default_runtime<R>(f: impl FnOnce(&mut DefaultRuntime) -> R) -> R {
     tls::GLOBAL_RUNTIME.with(|cell| {
         let mut slot = cell.borrow_mut();
-        let rt = slot.get_or_insert_with(DefaultRuntime::new);
+        let rt = slot.get_or_insert_with(DefaultRuntime::default);
         f(rt)
     })
 }

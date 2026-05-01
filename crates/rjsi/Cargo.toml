@@ -9,10 +9,12 @@ quickjs = ["dep:rjsi-quickjs"]
 v8 = ["dep:rjsi-v8"]
 boa = ["dep:rjsi-boa"]
 jsc = ["dep:rjsi-jsc"]
+hermes = ["dep:rjsi-hermes"]
 default-runtime-quickjs = ["dep:rjsi-quickjs"]
 default-runtime-v8 = ["dep:rjsi-v8"]
 default-runtime-boa = ["dep:rjsi-boa"]
 default-runtime-jsc = ["jsc"]
+default-runtime-hermes = ["hermes"]
 console = ["dep:rjsi-console"]
 macros = ["dep:rjsi-macros"]
 
@@ -26,3 +28,4 @@ rjsi-v8 = { path = "../rjsi-v8", optional = true }
 rjsi-boa = { path = "../rjsi-boa", optional = true }
 rjsi-console = { path = "../rjsi-console", optional = true }
 rjsi-jsc = { path = "../rjsi-jsc", optional = true }
+rjsi-hermes = { path = "../rjsi-hermes", optional = true }

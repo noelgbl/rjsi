@@ -1,7 +1,7 @@
 use rjsi::{DefaultRuntime, Runtime};
 
 fn main() {
-    let mut runtime = DefaultRuntime::new();
+    let mut runtime = DefaultRuntime::default();
 
     let result = runtime.with_scope(|cx| {
         let value = cx.eval("1 + 2 + 3").unwrap();

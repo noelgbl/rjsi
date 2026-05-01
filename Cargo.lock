@@ -1550,6 +1550,7 @@ dependencies = [
  "rjsi-boa",
  "rjsi-console",
  "rjsi-core",
+ "rjsi-hermes",
  "rjsi-jsc",
  "rjsi-macros",
  "rjsi-quickjs",
@@ -1598,13 +1599,11 @@ dependencies = [
 name = "rjsi-hermes"
 version = "0.1.0"
 dependencies = [
- "criterion",
+ "libc",
+ "libhermes-sys",
  "rjsi-conformance",
- "rjsi-console",
  "rjsi-core",
- "rjsi-macros",
  "rusty_hermes",
- "smallvec",
 ]
 
 [[package]]

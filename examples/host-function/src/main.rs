@@ -15,7 +15,7 @@ fn add<'cx, 'rt, E: Engine>(
 }
 
 fn main() {
-    let mut runtime = DefaultRuntime::new();
+    let mut runtime = DefaultRuntime::default();
 
     let result = runtime.with_scope(|cx| {
         let add = cx.function("add", add).unwrap();
