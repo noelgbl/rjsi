@@ -1,3 +1,9 @@
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/noelgbl/rjsi"
+
 [workspace]
 resolver = "3"
 members = [
@@ -11,19 +17,12 @@ members = [
     "crates/rjsi-v8",
     "crates/rjsi-quickjs",
     "crates/rjsi-jsc",
-    "crates/rjsi-jsi",
     "examples/add",
     "examples/console",
     "examples/hello-world",
     "examples/host-function",
     "examples/macros",
 ]
-
-[workspace.package]
-version = "0.1.0"
-edition = "2024"
-license = "Apache-2.0 OR MIT"
-repository = "https://github.com/noelgbl/rjsi"
 
 [workspace.dependencies]
 anyhow = "1.0.100"

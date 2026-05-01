@@ -16,7 +16,3 @@ smallvec.workspace = true
 criterion = "0.8.2"
 rjsi-console = { path = "../rjsi-console" }
 rjsi-conformance = { path = "../rjsi-conformance" }
-
-[[bench]]
-name = "v8_paths"
-harness = false
