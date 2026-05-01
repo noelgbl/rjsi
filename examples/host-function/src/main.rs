@@ -17,16 +17,15 @@ fn add<'cx, 'rt, E: Engine>(
 fn main() {
     let mut runtime = DefaultRuntime::new();
 
-    let result = runtime
-        .with_scope(|cx| {
-            let add = cx.function("add", add).unwrap();
+    let result = runtime.with_scope(|cx| {
+        let add = cx.function("add", add).unwrap();
 
-            let global = cx.globals();
-            global.set(cx, "add", add.into_value()).unwrap();
+        let global = cx.globals();
+        global.set(cx, "add", add.into_value()).unwrap();
 
-            let out = cx.eval("add(20, 22);").unwrap();
-            out.to_f64(cx).unwrap() as i32
-        });
+        let out = cx.eval("add(20, 22);").unwrap();
+        out.to_f64(cx).unwrap() as i32
+    });
 
     println!("add(20, 22) => {result}");
 }

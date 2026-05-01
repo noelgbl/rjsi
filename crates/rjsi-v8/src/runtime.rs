@@ -1,4 +1,6 @@
-use rjsi_core::{Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot};
+use rjsi_core::{
+    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
+};
 
 pub struct V8Runtime {
     isolate: v8::OwnedIsolate,
@@ -41,14 +43,17 @@ impl Default for V8Runtime {
 }
 
 impl Runtime<crate::engine::V8Engine> for V8Runtime {
-    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::V8Engine>) -> R) -> R {
+    fn with_scope<R>(
+        &mut self,
+        f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::V8Engine>) -> R,
+    ) -> R {
         let scope1 = v8::HandleScope::new(&mut self.isolate);
         let scope1_pin = std::pin::pin!(scope1);
         let mut handle_scope = scope1_pin.init();
 
         let ctx = v8::Local::new(&mut handle_scope, &self.context);
         let mut context_scope = v8::ContextScope::new(&mut handle_scope, ctx);
-        
+
         let cx_raw = crate::engine::V8Context {
             scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
             _phantom: std::marker::PhantomData,
@@ -90,7 +95,7 @@ impl KeyCache<crate::engine::V8Engine> for V8Runtime {
         if idx >= self.static_slots.len() {
             self.static_slots.resize(idx + 1, None);
         }
-        
+
         let s = if let Some(s) = &self.static_slots[idx] {
             s.clone()
         } else {

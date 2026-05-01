@@ -2,7 +2,7 @@ use std::ops::DerefMut;
 
 use boa_engine::{Context as BoaCx, JsString};
 use rjsi_core::{
-    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot,
+    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
 };
 
 use crate::engine::BoaEngine;

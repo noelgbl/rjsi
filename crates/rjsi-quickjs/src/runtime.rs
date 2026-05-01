@@ -1,6 +1,9 @@
-use rjsi_core::{Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot};
-use rquickjs::{Atom, Ctx, Context as QContext, Runtime as QRuntime};
-use crate::engine::{map_err, QuickJsEngine};
+use rjsi_core::{
+    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
+};
+use rquickjs::{Atom, Context as QContext, Ctx, Runtime as QRuntime};
+
+use crate::engine::{QuickJsEngine, map_err};
 
 pub struct QuickJsRuntime {
     #[allow(dead_code)]
@@ -30,7 +33,10 @@ impl Default for QuickJsRuntime {
 }
 
 impl Runtime<QuickJsEngine> for QuickJsRuntime {
-    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, QuickJsEngine>) -> R) -> R {
+    fn with_scope<R>(
+        &mut self,
+        f: impl for<'rt> FnOnce(&mut Context<'rt, QuickJsEngine>) -> R,
+    ) -> R {
         self.ctx.clone().with(|qctx: Ctx<'_>| {
             let mut cx = Context::new(qctx);
             f(&mut cx)
@@ -68,7 +74,7 @@ impl KeyCache<QuickJsEngine> for QuickJsRuntime {
         if idx >= self.static_slots.len() {
             self.static_slots.resize(idx + 1, None);
         }
-        
+
         let s = if let Some(s) = &self.static_slots[idx] {
             s.clone()
         } else {

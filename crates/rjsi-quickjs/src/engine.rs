@@ -1,5 +1,7 @@
 use rjsi_core::{Engine, JsError, JsResult, PropertyKey};
-use rquickjs::{Atom, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol, Value};
+use rquickjs::{
+    Atom, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol, Value
+};
 
 pub struct QuickJsEngine;
 
@@ -7,7 +9,10 @@ pub struct QuickJsArgs<'js> {
     pub(crate) argv: Vec<Value<'js>>,
 }
 
-pub(crate) fn map_err<'rt, T>(cx: &Ctx<'rt>, res: rquickjs::Result<T>) -> JsResult<'rt, QuickJsEngine, T> {
+pub(crate) fn map_err<'rt, T>(
+    cx: &Ctx<'rt>,
+    res: rquickjs::Result<T>,
+) -> JsResult<'rt, QuickJsEngine, T> {
     match res {
         Ok(v) => Ok(v),
         Err(QError::Exception) => {
@@ -111,10 +116,22 @@ impl Engine for QuickJsEngine {
         key: PropertyKey<'rt, Self>,
     ) -> JsResult<'rt, Self, bool> {
         let res: rquickjs::Result<bool> = match key {
-            PropertyKey::Str(s) => { let _ = obj.remove(s); Ok(true) },
-            PropertyKey::Interned(k) => { let _ = obj.remove(k); Ok(true) },
-            PropertyKey::Symbol(s) => { let _ = obj.remove(s); Ok(true) },
-            PropertyKey::Index(i) => { let _ = obj.remove(i); Ok(true) },
+            PropertyKey::Str(s) => {
+                let _ = obj.remove(s);
+                Ok(true)
+            }
+            PropertyKey::Interned(k) => {
+                let _ = obj.remove(k);
+                Ok(true)
+            }
+            PropertyKey::Symbol(s) => {
+                let _ = obj.remove(s);
+                Ok(true)
+            }
+            PropertyKey::Index(i) => {
+                let _ = obj.remove(i);
+                Ok(true)
+            }
         };
         map_err(cx, res)
     }
@@ -137,22 +154,52 @@ impl Engine for QuickJsEngine {
         map_err(cx, res.map(|v| v))
     }
 
-    fn value_is_undefined<'rt>(val: &Self::Value<'rt>) -> bool { val.is_undefined() }
-    fn value_is_null<'rt>(val: &Self::Value<'rt>) -> bool { val.is_null() }
-    fn value_is_boolean<'rt>(val: &Self::Value<'rt>) -> bool { val.is_bool() }
-    fn value_is_number<'rt>(val: &Self::Value<'rt>) -> bool { val.is_number() }
-    fn value_is_string<'rt>(val: &Self::Value<'rt>) -> bool { val.is_string() }
-    fn value_is_object<'rt>(val: &Self::Value<'rt>) -> bool { val.is_object() }
-    fn value_is_function<'rt>(val: &Self::Value<'rt>) -> bool { val.is_function() }
-    fn value_is_array<'rt>(val: &Self::Value<'rt>) -> bool { val.is_array() }
-    fn value_is_symbol<'rt>(val: &Self::Value<'rt>) -> bool { val.is_symbol() }
-    fn value_is_bigint<'rt>(val: &Self::Value<'rt>) -> bool { val.is_big_int() }
+    fn value_is_undefined<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_undefined()
+    }
+    fn value_is_null<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_null()
+    }
+    fn value_is_boolean<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_bool()
+    }
+    fn value_is_number<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_number()
+    }
+    fn value_is_string<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_string()
+    }
+    fn value_is_object<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_object()
+    }
+    fn value_is_function<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_function()
+    }
+    fn value_is_array<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_array()
+    }
+    fn value_is_symbol<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_symbol()
+    }
+    fn value_is_bigint<'rt>(val: &Self::Value<'rt>) -> bool {
+        val.is_big_int()
+    }
 
-    fn make_undefined<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> { Value::new_undefined(cx.clone()) }
-    fn make_null<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> { Value::new_null(cx.clone()) }
-    fn make_bool<'rt>(cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> { Value::new_bool(cx.clone(), v) }
-    fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> { Value::new_int(cx.clone(), v) }
-    fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> { Value::new_float(cx.clone(), v) }
+    fn make_undefined<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+        Value::new_undefined(cx.clone())
+    }
+    fn make_null<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+        Value::new_null(cx.clone())
+    }
+    fn make_bool<'rt>(cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
+        Value::new_bool(cx.clone(), v)
+    }
+    fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
+        Value::new_int(cx.clone(), v)
+    }
+    fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
+        Value::new_float(cx.clone(), v)
+    }
 
     fn make_string<'rt>(
         cx: &mut Self::Context<'rt>,
@@ -162,7 +209,9 @@ impl Engine for QuickJsEngine {
         map_err(cx, res.map(|v| v))
     }
 
-    fn value_to_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> { val.as_bool() }
+    fn value_to_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
+        val.as_bool()
+    }
 
     fn value_to_f64<'rt>(
         cx: &mut Self::Context<'rt>,
@@ -182,13 +231,21 @@ impl Engine for QuickJsEngine {
         map_err(cx, s)
     }
 
-    fn object_to_value<'rt>(obj: Self::Object<'rt>) -> Self::Value<'rt> { obj.into_value() }
-    fn value_to_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> { val.into_object().map(|o| o) }
-    fn function_to_value<'rt>(f: Self::Function<'rt>) -> Self::Value<'rt> { f.into_value() }
+    fn object_to_value<'rt>(obj: Self::Object<'rt>) -> Self::Value<'rt> {
+        obj.into_value()
+    }
+    fn value_to_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
+        val.into_object().map(|o| o)
+    }
+    fn function_to_value<'rt>(f: Self::Function<'rt>) -> Self::Value<'rt> {
+        f.into_value()
+    }
     fn value_to_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
         val.into_function().map(|f| f)
     }
-    fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> { f.into_value().into_object().unwrap() }
+    fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> {
+        f.into_value().into_object().unwrap()
+    }
 
     fn make_function<'rt, F>(
         cx: &mut Self::Context<'rt>,
@@ -216,7 +273,9 @@ impl Engine for QuickJsEngine {
             }
             let args_core = rjsi_core::Args::new(QuickJsArgs { argv });
 
-            let res = func_cell.borrow_mut().call(&mut callback_cx, this_core, args_core);
+            let res = func_cell
+                .borrow_mut()
+                .call(&mut callback_cx, this_core, args_core);
             match res {
                 Ok(v) => Ok(v.into_raw()),
                 Err(rjsi_core::JsError::Exception(ex)) => {

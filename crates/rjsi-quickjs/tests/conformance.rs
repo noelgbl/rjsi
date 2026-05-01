@@ -1,5 +1,5 @@
 use rjsi_conformance as conformance;
-use rjsi_quickjs::{QuickJsRuntime};
+use rjsi_quickjs::QuickJsRuntime;
 
 fn rt() -> QuickJsRuntime {
     QuickJsRuntime::new()

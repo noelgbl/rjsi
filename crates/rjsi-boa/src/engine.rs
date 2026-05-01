@@ -1,12 +1,11 @@
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
+use boa_engine::object::{FunctionObjectBuilder, JsObject, ObjectInitializer};
+use boa_engine::property::PropertyKey as BoaPropertyKey;
+use boa_engine::script::Script;
 use boa_engine::{
-    Context as BoaCx, JsResult as BoaJsResult, JsString, JsSymbol, JsValue, NativeFunction,
-    Source,
-    object::{FunctionObjectBuilder, JsObject, ObjectInitializer},
-    property::PropertyKey as BoaPropertyKey,
-    script::Script,
+    Context as BoaCx, JsResult as BoaJsResult, JsString, JsSymbol, JsValue, NativeFunction, Source
 };
 use rjsi_core::{Engine, JsError, JsResult, PropertyKey};
 
@@ -38,9 +37,7 @@ pub(crate) fn map_js<'cx, T>(cx: &mut BoaCx, res: BoaJsResult<T>) -> JsResult<'c
     res.map_err(|e| JsError::Exception(e.to_opaque(cx)))
 }
 
-fn property_key<'cx>(
-    key: PropertyKey<'cx, BoaEngine>,
-) -> JsResult<'cx, BoaEngine, BoaPropertyKey> {
+fn property_key<'cx>(key: PropertyKey<'cx, BoaEngine>) -> JsResult<'cx, BoaEngine, BoaPropertyKey> {
     match key {
         PropertyKey::Str(s) => Ok(JsString::from(s).into()),
         PropertyKey::Interned(k) => Ok(k.into()),
@@ -258,9 +255,7 @@ impl Engine for BoaEngine {
                             JsError::RangeError(r) => format!("RangeError: {r}"),
                             JsError::Exception(_) => "Unknown Error".to_string(),
                         };
-                        Err(boa_engine::JsNativeError::error()
-                            .with_message(msg)
-                            .into())
+                        Err(boa_engine::JsNativeError::error().with_message(msg).into())
                     }
                 }
             })

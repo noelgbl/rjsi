@@ -1,5 +1,5 @@
-use rjsi_conformance as conformance;
 use rjsi_boa::BoaRuntime;
+use rjsi_conformance as conformance;
 
 fn rt() -> BoaRuntime {
     BoaRuntime::new()

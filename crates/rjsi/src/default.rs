@@ -12,19 +12,14 @@ compile_error!(
 
 #[cfg(all(
     feature = "default-runtime-v8",
-    any(
-        feature = "default-runtime-boa",
-        feature = "default-runtime-jsc",
-    ),
+    any(feature = "default-runtime-boa", feature = "default-runtime-jsc",),
 ))]
 compile_error!(
     "`default-runtime-v8` is mutually exclusive with other `default-runtime-*` features"
 );
 
 #[cfg(all(feature = "default-runtime-boa", feature = "default-runtime-jsc"))]
-compile_error!(
-    "`default-runtime-boa` and `default-runtime-jsc` are mutually exclusive"
-);
+compile_error!("`default-runtime-boa` and `default-runtime-jsc` are mutually exclusive");
 
 #[cfg(all(
     feature = "default-runtime-quickjs",
@@ -125,8 +120,9 @@ pub type DefaultRuntime = rjsi_jsc::JscRuntime;
     ),
 ))]
 mod tls {
-    use super::DefaultRuntime;
     use std::cell::RefCell;
+
+    use super::DefaultRuntime;
 
     thread_local! {
         pub(super) static GLOBAL_RUNTIME: RefCell<Option<DefaultRuntime>> = RefCell::new(None);

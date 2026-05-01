@@ -36,8 +36,7 @@ pub trait NativeObject<E: Engine> {
 pub trait JsClass<E: Engine>: 'static {
     const NAME: &'static str;
 
-    fn prototype<'cx>(cx: &mut Context<'cx, E>, proto: E::Object<'cx>)
-    -> JsResult<'cx, E, ()>;
+    fn prototype<'cx>(cx: &mut Context<'cx, E>, proto: E::Object<'cx>) -> JsResult<'cx, E, ()>;
 
     fn constructor<'cx, 'rt>(
         cx: &mut CallbackCx<'cx, 'rt, E>,

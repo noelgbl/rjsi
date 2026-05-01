@@ -271,20 +271,24 @@ impl Engine for MockEngine {
     fn function_to_object<'rt>(_f: Self::Function<'rt>) -> Self::Object<'rt> {
         MockObject::new()
     }
-    
+
     fn make_function<'rt, F>(
         _cx: &mut Self::Context<'rt>,
         _name: &str,
         _func: F,
     ) -> JsResult<'rt, Self, Self::Function<'rt>>
     where
-        F: crate::args::RawHostFn<Self> + 'static {
+        F: crate::args::RawHostFn<Self> + 'static,
+    {
         todo!()
     }
 }
 
 impl<'cx> ToJs<'cx, MockEngine> for u32 {
-    fn to_js(self, _cx: &mut Context<'cx, MockEngine>) -> JsResult<'cx, MockEngine, MockValue<'cx>> {
+    fn to_js(
+        self,
+        _cx: &mut Context<'cx, MockEngine>,
+    ) -> JsResult<'cx, MockEngine, MockValue<'cx>> {
         Ok(MockValue::number(self))
     }
 }

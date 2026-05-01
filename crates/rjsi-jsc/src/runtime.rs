@@ -1,4 +1,6 @@
-use rjsi_core::{Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot};
+use rjsi_core::{
+    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
+};
 
 pub struct JscRuntime {
     pub(crate) context: rusty_jsc::JSContext,
@@ -23,7 +25,10 @@ impl Default for JscRuntime {
 }
 
 impl Runtime<crate::engine::JscEngine> for JscRuntime {
-    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::JscEngine>) -> R) -> R {
+    fn with_scope<R>(
+        &mut self,
+        f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::JscEngine>) -> R,
+    ) -> R {
         let cx_raw = crate::engine::JscContext {
             ctx: self.context.get_ref(),
             _phantom: std::marker::PhantomData,
@@ -64,7 +69,7 @@ impl KeyCache<crate::engine::JscEngine> for JscRuntime {
         if idx >= self.static_slots.len() {
             self.static_slots.resize(idx + 1, None);
         }
-        
+
         let s = if let Some(s) = &self.static_slots[idx] {
             s.clone()
         } else {
