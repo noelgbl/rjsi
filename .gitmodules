@@ -1,3 +1,0 @@
-[submodule "crates/primjs-sys/primjs"]
-	path = crates/primjs-sys/primjs
-	url = https://github.com/lynx-family/primjs
