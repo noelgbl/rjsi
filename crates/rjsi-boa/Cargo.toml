@@ -1,0 +1,12 @@
+[package]
+name = "rjsi-boa"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rjsi-core = { path = "../rjsi-core" }
+boa_engine = "0.21.1"
+
+[dev-dependencies]
+criterion = "0.8.2"
+rjsi-conformance = { path = "../rjsi-conformance" }

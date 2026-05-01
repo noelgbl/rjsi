@@ -1,7 +1,7 @@
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-license = "Apache-2.0 OR MIT"
+license = "Apache-2.0"
 repository = "https://github.com/noelgbl/rjsi"
 
 [workspace]
@@ -16,7 +16,9 @@ members = [
     "crates/rjsi-macros",
     "crates/rjsi-v8",
     "crates/rjsi-quickjs",
+    "crates/rjsi-hermes",
     "crates/rjsi-jsc",
+    "crates/rjsi-boa",
     "examples/add",
     "examples/hello-world",
     "examples/host-function",

@@ -1,0 +1,15 @@
+[package]
+name = "rjsi-hermes"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rjsi-core = { path = "../rjsi-core" }
+hermes = { package = "rusty_hermes", git = "https://github.com/rust-hermes/rusty_hermes", rev = "c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1" }
+smallvec.workspace = true
+
+[dev-dependencies]
+criterion = "0.8.2"
+rjsi-console = { path = "../rjsi-console" }
+rjsi-conformance = { path = "../rjsi-conformance" }
+rjsi-macros = { path = "../rjsi-macros" }

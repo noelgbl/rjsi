@@ -1,9 +1,3 @@
-//! Thread-local default [`crate::Runtime`] instance, selected by Cargo features
-//! `default-runtime-quickjs` or `default-runtime-v8` (mutually exclusive).
-//!
-//! The backing engines are not [`Send`], so the default runtime is stored per-thread
-//! rather than in a process-wide static [`std::sync::Mutex`].
-
 #[cfg(all(
     feature = "default-runtime-quickjs",
     feature = "default-runtime-v8"
@@ -55,7 +49,6 @@ mod tls {
     }
 }
 
-/// Runs `f` with mutable access to this thread's lazily-created default runtime.
 #[cfg(any(
     all(
         feature = "default-runtime-quickjs",

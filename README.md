@@ -4,4 +4,4 @@ RJSI provides a unified, minimal-overhead interface for interacting with differe
 
 ## Supported Engines
 
-RJSI currently supports V8, QuickJS, and JavaScriptCore. JavaScriptCore currently only compiles on macOS and will be dynamically linked.
+RJSI currently supports V8, QuickJS, and JavaScriptCore. JavaScriptCore currently only compiles on macOS and iOS and will be dynamically linked.
