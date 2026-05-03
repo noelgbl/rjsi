@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
+anyhow.workspace = true
 v8 = ">=140.2.0, <142.0.0"
 timezone_provider = "=0.0.11"
 

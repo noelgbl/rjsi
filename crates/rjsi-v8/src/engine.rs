@@ -4,6 +4,7 @@ pub struct V8Engine;
 
 pub struct V8Context<'rt> {
     pub(crate) scope: *mut std::ffi::c_void,
+    pub(crate) runtime: *mut crate::runtime::V8Runtime,
     pub(crate) _phantom: std::marker::PhantomData<&'rt mut ()>,
 }
 
@@ -48,6 +49,7 @@ fn host_fn_callback<'s, 'i>(
 
     let cx_raw = V8Context {
         scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
+        runtime: std::ptr::null_mut(),
         _phantom: std::marker::PhantomData,
     };
 
@@ -98,6 +100,7 @@ impl Engine for V8Engine {
     type String<'cx> = v8::Local<'cx, v8::String>;
     type Symbol<'cx> = v8::Local<'cx, v8::Symbol>;
     type Key<'cx> = v8::Local<'cx, v8::Name>;
+    type PreparedKeyData = v8::Global<v8::Name>;
     type Error<'cx> = v8::Local<'cx, v8::Value>;
     type RawArgs<'cx> = V8Args<'cx>;
 
@@ -190,7 +193,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Interned(k) => k.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
@@ -216,7 +219,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Interned(k) => k.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
@@ -245,7 +248,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Interned(k) => k.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
@@ -270,7 +273,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Interned(k) => k.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };

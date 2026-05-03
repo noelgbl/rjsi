@@ -3,10 +3,10 @@ pub use rjsi_boa as boa;
 #[cfg(feature = "console")]
 pub use rjsi_console as console;
 pub use rjsi_core::*;
-#[cfg(feature = "jsc")]
-pub use rjsi_jsc as jsc;
 #[cfg(feature = "hermes")]
 pub use rjsi_hermes as hermes;
+#[cfg(feature = "jsc")]
+pub use rjsi_jsc as jsc;
 #[cfg(feature = "macros")]
 pub use rjsi_macros::{FromJs, IntoJs, JsClass, js_methods};
 #[cfg(feature = "quickjs")]

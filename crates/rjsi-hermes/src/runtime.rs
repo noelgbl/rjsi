@@ -1,31 +1,58 @@
-use rjsi_core::{
-    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot,
-};
+use std::collections::HashMap;
 
-use crate::engine::{runtime_ffi_ptr, HermesEngine};
+use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
 use rusty_hermes::{PropNameId, Runtime as HermesRtInner};
 
+use crate::engine::{HermesEngine, runtime_ffi_ptr};
+
+pub struct HermesPreparedKeyData {
+    key: PropNameId<'static>,
+}
+
 pub struct HermesRuntime {
+    prepared_keys: HashMap<u64, HermesPreparedKeyData>,
     pub inner: HermesRtInner,
     microtask_policy: MicrotaskDrainPolicy,
-    static_slots: Vec<Option<String>>,
 }
 
 impl HermesRuntime {
     pub fn new() -> Result<Self, rusty_hermes::Error> {
         Ok(Self {
+            prepared_keys: HashMap::new(),
             inner: HermesRtInner::new()?,
             microtask_policy: MicrotaskDrainPolicy::Explicit,
-            static_slots: Vec::new(),
         })
     }
 
     pub fn with_config(config: rusty_hermes::RuntimeConfig) -> Result<Self, rusty_hermes::Error> {
         Ok(Self {
+            prepared_keys: HashMap::new(),
             inner: HermesRtInner::with_config(config)?,
             microtask_policy: MicrotaskDrainPolicy::Explicit,
-            static_slots: Vec::new(),
         })
+    }
+
+    pub fn prepare_key(
+        &mut self,
+        name: impl Into<String>,
+    ) -> anyhow::Result<PreparedKey<HermesEngine>> {
+        let key = PreparedKey::new(name);
+        self.ensure_prepared_key(key.id(), key.as_str());
+        Ok(key)
+    }
+
+    fn ensure_prepared_key(&mut self, id: u64, name: &str) {
+        if self.prepared_keys.contains_key(&id) {
+            return;
+        }
+
+        let key = PropNameId::from_utf8(&self.inner, name);
+        self.prepared_keys.insert(
+            id,
+            HermesPreparedKeyData {
+                key: unsafe { std::mem::transmute(key) },
+            },
+        );
     }
 }
 
@@ -36,9 +63,14 @@ impl Default for HermesRuntime {
 }
 
 impl Runtime<HermesEngine> for HermesRuntime {
-    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, HermesEngine>) -> R) -> R {
+    fn with_scope<R>(
+        &mut self,
+        f: impl for<'rt> FnOnce(&mut Context<'rt, HermesEngine>) -> R,
+    ) -> R {
+        let runtime_ptr = self as *mut _;
         let ctx = crate::engine::HermesContext {
             inner: &mut self.inner,
+            runtime: runtime_ptr,
         };
         let mut cx = Context::new(ctx);
         f(&mut cx)
@@ -53,42 +85,19 @@ impl Runtime<HermesEngine> for HermesRuntime {
     }
 }
 
-impl InternKey<HermesEngine> for HermesRuntime {
-    fn intern_str<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, HermesEngine>,
-        s: &str,
-    ) -> JsResult<'cx, HermesEngine, Key<'cx, HermesEngine>> {
-        let _ = self;
-        let rt: &HermesRtInner = &*rjsi_core::__cx::context_mut(cx).inner;
-        let p = PropNameId::from_utf8(rt, s);
-        Ok(Key::new(unsafe { std::mem::transmute(p) }))
+pub(crate) fn prepared_key<'cx>(
+    cx: &mut crate::engine::HermesContext<'cx>,
+    key: &PreparedKey<HermesEngine>,
+) -> JsResult<'cx, HermesEngine, PropNameId<'cx>> {
+    if cx.runtime.is_null() {
+        let prepared = PropNameId::from_utf8(&*cx.inner, key.as_str());
+        return Ok(unsafe { std::mem::transmute(prepared) });
     }
-}
 
-impl KeyCache<HermesEngine> for HermesRuntime {
-    fn get_or_intern<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, HermesEngine>,
-        slot: StaticKeySlot,
-    ) -> JsResult<'cx, HermesEngine, Key<'cx, HermesEngine>> {
-        let idx = slot.0 as usize;
-        if idx >= self.static_slots.len() {
-            self.static_slots.resize(idx + 1, None);
-        }
-
-        let s = if let Some(stored) = &self.static_slots[idx] {
-            stored.clone()
-        } else {
-            let new_s = format!("__static_slot_{}", idx);
-            self.static_slots[idx] = Some(new_s.clone());
-            new_s
-        };
-
-        let rt: &HermesRtInner = &*rjsi_core::__cx::context_mut(cx).inner;
-        let p = PropNameId::from_utf8(rt, s.as_str());
-        Ok(Key::new(unsafe { std::mem::transmute(p) }))
-    }
+    let runtime = unsafe { &mut *cx.runtime };
+    runtime.ensure_prepared_key(key.id(), key.as_str());
+    let prepared = &runtime.prepared_keys.get(&key.id()).unwrap().key;
+    Ok(unsafe { std::mem::transmute_copy(prepared) })
 }
 
 impl HermesRuntime {

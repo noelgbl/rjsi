@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
+anyhow.workspace = true
 rusty_hermes = { git = "https://github.com/rust-hermes/rusty_hermes", rev = "c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1" }
 libhermes-sys = { git = "https://github.com/rust-hermes/rusty_hermes", rev = "c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1", package = "libhermes-sys" }
 libc = "0.2"

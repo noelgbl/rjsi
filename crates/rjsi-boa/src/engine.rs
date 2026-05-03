@@ -13,6 +13,7 @@ pub struct BoaEngine;
 
 pub struct BoaContext<'rt> {
     pub(crate) inner: &'rt mut BoaCx,
+    pub(crate) runtime: *mut crate::runtime::BoaRuntime,
 }
 
 impl<'rt> Deref for BoaContext<'rt> {
@@ -37,10 +38,13 @@ pub(crate) fn map_js<'cx, T>(cx: &mut BoaCx, res: BoaJsResult<T>) -> JsResult<'c
     res.map_err(|e| JsError::Exception(e.to_opaque(cx)))
 }
 
-fn property_key<'cx>(key: PropertyKey<'cx, BoaEngine>) -> JsResult<'cx, BoaEngine, BoaPropertyKey> {
+fn property_key<'cx>(
+    cx: &mut BoaContext<'cx>,
+    key: PropertyKey<'cx, BoaEngine>,
+) -> JsResult<'cx, BoaEngine, BoaPropertyKey> {
     match key {
         PropertyKey::Str(s) => Ok(JsString::from(s).into()),
-        PropertyKey::Interned(k) => Ok(k.into()),
+        PropertyKey::Prepared(k) => Ok(crate::runtime::prepared_key(cx, k)?.into()),
         PropertyKey::Symbol(s) => Ok(s.into()),
         PropertyKey::Index(i) => Ok(i.into()),
     }
@@ -56,12 +60,15 @@ impl Engine for BoaEngine {
     type String<'cx> = JsString;
     type Symbol<'cx> = JsSymbol;
     type Key<'cx> = JsString;
+    type PreparedKeyData = JsString;
     type Error<'cx> = boa_engine::JsError;
     type RawArgs<'cx> = BoaArgs;
 
     fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+        let runtime_ptr = runtime as *mut _;
         BoaContext {
             inner: &mut runtime.context,
+            runtime: runtime_ptr,
         }
     }
 
@@ -102,7 +109,7 @@ impl Engine for BoaEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> JsResult<'rt, Self, Self::Value<'rt>> {
-        let k = property_key(key)?;
+        let k = property_key(cx, key)?;
         let res = obj.get(k, cx.deref_mut());
         map_js(cx.deref_mut(), res)
     }
@@ -113,7 +120,7 @@ impl Engine for BoaEngine {
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
     ) -> JsResult<'rt, Self, ()> {
-        let k = property_key(key)?;
+        let k = property_key(cx, key)?;
         let res = obj.set(k, val, true, cx.deref_mut());
         map_js(cx.deref_mut(), res)?;
         Ok(())
@@ -124,7 +131,7 @@ impl Engine for BoaEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> JsResult<'rt, Self, bool> {
-        let k = property_key(key)?;
+        let k = property_key(cx, key)?;
         let res = obj.has_property(k, cx.deref_mut());
         map_js(cx.deref_mut(), res)
     }
@@ -134,7 +141,7 @@ impl Engine for BoaEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> JsResult<'rt, Self, bool> {
-        let k = property_key(key)?;
+        let k = property_key(cx, key)?;
         let res = obj.delete_property_or_throw(k, cx.deref_mut());
         map_js(cx.deref_mut(), res)
     }
@@ -229,7 +236,10 @@ impl Engine for BoaEngine {
 
         let native = unsafe {
             NativeFunction::from_closure(move |this, args, boa_cx: &mut BoaCx| {
-                let wrapper = BoaContext { inner: boa_cx };
+                let wrapper = BoaContext {
+                    inner: boa_cx,
+                    runtime: std::ptr::null_mut(),
+                };
                 let mut rjsi_cx = rjsi_core::Context::new(wrapper);
                 let scope = rjsi_core::Scope::new(&mut rjsi_cx);
                 let mut callback_cx = rjsi_core::CallbackCx::new(scope);
@@ -322,7 +332,13 @@ impl rjsi_core::capabilities::Promises for BoaEngine {
     ) -> JsResult<'rt, Self, (Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
         let (promise, resolvers) = boa_engine::object::builtins::JsPromise::new_pending(boa_cx);
-        Ok((boa_engine::JsValue::from(promise).as_object().unwrap().clone(), resolvers))
+        Ok((
+            boa_engine::JsValue::from(promise)
+                .as_object()
+                .unwrap()
+                .clone(),
+            resolvers,
+        ))
     }
 
     fn promise_resolve<'rt>(
@@ -331,7 +347,9 @@ impl rjsi_core::capabilities::Promises for BoaEngine {
         value: Self::Value<'rt>,
     ) -> JsResult<'rt, Self, ()> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
-        let res = resolver.resolve.call(&boa_engine::JsValue::undefined(), &[value], boa_cx);
+        let res = resolver
+            .resolve
+            .call(&boa_engine::JsValue::undefined(), &[value], boa_cx);
         map_js(boa_cx, res)?;
         Ok(())
     }
@@ -342,28 +360,45 @@ impl rjsi_core::capabilities::Promises for BoaEngine {
         reason: Self::Value<'rt>,
     ) -> JsResult<'rt, Self, ()> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
-        let res = resolver.reject.call(&boa_engine::JsValue::undefined(), &[reason], boa_cx);
+        let res = resolver
+            .reject
+            .call(&boa_engine::JsValue::undefined(), &[reason], boa_cx);
         map_js(boa_cx, res)?;
         Ok(())
     }
 }
 
 impl rjsi_core::capabilities::Microtasks for BoaEngine {
-    fn queue_microtask<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-        task: Self::Function<'rt>,
-    ) {
+    fn queue_microtask<'rt>(cx: &mut rjsi_core::Context<'rt, Self>, task: Self::Function<'rt>) {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
-        let promise = boa_cx.global_object().get(boa_engine::JsString::from("Promise"), boa_cx).unwrap().as_object().unwrap().clone();
-        let resolve = promise.get(boa_engine::JsString::from("resolve"), boa_cx).unwrap().as_callable().unwrap().clone();
-        let resolved = resolve.call(&boa_engine::JsValue::undefined(), &[], boa_cx).unwrap();
-        let then = resolved.as_object().unwrap().get(boa_engine::JsString::from("then"), boa_cx).unwrap().as_callable().unwrap().clone();
+        let promise = boa_cx
+            .global_object()
+            .get(boa_engine::JsString::from("Promise"), boa_cx)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone();
+        let resolve = promise
+            .get(boa_engine::JsString::from("resolve"), boa_cx)
+            .unwrap()
+            .as_callable()
+            .unwrap()
+            .clone();
+        let resolved = resolve
+            .call(&boa_engine::JsValue::undefined(), &[], boa_cx)
+            .unwrap();
+        let then = resolved
+            .as_object()
+            .unwrap()
+            .get(boa_engine::JsString::from("then"), boa_cx)
+            .unwrap()
+            .as_callable()
+            .unwrap()
+            .clone();
         then.call(&resolved, &[task.into()], boa_cx).unwrap();
     }
 
-    fn drain_microtasks<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-    ) {
+    fn drain_microtasks<'rt>(cx: &mut rjsi_core::Context<'rt, Self>) {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
         let _ = boa_cx.run_jobs();
     }

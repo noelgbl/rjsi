@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{
-    Context, Engine, FromJs, InternKey, JsError, JsResult, Key, KeyCache, PropertyKey, StaticKeySlot, ToJs
-};
+use crate::{Context, Engine, FromJs, JsError, JsResult, PropertyKey, ToJs};
 
 pub struct MockEngine;
 
@@ -102,6 +100,7 @@ impl Engine for MockEngine {
     type String<'cx> = MockString<'cx>;
     type Symbol<'cx> = MockSymbol<'cx>;
     type Key<'cx> = MockKey<'cx>;
+    type PreparedKeyData = ();
     type Error<'cx> = MockError<'cx>;
     type RawArgs<'cx> = MockRawArgs<'cx>;
 
@@ -290,37 +289,6 @@ impl<'cx> ToJs<'cx, MockEngine> for u32 {
         _cx: &mut Context<'cx, MockEngine>,
     ) -> JsResult<'cx, MockEngine, MockValue<'cx>> {
         Ok(MockValue::number(self))
-    }
-}
-
-impl InternKey<MockEngine> for MockRuntime {
-    fn intern_str<'cx>(
-        &mut self,
-        _cx: &mut Context<'cx, MockEngine>,
-        s: &str,
-    ) -> JsResult<'cx, MockEngine, Key<'cx, MockEngine>> {
-        let _atom = self.atoms.len() as u32;
-        self.atoms.push(s.to_string());
-        Ok(Key::new(MockKey { _p: PhantomData }))
-    }
-}
-
-impl KeyCache<MockEngine> for MockRuntime {
-    fn get_or_intern<'cx>(
-        &mut self,
-        _cx: &mut Context<'cx, MockEngine>,
-        slot: StaticKeySlot,
-    ) -> JsResult<'cx, MockEngine, Key<'cx, MockEngine>> {
-        let idx = slot.0 as usize;
-        if idx >= self.static_slots.len() {
-            self.static_slots.resize(idx + 1, None);
-        }
-        if self.static_slots[idx].is_none() {
-            let a = self.atoms.len() as u32;
-            self.atoms.push(format!("static_{}", slot.0));
-            self.static_slots[idx] = Some(a);
-        }
-        Ok(Key::new(MockKey { _p: PhantomData }))
     }
 }
 

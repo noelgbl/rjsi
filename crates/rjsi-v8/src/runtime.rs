@@ -1,12 +1,12 @@
-use rjsi_core::{
-    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
-};
+use std::collections::HashMap;
+
+use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
 
 pub struct V8Runtime {
+    prepared_keys: HashMap<u64, v8::Global<v8::Name>>,
     isolate: v8::OwnedIsolate,
     context: v8::Global<v8::Context>,
     microtask_policy: MicrotaskDrainPolicy,
-    static_slots: Vec<Option<String>>,
 }
 
 impl V8Runtime {
@@ -28,11 +28,37 @@ impl V8Runtime {
         };
 
         Self {
+            prepared_keys: HashMap::new(),
             isolate,
             context,
             microtask_policy: MicrotaskDrainPolicy::Explicit,
-            static_slots: Vec::new(),
         }
+    }
+
+    pub fn prepare_key(&mut self, name: impl Into<String>) -> PreparedKey<crate::engine::V8Engine> {
+        let key = PreparedKey::new(name);
+        self.ensure_prepared_key(key.id(), key.as_str())
+            .expect("failed to prepare V8 property name");
+        key
+    }
+
+    fn ensure_prepared_key(&mut self, id: u64, name: &str) -> std::io::Result<()> {
+        if self.prepared_keys.contains_key(&id) {
+            return Ok(());
+        }
+
+        let scope1 = v8::HandleScope::new(&mut self.isolate);
+        let scope1_pin = std::pin::pin!(scope1);
+        let mut handle_scope = scope1_pin.init();
+
+        let ctx = v8::Local::new(&mut handle_scope, &self.context);
+        let mut context_scope = v8::ContextScope::new(&mut handle_scope, ctx);
+        let string = v8::String::new(&mut context_scope, name)
+            .ok_or_else(|| std::io::Error::other("failed to create V8 property name"))?;
+        let local_name: v8::Local<'_, v8::Name> = string.into();
+        let global_name = v8::Global::new(&mut context_scope, local_name);
+        self.prepared_keys.insert(id, global_name);
+        Ok(())
     }
 }
 
@@ -47,6 +73,7 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
         &mut self,
         f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::V8Engine>) -> R,
     ) -> R {
+        let runtime_ptr = self as *mut _;
         let scope1 = v8::HandleScope::new(&mut self.isolate);
         let scope1_pin = std::pin::pin!(scope1);
         let mut handle_scope = scope1_pin.init();
@@ -56,6 +83,7 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
 
         let cx_raw = crate::engine::V8Context {
             scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
+            runtime: runtime_ptr,
             _phantom: std::marker::PhantomData,
         };
         let mut cx = Context::new(cx_raw);
@@ -71,39 +99,24 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
     }
 }
 
-impl InternKey<crate::engine::V8Engine> for V8Runtime {
-    fn intern_str<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, crate::engine::V8Engine>,
-        s: &str,
-    ) -> JsResult<'cx, crate::engine::V8Engine, Key<'cx, crate::engine::V8Engine>> {
-        let cx_raw = rjsi_core::__cx::context_mut(cx);
-        let scope = unsafe { crate::engine::get_scope(cx_raw) };
-        let string = v8::String::new(scope, s).unwrap();
-        let name: v8::Local<'_, v8::Name> = string.into();
-        Ok(Key::new(unsafe { crate::engine::cast_local(name) }))
+pub(crate) fn prepared_key<'cx>(
+    cx: &mut crate::engine::V8Context<'cx>,
+    key: &PreparedKey<crate::engine::V8Engine>,
+) -> JsResult<'cx, crate::engine::V8Engine, v8::Local<'cx, v8::Name>> {
+    let scope = unsafe { crate::engine::get_scope(cx) };
+    if cx.runtime.is_null() {
+        let string = v8::String::new(scope, key.as_str())
+            .ok_or_else(|| rjsi_core::JsError::type_err("failed to create V8 property name"))?;
+        let local_name: v8::Local<'_, v8::Name> = string.into();
+        return Ok(unsafe { crate::engine::cast_local(local_name) });
     }
-}
 
-impl KeyCache<crate::engine::V8Engine> for V8Runtime {
-    fn get_or_intern<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, crate::engine::V8Engine>,
-        slot: StaticKeySlot,
-    ) -> JsResult<'cx, crate::engine::V8Engine, Key<'cx, crate::engine::V8Engine>> {
-        let idx = slot.0 as usize;
-        if idx >= self.static_slots.len() {
-            self.static_slots.resize(idx + 1, None);
-        }
-
-        let s = if let Some(s) = &self.static_slots[idx] {
-            s.clone()
-        } else {
-            let new_s = format!("__static_slot_{}", idx);
-            self.static_slots[idx] = Some(new_s.clone());
-            new_s
-        };
-
-        self.intern_str(cx, &s)
+    let runtime = unsafe { &mut *cx.runtime };
+    if !runtime.prepared_keys.contains_key(&key.id()) {
+        runtime
+            .ensure_prepared_key(key.id(), key.as_str())
+            .map_err(rjsi_core::JsError::from_host)?;
     }
+    let global = runtime.prepared_keys.get(&key.id()).unwrap();
+    Ok(unsafe { crate::engine::cast_local(v8::Local::new(scope, global)) })
 }

@@ -6,11 +6,7 @@ use std::ops::{Deref, DerefMut};
 use std::ptr::read;
 
 use libhermes_sys::{
-    hermes__Function__CreateFromHostFunction, hermes__Function__Release,
-    hermes__PropNameID__ForUtf8, hermes__PropNameID__Release,
-    hermes__Runtime__EvaluateJavaScript, hermes__Runtime__GetAndClearError,
-    hermes__Runtime__GetAndClearErrorMessage, hermes__Runtime__HasPendingError,
-    hermes__Runtime__SetPendingErrorMessage, HermesRt, HermesValue,
+    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__EvaluateJavaScript, hermes__Runtime__GetAndClearError, hermes__Runtime__GetAndClearErrorMessage, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
 use rjsi_core::{Engine, JsError, JsResult, PropertyKey, RawHostFn};
 use rusty_hermes::{Function, JsString, Object, PropNameId, Runtime, Symbol, Value};
@@ -25,6 +21,7 @@ pub struct HermesArgs<'rt> {
 
 pub struct HermesContext<'rt> {
     pub(crate) inner: &'rt mut Runtime,
+    pub(crate) runtime: *mut crate::runtime::HermesRuntime,
 }
 
 impl<'rt> Deref for HermesContext<'rt> {
@@ -75,10 +72,7 @@ struct RawFunction<'rt> {
 }
 
 #[inline]
-unsafe fn function_from_raw_parts<'rt>(
-    pv: *mut c_void,
-    rt: *mut HermesRt,
-) -> Function<'rt> {
+unsafe fn function_from_raw_parts<'rt>(pv: *mut c_void, rt: *mut HermesRt) -> Function<'rt> {
     debug_assert_eq!(size_of::<RawFunction<'rt>>(), size_of::<Function<'rt>>());
     debug_assert_eq!(align_of::<RawFunction<'rt>>(), align_of::<Function<'rt>>());
     unsafe {
@@ -126,12 +120,15 @@ impl Engine for HermesEngine {
     type String<'cx> = JsString<'cx>;
     type Symbol<'cx> = Symbol<'cx>;
     type Key<'cx> = PropNameId<'cx>;
+    type PreparedKeyData = crate::runtime::HermesPreparedKeyData;
     type Error<'cx> = Value<'cx>;
     type RawArgs<'cx> = HermesArgs<'cx>;
 
     fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+        let runtime_ptr = runtime as *mut _;
         HermesContext {
             inner: &mut runtime.inner,
+            runtime: runtime_ptr,
         }
     }
 
@@ -170,7 +167,8 @@ impl Engine for HermesEngine {
     }
 
     fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
-        // SAFETY: `Object` is an opaque handle tied to the same `HermesRt` as `cx.inner`.
+        // SAFETY: `Object` is an opaque handle tied to the same `HermesRt` as
+        // `cx.inner`.
         unsafe { std::mem::transmute(cx.inner.global()) }
     }
 
@@ -184,11 +182,13 @@ impl Engine for HermesEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> JsResult<'rt, Self, Self::Value<'rt>> {
-        let rt: &Runtime = &*cx.inner;
         match key {
             PropertyKey::Str(s) => map_hermes_value(obj.get(s)),
-            PropertyKey::Interned(p) => map_hermes_value(obj.get_with_propname(&p)),
+            PropertyKey::Prepared(p) => {
+                map_hermes_value(obj.get_with_propname(&crate::runtime::prepared_key(cx, p)?))
+            }
             PropertyKey::Symbol(sym) => {
+                let rt: &Runtime = &*cx.inner;
                 let p = PropNameId::from_symbol(rt, &sym);
                 map_hermes_value(obj.get_with_propname(&p))
             }
@@ -205,11 +205,13 @@ impl Engine for HermesEngine {
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
     ) -> JsResult<'rt, Self, ()> {
-        let rt: &Runtime = &*cx.inner;
         match key {
             PropertyKey::Str(s) => map_hermes(obj.set(s, val)),
-            PropertyKey::Interned(p) => map_hermes(obj.set_with_propname(&p, val)),
+            PropertyKey::Prepared(p) => {
+                map_hermes(obj.set_with_propname(&crate::runtime::prepared_key(cx, p)?, val))
+            }
             PropertyKey::Symbol(sym) => {
+                let rt: &Runtime = &*cx.inner;
                 let p = PropNameId::from_symbol(rt, &sym);
                 map_hermes(obj.set_with_propname(&p, val))
             }
@@ -225,11 +227,13 @@ impl Engine for HermesEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> JsResult<'rt, Self, bool> {
-        let rt: &Runtime = &*cx.inner;
         Ok(match key {
             PropertyKey::Str(s) => obj.has(s),
-            PropertyKey::Interned(p) => obj.has_with_propname(&p),
+            PropertyKey::Prepared(p) => {
+                obj.has_with_propname(&crate::runtime::prepared_key(cx, p)?)
+            }
             PropertyKey::Symbol(sym) => {
+                let rt: &Runtime = &*cx.inner;
                 let p = PropNameId::from_symbol(rt, &sym);
                 obj.has_with_propname(&p)
             }
@@ -245,11 +249,13 @@ impl Engine for HermesEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> JsResult<'rt, Self, bool> {
-        let rt: &Runtime = &*cx.inner;
         let _ = match key {
             PropertyKey::Str(s) => map_hermes(obj.delete(s)),
-            PropertyKey::Interned(p) => map_hermes(obj.delete_with_propname(&p)),
+            PropertyKey::Prepared(p) => {
+                map_hermes(obj.delete_with_propname(&crate::runtime::prepared_key(cx, p)?))
+            }
             PropertyKey::Symbol(sym) => {
+                let rt: &Runtime = &*cx.inner;
                 let p = PropNameId::from_symbol(rt, &sym);
                 map_hermes(obj.delete_with_propname(&p))
             }
@@ -335,9 +341,7 @@ impl Engine for HermesEngine {
         cx: &mut Self::Context<'rt>,
         s: &str,
     ) -> JsResult<'rt, Self, Self::Value<'rt>> {
-        Ok(unsafe {
-            std::mem::transmute(Value::from(JsString::new(cx.inner, s)))
-        })
+        Ok(unsafe { std::mem::transmute(Value::from(JsString::new(cx.inner, s))) })
     }
 
     fn make_function<'rt, F>(
@@ -454,7 +458,10 @@ unsafe extern "C" fn host_trampoline(
     unsafe {
         let mut md = Runtime::borrow_raw(rt);
         let rt_mut: &mut Runtime = &mut *md;
-        let hc = HermesContext { inner: rt_mut };
+        let hc = HermesContext {
+            inner: rt_mut,
+            runtime: std::ptr::null_mut(),
+        };
 
         let this_v = Value::from_raw_clone(rt, &*this_val);
 

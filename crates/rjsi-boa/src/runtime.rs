@@ -1,25 +1,42 @@
+use std::collections::HashMap;
 use std::ops::DerefMut;
 
 use boa_engine::{Context as BoaCx, JsString};
-use rjsi_core::{
-    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
-};
+use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
 
 use crate::engine::BoaEngine;
 
 pub struct BoaRuntime {
+    prepared_keys: HashMap<u64, JsString>,
     pub(crate) context: BoaCx,
     microtask_policy: MicrotaskDrainPolicy,
-    static_slots: Vec<Option<String>>,
 }
 
 impl BoaRuntime {
     pub fn new() -> Self {
         Self {
+            prepared_keys: HashMap::new(),
             context: BoaCx::default(),
             microtask_policy: MicrotaskDrainPolicy::Explicit,
-            static_slots: Vec::new(),
         }
+    }
+
+    pub fn prepare_key(
+        &mut self,
+        name: impl Into<String>,
+    ) -> anyhow::Result<PreparedKey<BoaEngine>> {
+        let key = PreparedKey::new(name);
+        self.ensure_prepared_key(key.id(), key.as_str());
+        Ok(key)
+    }
+
+    fn ensure_prepared_key(&mut self, id: u64, name: &str) {
+        if self.prepared_keys.contains_key(&id) {
+            return;
+        }
+
+        let _ = self.context.interner_mut().get_or_intern(name);
+        self.prepared_keys.insert(id, JsString::from(name));
     }
 }
 
@@ -31,8 +48,10 @@ impl Default for BoaRuntime {
 
 impl Runtime<BoaEngine> for BoaRuntime {
     fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, BoaEngine>) -> R) -> R {
+        let runtime_ptr = self as *mut _;
         let wrapper = crate::engine::BoaContext {
             inner: &mut self.context,
+            runtime: runtime_ptr,
         };
         let mut cx = Context::new(wrapper);
         f(&mut cx)
@@ -47,40 +66,17 @@ impl Runtime<BoaEngine> for BoaRuntime {
     }
 }
 
-impl InternKey<BoaEngine> for BoaRuntime {
-    fn intern_str<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, BoaEngine>,
-        s: &str,
-    ) -> JsResult<'cx, BoaEngine, Key<'cx, BoaEngine>> {
-        let _ = self;
-        let boa_cx = rjsi_core::__cx::context_mut(cx).deref_mut();
-        let _ = boa_cx.interner_mut().get_or_intern(s);
-        Ok(Key::new(JsString::from(s)))
+pub(crate) fn prepared_key<'cx>(
+    cx: &mut crate::engine::BoaContext<'cx>,
+    key: &PreparedKey<BoaEngine>,
+) -> JsResult<'cx, BoaEngine, JsString> {
+    if cx.runtime.is_null() {
+        return Ok(JsString::from(key.as_str()));
     }
-}
 
-impl KeyCache<BoaEngine> for BoaRuntime {
-    fn get_or_intern<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, BoaEngine>,
-        slot: StaticKeySlot,
-    ) -> JsResult<'cx, BoaEngine, Key<'cx, BoaEngine>> {
-        let idx = slot.0 as usize;
-        if idx >= self.static_slots.len() {
-            self.static_slots.resize(idx + 1, None);
-        }
-
-        let s = if let Some(stored) = &self.static_slots[idx] {
-            stored.clone()
-        } else {
-            let new_s = format!("__static_slot_{}", idx);
-            self.static_slots[idx] = Some(new_s.clone());
-            new_s
-        };
-
-        let boa_cx = rjsi_core::__cx::context_mut(cx).deref_mut();
-        let _ = boa_cx.interner_mut().get_or_intern(s.as_str());
-        Ok(Key::new(JsString::from(s.as_str())))
-    }
+    let runtime = unsafe { &mut *cx.runtime };
+    runtime.ensure_prepared_key(key.id(), key.as_str());
+    let boa_cx = cx.deref_mut();
+    let _ = boa_cx.interner_mut().get_or_intern(key.as_str());
+    Ok(runtime.prepared_keys.get(&key.id()).unwrap().clone())
 }

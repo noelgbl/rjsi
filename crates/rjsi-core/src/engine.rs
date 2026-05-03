@@ -10,6 +10,7 @@ pub trait Engine: Sized + 'static {
     type String<'cx>: 'cx;
     type Symbol<'cx>: 'cx;
     type Key<'cx>: 'cx;
+    type PreparedKeyData: 'static;
     type Error<'cx>: 'cx;
     type RawArgs<'cx>: 'cx;
 

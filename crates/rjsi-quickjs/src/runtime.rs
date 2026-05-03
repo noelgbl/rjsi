@@ -1,16 +1,20 @@
-use rjsi_core::{
-    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
-};
+use std::collections::HashMap;
+
+use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
 use rquickjs::{Atom, Context as QContext, Ctx, Runtime as QRuntime};
 
-use crate::engine::{QuickJsEngine, map_err};
+use crate::engine::{QuickJsContext, QuickJsEngine, map_err};
+
+pub struct QuickJsPreparedKeyData {
+    atom: Atom<'static>,
+}
 
 pub struct QuickJsRuntime {
+    prepared_keys: HashMap<u64, QuickJsPreparedKeyData>,
     #[allow(dead_code)]
     pub(crate) rt: QRuntime,
     pub(crate) ctx: QContext,
     microtask_policy: MicrotaskDrainPolicy,
-    static_slots: Vec<Option<String>>,
 }
 
 impl QuickJsRuntime {
@@ -18,11 +22,38 @@ impl QuickJsRuntime {
         let rt = QRuntime::new().unwrap();
         let ctx = QContext::full(&rt).unwrap();
         Self {
+            prepared_keys: HashMap::new(),
             rt,
             ctx,
             microtask_policy: MicrotaskDrainPolicy::Explicit,
-            static_slots: Vec::new(),
         }
+    }
+
+    pub fn prepare_key(
+        &mut self,
+        name: impl Into<String>,
+    ) -> anyhow::Result<PreparedKey<QuickJsEngine>> {
+        let key = PreparedKey::new(name);
+        self.ensure_prepared_key(key.id(), key.as_str())
+            .map_err(anyhow::Error::new)?;
+        Ok(key)
+    }
+
+    fn ensure_prepared_key(&mut self, id: u64, name: &str) -> Result<(), rquickjs::Error> {
+        if self.prepared_keys.contains_key(&id) {
+            return Ok(());
+        }
+
+        self.ctx.clone().with(|qctx: Ctx<'_>| {
+            let atom = Atom::from_str(qctx, name)?;
+            self.prepared_keys.insert(
+                id,
+                QuickJsPreparedKeyData {
+                    atom: unsafe { std::mem::transmute(atom) },
+                },
+            );
+            Ok(())
+        })
     }
 }
 
@@ -37,8 +68,9 @@ impl Runtime<QuickJsEngine> for QuickJsRuntime {
         &mut self,
         f: impl for<'rt> FnOnce(&mut Context<'rt, QuickJsEngine>) -> R,
     ) -> R {
+        let runtime = self as *mut _;
         self.ctx.clone().with(|qctx: Ctx<'_>| {
-            let mut cx = Context::new(qctx);
+            let mut cx = Context::new(QuickJsContext { qctx, runtime });
             f(&mut cx)
         })
     }
@@ -52,39 +84,21 @@ impl Runtime<QuickJsEngine> for QuickJsRuntime {
     }
 }
 
-impl InternKey<QuickJsEngine> for QuickJsRuntime {
-    fn intern_str<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, QuickJsEngine>,
-        s: &str,
-    ) -> JsResult<'cx, QuickJsEngine, Key<'cx, QuickJsEngine>> {
-        let cx_raw = rjsi_core::__cx::context_mut(cx);
-        let res = Atom::from_str(cx_raw.clone(), s);
-        map_err(cx_raw, res).map(|a| Key::new(a))
-    }
+pub(crate) fn prepared_key<'cx>(
+    cx: &mut QuickJsContext<'cx>,
+    key: &PreparedKey<QuickJsEngine>,
+) -> JsResult<'cx, QuickJsEngine, Atom<'cx>> {
+    let runtime = unsafe { &mut *cx.runtime };
+    runtime
+        .ensure_prepared_key(key.id(), key.as_str())
+        .map_err(rjsi_core::JsError::from_host)?;
+    let atom = &runtime.prepared_keys.get(&key.id()).unwrap().atom;
+    Ok(unsafe { std::mem::transmute(atom.clone()) })
 }
 
-impl KeyCache<QuickJsEngine> for QuickJsRuntime {
-    fn get_or_intern<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, QuickJsEngine>,
-        slot: StaticKeySlot,
-    ) -> JsResult<'cx, QuickJsEngine, Key<'cx, QuickJsEngine>> {
-        let idx = slot.0 as usize;
-        if idx >= self.static_slots.len() {
-            self.static_slots.resize(idx + 1, None);
-        }
-
-        let s = if let Some(s) = &self.static_slots[idx] {
-            s.clone()
-        } else {
-            let new_s = format!("__static_slot_{}", idx);
-            self.static_slots[idx] = Some(new_s.clone());
-            new_s
-        };
-
-        let cx_raw = rjsi_core::__cx::context_mut(cx);
-        let res = Atom::from_str(cx_raw.clone(), &s);
-        map_err(cx_raw, res).map(|a| Key::new(a))
-    }
+pub(crate) fn _map_prepare_err<'cx, T>(
+    cx: &QuickJsContext<'cx>,
+    res: rquickjs::Result<T>,
+) -> JsResult<'cx, QuickJsEngine, T> {
+    map_err(cx, res)
 }

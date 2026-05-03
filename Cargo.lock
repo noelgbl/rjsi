@@ -1573,6 +1573,7 @@ dependencies = [
 name = "rjsi-boa"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "boa_engine",
  "criterion",
  "rjsi-conformance",
@@ -1611,6 +1612,7 @@ dependencies = [
 name = "rjsi-hermes"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "libc",
  "libhermes-sys",
  "rjsi-conformance",
@@ -1622,6 +1624,7 @@ dependencies = [
 name = "rjsi-jsc"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "rjsi-conformance",
  "rjsi-console",
  "rjsi-core",
@@ -1665,6 +1668,7 @@ dependencies = [
 name = "rjsi-quickjs"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "criterion",
  "rjsi-conformance",
  "rjsi-console",
@@ -1686,6 +1690,7 @@ dependencies = [
 name = "rjsi-v8"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "criterion",
  "rjsi-conformance",
  "rjsi-console",

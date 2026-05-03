@@ -16,17 +16,17 @@ mod symbol;
 mod value;
 
 pub use args::{Args, ArgsIter, RawHostFn};
+pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
 #[doc(hidden)]
 pub use class::{
     JsClass, NativeBorrowError, NativeBorrowGuard, NativeCell, NativeObject, NativePtr
 };
-pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
 pub use error::{JsError, JsResult};
 pub use function::Function;
-pub use keys::{InternKey, IntoKey, Key, KeyCache, PropertyKey, StaticKeySlot};
+pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use object::Object;
 pub use runtime::{MicrotaskDrainPolicy, Runtime};
 pub use scope::{

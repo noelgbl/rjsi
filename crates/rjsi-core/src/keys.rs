@@ -1,23 +1,77 @@
-use crate::{Engine, JsResult};
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-#[repr(transparent)]
-pub struct Key<'cx, E: Engine> {
-    pub(crate) raw: E::Key<'cx>,
+use crate::Engine;
+
+static NEXT_PREPARED_KEY_ID: AtomicU64 = AtomicU64::new(0);
+
+struct PreparedKeyInner {
+    id: u64,
+    name: Box<str>,
 }
 
-impl<'cx, E: Engine> Key<'cx, E> {
-    pub fn new(raw: E::Key<'cx>) -> Self {
-        Self { raw }
+pub struct PreparedKey<E: Engine> {
+    inner: Arc<PreparedKeyInner>,
+    _marker: PhantomData<fn() -> E>,
+}
+
+impl<E: Engine> PreparedKey<E> {
+    pub fn new(name: impl Into<String>) -> Self {
+        let id = NEXT_PREPARED_KEY_ID.fetch_add(1, Ordering::Relaxed);
+        Self {
+            inner: Arc::new(PreparedKeyInner {
+                id,
+                name: name.into().into_boxed_str(),
+            }),
+            _marker: PhantomData,
+        }
     }
 
-    pub fn into_raw(self) -> E::Key<'cx> {
-        self.raw
+    pub fn id(&self) -> u64 {
+        self.inner.id
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.inner.name
+    }
+}
+
+impl<E: Engine> Clone for PreparedKey<E> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<E: Engine> std::fmt::Debug for PreparedKey<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreparedKey")
+            .field("id", &self.id())
+            .field("name", &self.as_str())
+            .finish()
+    }
+}
+
+impl<E: Engine> PartialEq for PreparedKey<E> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
+}
+
+impl<E: Engine> Eq for PreparedKey<E> {}
+
+impl<E: Engine> std::hash::Hash for PreparedKey<E> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id().hash(state);
     }
 }
 
 pub enum PropertyKey<'cx, E: Engine> {
     Str(&'cx str),
-    Interned(E::Key<'cx>),
+    Prepared(&'cx PreparedKey<E>),
     Symbol(E::Symbol<'cx>),
     Index(u32),
 }
@@ -44,27 +98,8 @@ impl<'cx, E: Engine> IntoKey<'cx, E> for u32 {
     }
 }
 
-impl<'cx, E: Engine> IntoKey<'cx, E> for Key<'cx, E> {
+impl<'cx, E: Engine> IntoKey<'cx, E> for &'cx PreparedKey<E> {
     fn into_key(self) -> PropertyKey<'cx, E> {
-        PropertyKey::Interned(self.into_raw())
+        PropertyKey::Prepared(self)
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct StaticKeySlot(pub u32);
-
-pub trait KeyCache<E: Engine> {
-    fn get_or_intern<'cx>(
-        &mut self,
-        cx: &mut crate::Context<'cx, E>,
-        slot: StaticKeySlot,
-    ) -> JsResult<'cx, E, Key<'cx, E>>;
-}
-
-pub trait InternKey<E: Engine> {
-    fn intern_str<'cx>(
-        &mut self,
-        cx: &mut crate::Context<'cx, E>,
-        s: &str,
-    ) -> JsResult<'cx, E, Key<'cx, E>>;
 }

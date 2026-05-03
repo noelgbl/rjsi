@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use crate::{Context, Engine, JsResult, Object};
-use crate::capabilities::{Promises, Microtasks};
-use crate::context::{ContextPromiseExt, ContextMicrotaskExt};
+use crate::capabilities::{Microtasks, Promises};
+use crate::context::{ContextMicrotaskExt, ContextPromiseExt};
 use crate::convert::ToJs;
+use crate::{Context, Engine, JsResult, Object};
 
 pub type PromiseId = u64;
 
@@ -19,16 +19,26 @@ pub struct JsSender<T, Err> {
 
 impl<T, Err> Clone for JsSender<T, Err> {
     fn clone(&self) -> Self {
-        Self { tx: self.tx.clone() }
+        Self {
+            tx: self.tx.clone(),
+        }
     }
 }
 
 impl<T, Err> JsSender<T, Err> {
-    pub fn resolve(&self, id: PromiseId, value: T) -> Result<(), mpsc::SendError<SettleMsg<T, Err>>> {
+    pub fn resolve(
+        &self,
+        id: PromiseId,
+        value: T,
+    ) -> Result<(), mpsc::SendError<SettleMsg<T, Err>>> {
         self.tx.send(SettleMsg::Resolve(id, value))
     }
 
-    pub fn reject(&self, id: PromiseId, reason: Err) -> Result<(), mpsc::SendError<SettleMsg<T, Err>>> {
+    pub fn reject(
+        &self,
+        id: PromiseId,
+        reason: Err,
+    ) -> Result<(), mpsc::SendError<SettleMsg<T, Err>>> {
         self.tx.send(SettleMsg::Reject(id, reason))
     }
 }
@@ -52,7 +62,10 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
         )
     }
 
-    pub fn create_promise(&mut self, cx: &mut Context<'rt, E>) -> JsResult<'rt, E, (PromiseId, Object<'rt, E>)> {
+    pub fn create_promise(
+        &mut self,
+        cx: &mut Context<'rt, E>,
+    ) -> JsResult<'rt, E, (PromiseId, Object<'rt, E>)> {
         let (promise, resolver) = cx.promise_new()?;
         let id = self.next_id;
         self.next_id += 1;

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
+anyhow.workspace = true
 boa_engine = "0.21.1"
 
 [dev-dependencies]

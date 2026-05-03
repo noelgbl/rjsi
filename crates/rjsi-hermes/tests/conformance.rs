@@ -1,5 +1,5 @@
-use rjsi_hermes::HermesRuntime;
 use rjsi_conformance as conformance;
+use rjsi_hermes::HermesRuntime;
 
 fn rt() -> HermesRuntime {
     HermesRuntime::new().expect("Hermes runtime")

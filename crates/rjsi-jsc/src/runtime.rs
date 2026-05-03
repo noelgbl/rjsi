@@ -1,20 +1,57 @@
-use rjsi_core::{
-    Context, InternKey, JsResult, Key, KeyCache, MicrotaskDrainPolicy, Runtime, StaticKeySlot
-};
+use std::collections::HashMap;
+
+use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
+
+pub struct JscPreparedKeyData {
+    ctx: rusty_jsc_sys::JSContextRef,
+    val: rusty_jsc_sys::JSValueRef,
+}
+
+impl Drop for JscPreparedKeyData {
+    fn drop(&mut self) {
+        unsafe {
+            rusty_jsc_sys::JSValueUnprotect(self.ctx, self.val);
+        }
+    }
+}
 
 pub struct JscRuntime {
+    prepared_keys: HashMap<u64, JscPreparedKeyData>,
     pub(crate) context: rusty_jsc::JSContext,
     microtask_policy: MicrotaskDrainPolicy,
-    static_slots: Vec<Option<String>>,
 }
 
 impl JscRuntime {
     pub fn new() -> Self {
         Self {
+            prepared_keys: HashMap::new(),
             context: rusty_jsc::JSContext::new(),
             microtask_policy: MicrotaskDrainPolicy::Explicit,
-            static_slots: Vec::new(),
         }
+    }
+
+    pub fn prepare_key(
+        &mut self,
+        name: impl Into<String>,
+    ) -> anyhow::Result<PreparedKey<crate::engine::JscEngine>> {
+        let key = PreparedKey::new(name);
+        self.ensure_prepared_key(key.id(), key.as_str());
+        Ok(key)
+    }
+
+    fn ensure_prepared_key(&mut self, id: u64, name: &str) {
+        if self.prepared_keys.contains_key(&id) {
+            return;
+        }
+
+        let ctx = self.context.get_ref();
+        let js_str = crate::engine::ManagedJSString::new(name);
+        let val = unsafe { rusty_jsc_sys::JSValueMakeString(ctx, js_str.0) };
+        unsafe {
+            rusty_jsc_sys::JSValueProtect(ctx, val);
+        }
+        self.prepared_keys
+            .insert(id, JscPreparedKeyData { ctx, val });
     }
 }
 
@@ -29,8 +66,10 @@ impl Runtime<crate::engine::JscEngine> for JscRuntime {
         &mut self,
         f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::JscEngine>) -> R,
     ) -> R {
+        let runtime_ptr = self as *mut _;
         let cx_raw = crate::engine::JscContext {
             ctx: self.context.get_ref(),
+            runtime: runtime_ptr,
             _phantom: std::marker::PhantomData,
         };
         let mut cx = Context::new(cx_raw);
@@ -46,38 +85,18 @@ impl Runtime<crate::engine::JscEngine> for JscRuntime {
     }
 }
 
-impl InternKey<crate::engine::JscEngine> for JscRuntime {
-    fn intern_str<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, crate::engine::JscEngine>,
-        s: &str,
-    ) -> JsResult<'cx, crate::engine::JscEngine, Key<'cx, crate::engine::JscEngine>> {
-        let js_str = crate::engine::ManagedJSString::new(s);
-        let cx_raw = rjsi_core::__cx::context_mut(cx);
-        let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx_raw.ctx, js_str.0) };
-        Ok(Key::new(crate::engine::JscKey::new(cx_raw.ctx, val)))
+pub(crate) fn prepared_key<'cx>(
+    cx: &mut crate::engine::JscContext<'cx>,
+    key: &PreparedKey<crate::engine::JscEngine>,
+) -> JsResult<'cx, crate::engine::JscEngine, crate::engine::JscKey<'cx>> {
+    if cx.runtime.is_null() {
+        let js_str = crate::engine::ManagedJSString::new(key.as_str());
+        let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, js_str.0) };
+        return Ok(crate::engine::JscKey::new(cx.ctx, val));
     }
-}
 
-impl KeyCache<crate::engine::JscEngine> for JscRuntime {
-    fn get_or_intern<'cx>(
-        &mut self,
-        cx: &mut Context<'cx, crate::engine::JscEngine>,
-        slot: StaticKeySlot,
-    ) -> JsResult<'cx, crate::engine::JscEngine, Key<'cx, crate::engine::JscEngine>> {
-        let idx = slot.0 as usize;
-        if idx >= self.static_slots.len() {
-            self.static_slots.resize(idx + 1, None);
-        }
-
-        let s = if let Some(s) = &self.static_slots[idx] {
-            s.clone()
-        } else {
-            let new_s = format!("__static_slot_{}", idx);
-            self.static_slots[idx] = Some(new_s.clone());
-            new_s
-        };
-
-        self.intern_str(cx, &s)
-    }
+    let runtime = unsafe { &mut *cx.runtime };
+    runtime.ensure_prepared_key(key.id(), key.as_str());
+    let prepared = runtime.prepared_keys.get(&key.id()).unwrap();
+    Ok(crate::engine::JscKey::new(cx.ctx, prepared.val))
 }

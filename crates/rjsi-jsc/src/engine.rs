@@ -6,6 +6,7 @@ pub struct JscEngine;
 
 pub struct JscContext<'rt> {
     pub(crate) ctx: rusty_jsc_sys::JSContextRef,
+    pub(crate) runtime: *mut crate::runtime::JscRuntime,
     pub(crate) _phantom: std::marker::PhantomData<&'rt mut ()>,
 }
 
@@ -115,6 +116,7 @@ unsafe extern "C" fn host_fn_callback(
 
     let cx_raw = JscContext {
         ctx,
+        runtime: std::ptr::null_mut(),
         _phantom: std::marker::PhantomData,
     };
 
@@ -189,6 +191,7 @@ impl Engine for JscEngine {
     type String<'cx> = JscValue<'cx>;
     type Symbol<'cx> = JscValue<'cx>;
     type Key<'cx> = JscKey<'cx>;
+    type PreparedKeyData = crate::runtime::JscPreparedKeyData;
     type Error<'cx> = JscValue<'cx>;
     type RawArgs<'cx> = JscArgs<'cx>;
 
@@ -265,8 +268,14 @@ impl Engine for JscEngine {
                     rusty_jsc_sys::JSObjectGetProperty(cx.ctx, obj.val, js_str.0, &mut exception)
                 }
             }
-            PropertyKey::Interned(k) => unsafe {
-                rusty_jsc_sys::JSObjectGetPropertyForKey(cx.ctx, obj.val, k.val, &mut exception)
+            PropertyKey::Prepared(k) => unsafe {
+                let prepared = crate::runtime::prepared_key(cx, k)?;
+                rusty_jsc_sys::JSObjectGetPropertyForKey(
+                    cx.ctx,
+                    obj.val,
+                    prepared.val,
+                    &mut exception,
+                )
             },
             PropertyKey::Symbol(s) => unsafe {
                 rusty_jsc_sys::JSObjectGetPropertyForKey(cx.ctx, obj.val, s.val, &mut exception)
@@ -304,12 +313,13 @@ impl Engine for JscEngine {
                     )
                 };
             }
-            PropertyKey::Interned(k) => {
+            PropertyKey::Prepared(k) => {
+                let prepared = crate::runtime::prepared_key(cx, k)?;
                 unsafe {
                     rusty_jsc_sys::JSObjectSetPropertyForKey(
                         cx.ctx,
                         obj.val,
-                        k.val,
+                        prepared.val,
                         val.val,
                         0,
                         &mut exception,
@@ -359,8 +369,14 @@ impl Engine for JscEngine {
                 let js_str = ManagedJSString::new(s);
                 unsafe { rusty_jsc_sys::JSObjectHasProperty(cx.ctx, obj.val, js_str.0) }
             }
-            PropertyKey::Interned(k) => unsafe {
-                rusty_jsc_sys::JSObjectHasPropertyForKey(cx.ctx, obj.val, k.val, &mut exception)
+            PropertyKey::Prepared(k) => unsafe {
+                let prepared = crate::runtime::prepared_key(cx, k)?;
+                rusty_jsc_sys::JSObjectHasPropertyForKey(
+                    cx.ctx,
+                    obj.val,
+                    prepared.val,
+                    &mut exception,
+                )
             },
             PropertyKey::Symbol(s) => unsafe {
                 rusty_jsc_sys::JSObjectHasPropertyForKey(cx.ctx, obj.val, s.val, &mut exception)
@@ -391,8 +407,14 @@ impl Engine for JscEngine {
                     rusty_jsc_sys::JSObjectDeleteProperty(cx.ctx, obj.val, js_str.0, &mut exception)
                 }
             }
-            PropertyKey::Interned(k) => unsafe {
-                rusty_jsc_sys::JSObjectDeletePropertyForKey(cx.ctx, obj.val, k.val, &mut exception)
+            PropertyKey::Prepared(k) => unsafe {
+                let prepared = crate::runtime::prepared_key(cx, k)?;
+                rusty_jsc_sys::JSObjectDeletePropertyForKey(
+                    cx.ctx,
+                    obj.val,
+                    prepared.val,
+                    &mut exception,
+                )
             },
             PropertyKey::Symbol(s) => unsafe {
                 rusty_jsc_sys::JSObjectDeletePropertyForKey(cx.ctx, obj.val, s.val, &mut exception)
