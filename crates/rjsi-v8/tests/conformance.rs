@@ -44,3 +44,18 @@ fn array_index_get_set() {
 fn run_full_conformance_suite() {
     conformance::run_all(&mut rt());
 }
+
+#[test]
+fn promise_capabilities() {
+    conformance::promise_capabilities(&mut rt());
+}
+
+#[test]
+fn js_channel_capabilities() {
+    conformance::js_channel_capabilities(&mut rt());
+}
+
+#[test]
+fn tokio_channel_capabilities() {
+    conformance::tokio_channel_capabilities(&mut rt());
+}

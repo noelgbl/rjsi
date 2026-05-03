@@ -416,3 +416,123 @@ where
     optional_chaining_and_nullish_coalescing(runtime);
     number_to_string_coercion(runtime);
 }
+
+pub fn promise_capabilities<E, R>(runtime: &mut R)
+where
+    E: Engine + rjsi_core::capabilities::Promises + rjsi_core::capabilities::Microtasks,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        use rjsi_core::{ContextMicrotaskExt, ContextPromiseExt};
+
+        let (promise, resolver) = cx.promise_new().unwrap();
+
+        let global = cx.globals();
+        global.set(cx, "testPromise", promise.into_value()).unwrap();
+
+        cx.eval("testPromise.then(v => { globalThis.promiseResult = v; })")
+            .unwrap();
+
+        let val = cx.number(42.0);
+        cx.promise_resolve(resolver, val).unwrap();
+
+        cx.drain_microtasks();
+
+        let result = global.get(cx, "promiseResult").unwrap();
+        let n = expect_js(result.to_f64(cx), "promise result");
+        assert_eq!(n, 42.0);
+    });
+}
+
+pub fn js_channel_capabilities<E, R>(runtime: &mut R)
+where
+    E: Engine + rjsi_core::capabilities::Promises + rjsi_core::capabilities::Microtasks,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let (tx, mut channel) = rjsi_core::channel::JsChannel::<E, f64, String>::new();
+        use rjsi_core::ContextMicrotaskExt;
+
+        let (id, promise) = channel.create_promise(cx).unwrap();
+
+        let global = cx.globals();
+        global
+            .set(cx, "channelPromise", promise.into_value())
+            .unwrap();
+
+        cx.eval("channelPromise.then(v => { globalThis.channelResult = v; })")
+            .unwrap();
+
+        let tx_clone = tx.clone();
+        std::thread::spawn(move || {
+            tx_clone.resolve(id, 99.0).unwrap();
+        })
+        .join()
+        .unwrap();
+
+        channel
+            .pump(
+                cx,
+                |cx, val| Ok(cx.number(val)),
+                |cx, err| cx.string(&err).map(Into::into),
+            )
+            .unwrap();
+
+        cx.drain_microtasks();
+
+        let result = global.get(cx, "channelResult").unwrap();
+        let n = expect_js(result.to_f64(cx), "channel result");
+        assert_eq!(n, 99.0);
+    });
+}
+
+pub fn tokio_channel_capabilities<E, R>(runtime: &mut R)
+where
+    E: Engine + rjsi_core::capabilities::Promises + rjsi_core::capabilities::Microtasks,
+    R: Runtime<E>,
+{
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    runtime.with_scope(|cx| {
+        let (tx, mut channel) = rjsi_core::channel::JsChannel::<E, f64, String>::new();
+        use rjsi_core::ContextMicrotaskExt;
+
+        let (id, promise) = channel.create_promise(cx).unwrap();
+
+        let global = cx.globals();
+        global
+            .set(cx, "tokioPromise", promise.into_value())
+            .unwrap();
+
+        cx.eval("tokioPromise.then(v => { globalThis.tokioResult = v; })")
+            .unwrap();
+
+        let tx_clone = tx.clone();
+
+        rt.block_on(async {
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                tx_clone.resolve(id, 88.0).unwrap();
+            });
+
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        });
+
+        channel
+            .pump(
+                cx,
+                |cx, val| Ok(cx.number(val)),
+                |cx, err| cx.string(&err).map(Into::into),
+            )
+            .unwrap();
+
+        cx.drain_microtasks();
+
+        let result = global.get(cx, "tokioResult").unwrap();
+        let n = expect_js(result.to_f64(cx), "tokio result");
+        assert_eq!(n, 88.0);
+    });
+}

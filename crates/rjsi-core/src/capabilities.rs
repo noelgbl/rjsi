@@ -1,19 +1,35 @@
-use crate::{runtime::Runtime, scope::ScopeLike};
+use crate::{Context, Engine, JsResult};
 
-pub trait ScopeArrayBuffer<'s, R: Runtime> {
-    fn array_buffer_zero_copy(&mut self, bytes: &[u8]) -> R::Value<'s>;
-    fn array_buffer_zero_copy_supported(&self) -> bool;
+/// Engines that expose native Promise primitives.
+pub trait Promises: Engine {
+    /// The handle used to resolve or reject a promise.
+    type PromiseResolver<'cx>: 'cx;
+
+    /// Creates a new native Promise.
+    fn promise_new<'rt>(
+        cx: &mut Context<'rt, Self>,
+    ) -> JsResult<'rt, Self, (Self::Object<'rt>, Self::PromiseResolver<'rt>)>;
+
+    /// Resolves a promise.
+    fn promise_resolve<'rt>(
+        cx: &mut Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        value: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()>;
+
+    /// Rejects a promise.
+    fn promise_reject<'rt>(
+        cx: &mut Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        reason: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()>;
 }
 
-impl<'s, 'p, R> ScopeArrayBuffer<'s, R> for R::Scope<'s, 'p>
-where
-    R: Runtime,
-{
-    fn array_buffer_zero_copy(&mut self, bytes: &[u8]) -> R::Value<'s> {
-        <R::Scope<'s, 'p> as ScopeLike<'s, 'p, R>>::array_buffer_zero_copy(self, bytes)
-    }
+/// Engines that allow manual manipulation of the microtask queue.
+pub trait Microtasks: Engine {
+    /// Enqueues a function to be run as a microtask.
+    fn queue_microtask<'rt>(cx: &mut Context<'rt, Self>, task: Self::Function<'rt>);
 
-    fn array_buffer_zero_copy_supported(&self) -> bool {
-        <R::Scope<'s, 'p> as ScopeLike<'s, 'p, R>>::array_buffer_zero_copy_supported(self)
-    }
+    /// Drains the microtask queue synchronously.
+    fn drain_microtasks<'rt>(cx: &mut Context<'rt, Self>);
 }

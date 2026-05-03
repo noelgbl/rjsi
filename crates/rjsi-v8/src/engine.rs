@@ -452,3 +452,66 @@ impl Engine for V8Engine {
         f.into()
     }
 }
+
+impl rjsi_core::capabilities::Promises for V8Engine {
+    type PromiseResolver<'cx> = v8::Local<'cx, v8::PromiseResolver>;
+
+    fn promise_new<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+    ) -> JsResult<'rt, Self, (Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        if let Some(resolver) = v8::PromiseResolver::new(scope) {
+            let promise = resolver.get_promise(scope);
+            Ok((unsafe { cast_local(promise.into()) }, unsafe {
+                cast_local(resolver)
+            }))
+        } else {
+            Err(JsError::type_err("failed to create promise"))
+        }
+    }
+
+    fn promise_resolve<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        value: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        if let Some(true) = resolver.resolve(scope, value) {
+            Ok(())
+        } else {
+            Err(JsError::type_err("failed to resolve promise"))
+        }
+    }
+
+    fn promise_reject<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        reason: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        if let Some(true) = resolver.reject(scope, reason) {
+            Ok(())
+        } else {
+            Err(JsError::type_err("failed to reject promise"))
+        }
+    }
+}
+
+impl rjsi_core::capabilities::Microtasks for V8Engine {
+    fn queue_microtask<'rt>(cx: &mut rjsi_core::Context<'rt, Self>, task: Self::Function<'rt>) {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        let isolate: &mut v8::Isolate = &mut **scope;
+        isolate.enqueue_microtask(task);
+    }
+
+    fn drain_microtasks<'rt>(cx: &mut rjsi_core::Context<'rt, Self>) {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        let isolate: &mut v8::Isolate = &mut **scope;
+        isolate.perform_microtask_checkpoint();
+    }
+}

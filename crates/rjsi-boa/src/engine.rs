@@ -313,3 +313,58 @@ impl Engine for BoaEngine {
         f
     }
 }
+
+impl rjsi_core::capabilities::Promises for BoaEngine {
+    type PromiseResolver<'cx> = boa_engine::builtins::promise::ResolvingFunctions;
+
+    fn promise_new<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+    ) -> JsResult<'rt, Self, (Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+        let boa_cx = rjsi_core::__cx::context_mut(cx);
+        let (promise, resolvers) = boa_engine::object::builtins::JsPromise::new_pending(boa_cx);
+        Ok((boa_engine::JsValue::from(promise).as_object().unwrap().clone(), resolvers))
+    }
+
+    fn promise_resolve<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        value: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
+        let boa_cx = rjsi_core::__cx::context_mut(cx);
+        let res = resolver.resolve.call(&boa_engine::JsValue::undefined(), &[value], boa_cx);
+        map_js(boa_cx, res)?;
+        Ok(())
+    }
+
+    fn promise_reject<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        reason: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
+        let boa_cx = rjsi_core::__cx::context_mut(cx);
+        let res = resolver.reject.call(&boa_engine::JsValue::undefined(), &[reason], boa_cx);
+        map_js(boa_cx, res)?;
+        Ok(())
+    }
+}
+
+impl rjsi_core::capabilities::Microtasks for BoaEngine {
+    fn queue_microtask<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        task: Self::Function<'rt>,
+    ) {
+        let boa_cx = rjsi_core::__cx::context_mut(cx);
+        let promise = boa_cx.global_object().get(boa_engine::JsString::from("Promise"), boa_cx).unwrap().as_object().unwrap().clone();
+        let resolve = promise.get(boa_engine::JsString::from("resolve"), boa_cx).unwrap().as_callable().unwrap().clone();
+        let resolved = resolve.call(&boa_engine::JsValue::undefined(), &[], boa_cx).unwrap();
+        let then = resolved.as_object().unwrap().get(boa_engine::JsString::from("then"), boa_cx).unwrap().as_callable().unwrap().clone();
+        then.call(&resolved, &[task.into()], boa_cx).unwrap();
+    }
+
+    fn drain_microtasks<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+    ) {
+        let boa_cx = rjsi_core::__cx::context_mut(cx);
+        let _ = boa_cx.run_jobs();
+    }
+}

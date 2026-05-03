@@ -19,6 +19,7 @@ members = [
     "crates/rjsi-hermes",
     "crates/rjsi-jsc",
     "crates/rjsi-boa",
+    "crates/rjsi-stream",
     "examples/add",
     "examples/hello-world",
     "examples/host-function",

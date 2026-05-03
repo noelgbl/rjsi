@@ -65,6 +65,67 @@ impl<'rt, E: Engine> Context<'rt, E> {
     }
 }
 
+pub trait ContextPromiseExt<'rt, E: Engine + crate::capabilities::Promises> {
+    fn promise_new(&mut self)
+    -> JsResult<'rt, E, (crate::Object<'rt, E>, E::PromiseResolver<'rt>)>;
+    fn promise_resolve(
+        &mut self,
+        resolver: E::PromiseResolver<'rt>,
+        value: crate::Value<'rt, E>,
+    ) -> JsResult<'rt, E, ()>;
+    fn promise_reject(
+        &mut self,
+        resolver: E::PromiseResolver<'rt>,
+        reason: crate::Value<'rt, E>,
+    ) -> JsResult<'rt, E, ()>;
+}
+
+impl<'rt, E> ContextPromiseExt<'rt, E> for Context<'rt, E>
+where
+    E: Engine + crate::capabilities::Promises,
+{
+    fn promise_new(
+        &mut self,
+    ) -> JsResult<'rt, E, (crate::Object<'rt, E>, E::PromiseResolver<'rt>)> {
+        let (obj, resolver) = E::promise_new(self)?;
+        Ok((crate::Object::new(obj), resolver))
+    }
+
+    fn promise_resolve(
+        &mut self,
+        resolver: E::PromiseResolver<'rt>,
+        value: crate::Value<'rt, E>,
+    ) -> JsResult<'rt, E, ()> {
+        E::promise_resolve(self, resolver, value.into_raw())
+    }
+
+    fn promise_reject(
+        &mut self,
+        resolver: E::PromiseResolver<'rt>,
+        reason: crate::Value<'rt, E>,
+    ) -> JsResult<'rt, E, ()> {
+        E::promise_reject(self, resolver, reason.into_raw())
+    }
+}
+
+pub trait ContextMicrotaskExt<'rt, E: Engine + crate::capabilities::Microtasks> {
+    fn queue_microtask(&mut self, task: E::Function<'rt>);
+    fn drain_microtasks(&mut self);
+}
+
+impl<'rt, E> ContextMicrotaskExt<'rt, E> for Context<'rt, E>
+where
+    E: Engine + crate::capabilities::Microtasks,
+{
+    fn queue_microtask(&mut self, task: E::Function<'rt>) {
+        E::queue_microtask(self, task)
+    }
+
+    fn drain_microtasks(&mut self) {
+        E::drain_microtasks(self)
+    }
+}
+
 #[doc(hidden)]
 pub mod __cx {
     use crate::Engine;

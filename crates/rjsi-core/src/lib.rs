@@ -1,4 +1,6 @@
 mod args;
+pub mod capabilities;
+pub mod channel;
 mod class;
 mod context;
 mod convert;
@@ -18,14 +20,15 @@ pub use args::{Args, ArgsIter, RawHostFn};
 pub use class::{
     JsClass, NativeBorrowError, NativeBorrowGuard, NativeCell, NativeObject, NativePtr
 };
-pub use context::{__cx, Context};
+pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
+pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
 pub use error::{JsError, JsResult};
 pub use function::Function;
 pub use keys::{InternKey, IntoKey, Key, KeyCache, PropertyKey, StaticKeySlot};
 pub use object::Object;
-pub use runtime::{BlockingTaskPool, LocalJsSpawn, MicrotaskDrainPolicy, PromiseBridge, Runtime};
+pub use runtime::{MicrotaskDrainPolicy, Runtime};
 pub use scope::{
     CallbackCx, CallbackScope, CanEscape, CanScheduleMicrotask, CanThrow, EscapableScope, HandleScope, ModuleScope, Scope, ScopeKind, TryCatch, TryCatchScope
 };

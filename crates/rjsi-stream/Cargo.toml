@@ -1,8 +1,8 @@
 [package]
-name = "rjsi-conformance"
+name = "rjsi-stream"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["macros", "io-util"] }

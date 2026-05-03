@@ -310,3 +310,61 @@ impl Engine for QuickJsEngine {
         map_err(cx, qjs_func.map(|f| f))
     }
 }
+
+pub struct QuickJsPromiseResolver<'cx> {
+    pub resolve: rquickjs::Function<'cx>,
+    pub reject: rquickjs::Function<'cx>,
+}
+
+impl rjsi_core::capabilities::Promises for QuickJsEngine {
+    type PromiseResolver<'cx> = QuickJsPromiseResolver<'cx>;
+
+    fn promise_new<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+    ) -> JsResult<'rt, Self, (Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+        let qctx = rjsi_core::__cx::context_mut(cx);
+        let (promise, resolve, reject) = qctx.promise().map_err(|e| JsError::Host(Box::new(e)))?;
+        let resolver = QuickJsPromiseResolver { resolve, reject };
+        Ok((promise.into_value().into_object().unwrap(), resolver))
+    }
+
+    fn promise_resolve<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        value: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
+        resolver.resolve.call::<_, ()>((value,)).map_err(|e| JsError::Host(Box::new(e)))?;
+        Ok(())
+    }
+
+    fn promise_reject<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        resolver: Self::PromiseResolver<'rt>,
+        reason: Self::Value<'rt>,
+    ) -> JsResult<'rt, Self, ()> {
+        resolver.reject.call::<_, ()>((reason,)).map_err(|e| JsError::Host(Box::new(e)))?;
+        Ok(())
+    }
+}
+
+impl rjsi_core::capabilities::Microtasks for QuickJsEngine {
+    fn queue_microtask<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        task: Self::Function<'rt>,
+    ) {
+        let qctx = rjsi_core::__cx::context_mut(cx);
+        // Polyfill queueMicrotask via Promise.resolve().then(task)
+        let promise: rquickjs::Object = qctx.globals().get("Promise").unwrap();
+        let resolve: rquickjs::Function = promise.get("resolve").unwrap();
+        let resolved: rquickjs::Object = resolve.call::<_, rquickjs::Object>((rquickjs::Value::new_undefined(qctx.clone()),)).unwrap();
+        let then: rquickjs::Function = resolved.get("then").unwrap();
+        then.call::<_, ()>((task,)).unwrap();
+    }
+
+    fn drain_microtasks<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+    ) {
+        let qctx = rjsi_core::__cx::context_mut(cx);
+        while qctx.execute_pending_job() {}
+    }
+}
