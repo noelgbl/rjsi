@@ -41,6 +41,16 @@ fn array_index_get_set() {
 }
 
 #[test]
+fn prepared_key_roundtrip_across_scopes() {
+    conformance::prepared_key_roundtrip_across_scopes(&mut rt());
+}
+
+#[test]
+fn prepared_key_works_inside_host_callback() {
+    conformance::prepared_key_works_inside_host_callback(&mut rt());
+}
+
+#[test]
 fn run_full_conformance_suite() {
     conformance::run_all(&mut rt());
 }

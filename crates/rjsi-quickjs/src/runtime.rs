@@ -89,9 +89,16 @@ pub(crate) fn prepared_key<'cx>(
     key: &PreparedKey<QuickJsEngine>,
 ) -> JsResult<'cx, QuickJsEngine, Atom<'cx>> {
     let runtime = unsafe { &mut *cx.runtime };
-    runtime
-        .ensure_prepared_key(key.id(), key.as_str())
-        .map_err(rjsi_core::JsError::from_host)?;
+    if !runtime.prepared_keys.contains_key(&key.id()) {
+        let atom = Atom::from_str(cx.qctx.clone(), key.as_str());
+        let atom = map_err(cx, atom)?;
+        runtime.prepared_keys.insert(
+            key.id(),
+            QuickJsPreparedKeyData {
+                atom: unsafe { std::mem::transmute(atom) },
+            },
+        );
+    }
     let atom = &runtime.prepared_keys.get(&key.id()).unwrap().atom;
     Ok(unsafe { std::mem::transmute(atom.clone()) })
 }

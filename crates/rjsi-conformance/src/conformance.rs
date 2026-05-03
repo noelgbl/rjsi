@@ -1,4 +1,4 @@
-use rjsi_core::{Args, CallbackCx, Engine, JsError, JsResult, Runtime, Value};
+use rjsi_core::{Args, CallbackCx, Engine, JsError, JsResult, PreparedKey, Runtime, Value};
 
 fn expect_js<T, E>(r: Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
@@ -386,6 +386,80 @@ where
     });
 }
 
+pub fn prepared_key_roundtrip_across_scopes<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    let key: &'static PreparedKey<E> = Box::leak(Box::new(PreparedKey::new("preparedAnswer")));
+
+    runtime.with_scope(move |cx| {
+        let global = cx.globals();
+        let value = cx.number(42.0);
+        global.set(cx, key, value).unwrap();
+    });
+
+    runtime.with_scope(move |cx| {
+        let global = cx.globals();
+        assert!(expect_js(global.has(cx, key), "prepared key has after set"));
+
+        let got = global.get(cx, key).unwrap();
+        let n = expect_js(got.to_f64(cx), "prepared key get");
+        assert_eq!(n, 42.0);
+
+        let deleted = expect_js(global.delete(cx, key), "prepared key delete");
+        assert!(deleted);
+        assert!(!expect_js(
+            global.has(cx, key),
+            "prepared key gone after delete"
+        ));
+    });
+}
+
+pub fn prepared_key_works_inside_host_callback<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    struct InstallPrepared<E: Engine> {
+        key: &'static PreparedKey<E>,
+    }
+
+    impl<E: Engine> rjsi_core::RawHostFn<E> for InstallPrepared<E> {
+        fn call<'cx, 'rt>(
+            &mut self,
+            cb: &mut CallbackCx<'cx, 'rt, E>,
+            _this: Value<'rt, E>,
+            _args: Args<'rt, E>,
+        ) -> JsResult<'rt, E, Value<'rt, E>> {
+            let cx = cb.cx();
+            let global = cx.globals();
+            let value = cx.number(7.0);
+            global.set(cx, self.key, value)?;
+            Ok(cx.undefined())
+        }
+    }
+
+    let key: &'static PreparedKey<E> = Box::leak(Box::new(PreparedKey::new("preparedFromHost")));
+
+    runtime.with_scope(move |cx| {
+        let install = expect_js(
+            cx.function("installPrepared", InstallPrepared { key }),
+            "prepared host function",
+        );
+
+        let global = cx.globals();
+        global
+            .set(cx, "installPrepared", install.into_value())
+            .unwrap();
+        cx.eval("installPrepared()").unwrap();
+
+        let got = global.get(cx, key).unwrap();
+        let n = expect_js(got.to_f64(cx), "prepared key host callback");
+        assert_eq!(n, 7.0);
+    });
+}
+
 pub fn run_all<E, R>(runtime: &mut R)
 where
     E: Engine,
@@ -415,6 +489,8 @@ where
     template_literal_basic(runtime);
     optional_chaining_and_nullish_coalescing(runtime);
     number_to_string_coercion(runtime);
+    prepared_key_roundtrip_across_scopes(runtime);
+    prepared_key_works_inside_host_callback(runtime);
 }
 
 pub fn promise_capabilities<E, R>(runtime: &mut R)
