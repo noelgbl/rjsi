@@ -77,7 +77,10 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
     });
     let name_lit = syn::LitStr::new(&name_str, Span::call_site());
 
+    let host_ident = host_struct_ident(&self_ty);
+
     let mut ctor_tokens: Option<TokenStream2> = None;
+    let mut host_items: Vec<TokenStream2> = Vec::new();
     let mut method_registrations: Vec<TokenStream2> = Vec::new();
 
     for item in &input.items {
@@ -119,22 +122,33 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let call_arg_idents = call_idents(&f.sig);
                 let ret_expr = method_return_expr(&core, &f.sig, is_mut, rust_name, &call_arg_idents);
 
+                let host_fn = instance_host_fn_ident(rust_name);
+                host_items.push(quote! {
+                    #[inline]
+                    fn #host_fn<'cx, 'rt, E: #core::ClassEngine>(
+                        cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+                        this: #core::Value<'rt, E>,
+                        args: #core::Args<'rt, E>,
+                    ) -> #core::JsResult<'rt, E, #core::Value<'rt, E>> {
+                        let _ = args.len();
+                        let __this_obj = #core::Object::new(
+                            E::value_to_object(this.into_raw())
+                                .ok_or_else(|| #core::JsError::type_err("expected object"))?
+                        );
+                        let ptr = unsafe {
+                            E::class_get_instance_ptr::<#self_ty>(cb_cx.cx(), &__this_obj)
+                        }
+                        .ok_or_else(|| #core::JsError::type_err(
+                            concat!("not an instance of ", stringify!(#self_ty))
+                        ))?;
+                        #( #arg_extractions )*
+                        #ret_expr
+                    }
+                });
+
                 method_registrations.push(quote! {
                     {
-                        let __f = cx.function(#js_name_lit, |cb_cx, this, args| {
-                            let __this_obj = #core::Object::new(
-                                E::value_to_object(this.into_raw())
-                                    .ok_or_else(|| #core::JsError::type_err("expected object"))?
-                            );
-                            let ptr = unsafe {
-                                E::class_get_instance_ptr::<#self_ty>(cb_cx.cx(), &__this_obj)
-                            }
-                            .ok_or_else(|| #core::JsError::type_err(
-                                concat!("not an instance of ", stringify!(#self_ty))
-                            ))?;
-                            #( #arg_extractions )*
-                            #ret_expr
-                        })?;
+                        let __f = cx.function(#js_name_lit, #host_ident::#host_fn)?;
                         proto.set(cx, #js_name_lit, __f.into_value())?;
                     }
                 });
@@ -148,12 +162,22 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let call_arg_idents = call_idents(&f.sig);
                 let ret_expr = static_return_expr(&core, &f.sig, rust_name, &call_arg_idents);
 
+                let host_fn = static_host_fn_ident(rust_name);
+                host_items.push(quote! {
+                    #[inline]
+                    fn #host_fn<'cx, 'rt, E: #core::ClassEngine>(
+                        cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+                        _this: #core::Value<'rt, E>,
+                        args: #core::Args<'rt, E>,
+                    ) -> #core::JsResult<'rt, E, #core::Value<'rt, E>> {
+                        #( #arg_extractions )*
+                        #ret_expr
+                    }
+                });
+
                 method_registrations.push(quote! {
                     {
-                        let __f = cx.function(#js_name_lit, |cb_cx, _this, args| {
-                            #( #arg_extractions )*
-                            #ret_expr
-                        })?;
+                        let __f = cx.function(#js_name_lit, #host_ident::#host_fn)?;
                         proto.set(cx, #js_name_lit, __f.into_value())?;
                     }
                 });
@@ -193,18 +217,32 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
 
     let stripped_input = strip_js_attrs_from_impl(input);
 
+    let host_type = if host_items.is_empty() {
+        quote! {}
+    } else {
+        quote! {
+            #[doc(hidden)]
+            struct #host_ident;
+
+            #[doc(hidden)]
+            impl #host_ident {
+                #( #host_items )*
+            }
+        }
+    };
+
     quote! {
         #stripped_input
 
-        impl<E: #core::Engine> #core::JsClass<E> for #self_ty {
+        #host_type
+
+        impl<E: #core::ClassEngine> #core::JsClass<E> for #self_ty {
             const NAME: &'static str = #name_lit;
 
             fn define_prototype<'cx>(
                 cx: &mut #core::Context<'cx, E>,
                 proto: &#core::Object<'cx, E>,
             ) -> #core::JsResult<'cx, E, ()>
-            where
-                E: #core::ClassEngine,
             {
                 #( #method_registrations )*
                 Ok(())
@@ -224,7 +262,7 @@ fn constructor_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec
         let arg_ident = arg_ident_from_pat(&pat_ty.pat, idx);
         let idx_lit = syn::Index::from(idx);
         result.push(quote! {
-            let #arg_ident: #ty = <#ty as #core::FromJs<'rt, E>>::from_js(
+            let #arg_ident: #ty = #core::FromJs::from_js(
                 cx.cx(),
                 args.get(#idx_lit)
                     .ok_or_else(|| #core::JsError::type_err(
@@ -249,7 +287,7 @@ fn method_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec<Toke
                 let arg_ident = arg_ident_from_pat(&pat_ty.pat, idx);
                 let idx_lit = syn::Index::from(idx);
                 result.push(quote! {
-                    let #arg_ident: #ty = <#ty as #core::FromJs<'_, E>>::from_js(
+                    let #arg_ident: #ty = #core::FromJs::from_js(
                         cb_cx.cx(),
                         args.get(#idx_lit)
                             .ok_or_else(|| #core::JsError::type_err(
@@ -312,14 +350,14 @@ fn method_return_expr(
                 quote! {
                     #self_ref
                     instance.#rust_name( #( #call_arg_idents ),* )
-                        .map(|v| #core::Value::new(E::function_to_value(v.into_raw())))
+                        .map(|__v| #core::Value::<E>::new(E::function_to_value(__v.into_raw())))
                 }
             } else {
                 quote! {
                     #self_ref
-                    let __result = instance.#rust_name( #( #call_arg_idents ),* );
-                    <#ty as #core::ToJs<'_, E>>::to_js(__result, cb_cx.cx())
-                        .map(#core::Value::new)
+                    let __result: #ty = instance.#rust_name( #( #call_arg_idents ),* );
+                    #core::ToJs::to_js(__result, cb_cx.cx())
+                        .map(|__v| #core::Value::<E>::new(__v))
                 }
             }
         }
@@ -338,9 +376,9 @@ fn static_return_expr(
             Ok(cb_cx.cx().undefined())
         },
         ReturnType::Type(_, ty) => quote! {
-            let __result = Self::#rust_name( #( #call_arg_idents ),* );
-            <#ty as #core::ToJs<'_, E>>::to_js(__result, cb_cx.cx())
-                .map(#core::Value::new)
+            let __result: #ty = Self::#rust_name( #( #call_arg_idents ),* );
+            #core::ToJs::to_js(__result, cb_cx.cx())
+                .map(|__v| #core::Value::<E>::new(__v))
         },
     }
 }
@@ -354,4 +392,34 @@ fn is_result_type(ty: &Type) -> bool {
     } else {
         false
     }
+}
+
+fn host_struct_ident(self_ty: &Type) -> syn::Ident {
+    let suffix = match self_ty {
+        Type::Path(tp) => tp
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_else(|| "Type".to_string()),
+        _ => "Type".to_string(),
+    };
+    syn::Ident::new(
+        &format!("__RjsiHost_{}", suffix),
+        Span::call_site(),
+    )
+}
+
+fn instance_host_fn_ident(rust_name: &syn::Ident) -> syn::Ident {
+    syn::Ident::new(
+        &format!("__rjsi_i_{}", rust_name),
+        Span::call_site(),
+    )
+}
+
+fn static_host_fn_ident(rust_name: &syn::Ident) -> syn::Ident {
+    syn::Ident::new(
+        &format!("__rjsi_s_{}", rust_name),
+        Span::call_site(),
+    )
 }
