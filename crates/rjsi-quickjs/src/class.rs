@@ -139,7 +139,8 @@ impl ClassEngine for QuickJsEngine {
         let ctor = rquickjs::Function::new(qctx.clone(), move |ctx, this, args| {
             qjs_ctor_call::<C>(runtime, ctx, this, args)
         })
-        .map_err(|e| JsError::Host(Box::new(e)))?;
+        .map_err(|e| JsError::Host(Box::new(e)))?
+        .with_constructor(true);
 
         {
             let ctor_obj = ctor.as_object().unwrap();
