@@ -25,7 +25,7 @@ pub(crate) unsafe fn cast_local<'a, 'b, T>(v: v8::Local<'a, T>) -> v8::Local<'b,
     unsafe { std::mem::transmute(v) }
 }
 
-type OpaqueContextScope<'a> = v8::ContextScope<'a, 'a, v8::HandleScope<'a>>;
+pub(crate) type OpaqueContextScope<'a> = v8::ContextScope<'a, 'a, v8::HandleScope<'a>>;
 
 #[inline(always)]
 pub(crate) unsafe fn get_scope<'a>(cx: &mut V8Context<'_>) -> &'a mut OpaqueContextScope<'a> {

@@ -1,3 +1,4 @@
+pub mod class;
 pub mod engine;
 pub mod runtime;
 

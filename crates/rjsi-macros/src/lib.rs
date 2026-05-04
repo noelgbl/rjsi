@@ -13,7 +13,14 @@ pub(crate) fn core_path() -> TokenStream2 {
             let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
             quote!(::#ident)
         }
-        Err(_) => quote!(::rjsi_core),
+        Err(_) => match crate_name("rjsi") {
+            Ok(FoundCrate::Itself) => quote!(crate),
+            Ok(FoundCrate::Name(name)) => {
+                let ident = syn::Ident::new(&name, proc_macro2::Span::call_site());
+                quote!(::#ident)
+            }
+            Err(_) => quote!(::rjsi_core),
+        },
     }
 }
 
@@ -28,6 +35,31 @@ pub fn js_methods(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr_ts = proc_macro2::TokenStream::from(attr);
     let impl_block = parse_macro_input!(item as ItemImpl);
     class::expand_js_methods(attr_ts, impl_block).into()
+}
+
+#[proc_macro_attribute]
+pub fn js_constructor(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn js_static(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn js_get(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn js_set(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+#[proc_macro_attribute]
+pub fn js_skip(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
 }
 
 #[proc_macro_derive(IntoJs)]

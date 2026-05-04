@@ -13,6 +13,7 @@ pub struct JsClassAttrs {
 
 #[derive(Clone, Default)]
 pub struct JsMethodsAttrs {
+    pub name: Option<String>,
     pub no_constructor: bool,
 }
 
@@ -53,19 +54,28 @@ impl Parse for JsClassAttrs {
 
 impl Parse for JsMethodsAttrs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let mut name = None::<String>;
         let mut no_constructor = false;
         if input.is_empty() {
             return Ok(JsMethodsAttrs::default());
         }
         let punct = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
         for meta in punct {
-            if let Meta::Path(p) = meta {
-                if p.is_ident("no_constructor") {
+            match meta {
+                Meta::Path(p) if p.is_ident("no_constructor") => {
                     no_constructor = true;
                 }
+                Meta::NameValue(nv) if nv.path.is_ident("name") => {
+                    if let syn::Expr::Lit(el) = &nv.value {
+                        if let syn::Lit::Str(s) = &el.lit {
+                            name = Some(s.value());
+                        }
+                    }
+                }
+                _ => {}
             }
         }
-        Ok(JsMethodsAttrs { no_constructor })
+        Ok(JsMethodsAttrs { name, no_constructor })
     }
 }
 

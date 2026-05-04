@@ -1,6 +1,7 @@
 mod args;
 pub mod capabilities;
 pub mod channel;
+mod class;
 mod context;
 mod convert;
 mod engine;
@@ -16,6 +17,7 @@ mod value;
 
 pub use args::{Args, ArgsIter, RawHostFn};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
+pub use class::{ClassEngine, ContextClassExt, InstanceRef, JsClass};
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
@@ -25,7 +27,8 @@ pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use object::Object;
 pub use runtime::{MicrotaskDrainPolicy, Runtime};
 pub use scope::{
-    CallbackCx, CallbackScope, CanEscape, CanScheduleMicrotask, CanThrow, EscapableScope, HandleScope, ModuleScope, Scope, ScopeKind, TryCatch, TryCatchScope
+    CallbackCx, CallbackScope, CanEscape, CanScheduleMicrotask, CanThrow, EscapableScope,
+    HandleScope, ModuleScope, Scope, ScopeKind, TryCatch, TryCatchScope,
 };
 pub use string::JsString;
 pub use symbol::Symbol;

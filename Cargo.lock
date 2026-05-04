@@ -619,6 +619,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-classes"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+]
+
+[[package]]
 name = "example-hello-world"
 version = "0.1.0"
 dependencies = [

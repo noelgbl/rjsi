@@ -24,6 +24,7 @@ members = [
     "examples/hello-world",
     "examples/host-function",
     "examples/macros",
+    "examples/classes",
 ]
 
 [workspace.dependencies]
