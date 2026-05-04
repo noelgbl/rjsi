@@ -54,3 +54,8 @@ fn prepared_key_works_inside_host_callback() {
 fn run_full_conformance_suite() {
     conformance::run_all(&mut rt());
 }
+
+#[test]
+fn exception_value_is_accessible() {
+    conformance::exception_value_is_accessible(&mut rt());
+}

@@ -117,4 +117,9 @@ pub trait Engine: Sized + 'static {
     fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>>;
 
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx>;
+
+    fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
+        let _ = cx;
+        None
+    }
 }

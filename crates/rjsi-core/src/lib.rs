@@ -15,7 +15,7 @@ mod string;
 mod symbol;
 mod value;
 
-pub use args::{Args, ArgsIter, RawHostFn};
+pub use args::{Args, ArgsIter, RawHostFn, Rest};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
 pub use class::{ClassEngine, ContextClassExt, InstanceRef, JsClass};
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};

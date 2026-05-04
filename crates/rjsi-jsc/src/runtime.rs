@@ -70,6 +70,7 @@ impl Runtime<crate::engine::JscEngine> for JscRuntime {
         let cx_raw = crate::engine::JscContext {
             ctx: self.context.get_ref(),
             runtime: runtime_ptr,
+            pending_exception: None,
             _phantom: std::marker::PhantomData,
         };
         let mut cx = Context::new(cx_raw);

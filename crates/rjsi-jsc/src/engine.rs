@@ -7,7 +7,16 @@ pub struct JscEngine;
 pub struct JscContext<'rt> {
     pub(crate) ctx: rusty_jsc_sys::JSContextRef,
     pub(crate) runtime: *mut crate::runtime::JscRuntime,
+    pub(crate) pending_exception: Option<rusty_jsc_sys::JSValueRef>,
     pub(crate) _phantom: std::marker::PhantomData<&'rt mut ()>,
+}
+
+impl<'rt> Drop for JscContext<'rt> {
+    fn drop(&mut self) {
+        if let Some(exc) = self.pending_exception.take() {
+            unsafe { rusty_jsc_sys::JSValueUnprotect(self.ctx, exc) };
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -117,6 +126,7 @@ unsafe extern "C" fn host_fn_callback(
     let cx_raw = JscContext {
         ctx,
         runtime: std::ptr::null_mut(),
+        pending_exception: None,
         _phantom: std::marker::PhantomData,
     };
 
@@ -142,6 +152,21 @@ unsafe extern "C" fn host_fn_callback(
 
     match result {
         Ok(val) => val.into_raw().val,
+        Err(rjsi_core::Error::Exception) => {
+            let jsc_cx = rjsi_core::__cx::context_mut(callback_cx.cx());
+            if let Some(exc_val) = jsc_cx.pending_exception.take() {
+                if !exception.is_null() {
+                    *exception = exc_val;
+                }
+                rusty_jsc_sys::JSValueUnprotect(ctx, exc_val);
+            } else if !exception.is_null() {
+                let msg = ManagedJSString::new("JavaScript exception");
+                let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
+                *exception = rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
+                    as rusty_jsc_sys::JSValueRef;
+            }
+            rusty_jsc_sys::JSValueMakeUndefined(ctx)
+        }
         Err(e) => {
             let msg = ManagedJSString::new(&e.to_string());
             let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
@@ -162,6 +187,13 @@ unsafe extern "C" fn host_fn_finalize(object: rusty_jsc_sys::JSObjectRef) {
         type HostFnTrait = dyn rjsi_core::RawHostFn<JscEngine>;
         let _ = Box::from_raw(private_data as *mut Box<HostFnTrait>);
     }
+}
+
+fn store_exception(cx: &mut JscContext<'_>, exc: rusty_jsc_sys::JSValueRef) {
+    if let Some(prev) = cx.pending_exception.replace(exc) {
+        unsafe { rusty_jsc_sys::JSValueUnprotect(cx.ctx, prev) };
+    }
+    unsafe { rusty_jsc_sys::JSValueProtect(cx.ctx, exc) };
 }
 
 impl Engine for JscEngine {
@@ -219,6 +251,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
+            store_exception(cx, exception);
             Err(Error::Exception)
         } else {
             Ok(JscValue::new(cx.ctx, value))
@@ -268,6 +301,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
+            store_exception(cx, exception);
             Err(Error::Exception)
         } else {
             Ok(JscValue::new(cx.ctx, val_ref))
@@ -334,6 +368,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
+            store_exception(cx, exception);
             Err(Error::Exception)
         } else {
             Ok(())
@@ -370,6 +405,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
+            store_exception(cx, exception);
             Err(Error::Exception)
         } else {
             Ok(has)
@@ -410,6 +446,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
+            store_exception(cx, exception);
             Err(Error::Exception)
         } else {
             Ok(deleted)
@@ -433,6 +470,7 @@ impl Engine for JscEngine {
         } else {
             let obj = unsafe { rusty_jsc_sys::JSValueToObject(cx.ctx, this.val, &mut exception) };
             if !exception.is_null() {
+                store_exception(cx, exception);
                 return Err(Error::Exception);
             }
             obj
@@ -450,6 +488,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
+            store_exception(cx, exception);
             Err(Error::Exception)
         } else {
             Ok(JscValue::new(cx.ctx, result))
@@ -592,6 +631,7 @@ impl Engine for JscEngine {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let num = unsafe { rusty_jsc_sys::JSValueToNumber(cx.ctx, val.val, &mut exception) };
         if !exception.is_null() {
+            store_exception(cx, exception);
             Err(Error::Exception)
         } else {
             Ok(num)
@@ -606,6 +646,7 @@ impl Engine for JscEngine {
         let js_str_ref =
             unsafe { rusty_jsc_sys::JSValueToStringCopy(cx.ctx, val.val, &mut exception) };
         if !exception.is_null() {
+            store_exception(cx, exception);
             return Err(Error::Exception);
         }
 
@@ -659,5 +700,11 @@ impl Engine for JscEngine {
 
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> {
         f
+    }
+
+    fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
+        let exc = cx.pending_exception.take()?;
+        unsafe { rusty_jsc_sys::JSValueUnprotect(cx.ctx, exc) };
+        Some(JscValue::new(cx.ctx, exc))
     }
 }

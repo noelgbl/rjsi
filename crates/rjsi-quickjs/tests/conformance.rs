@@ -56,6 +56,11 @@ fn run_full_conformance_suite() {
 }
 
 #[test]
+fn exception_value_is_accessible() {
+    conformance::exception_value_is_accessible(&mut rt());
+}
+
+#[test]
 fn promise_capabilities() {
     conformance::promise_capabilities(&mut rt());
 }

@@ -5,6 +5,7 @@ pub struct V8Engine;
 pub struct V8Context<'rt> {
     pub(crate) scope: *mut std::ffi::c_void,
     pub(crate) runtime: *mut crate::runtime::V8Runtime,
+    pub(crate) pending_exception: Option<v8::Global<v8::Value>>,
     pub(crate) _phantom: std::marker::PhantomData<&'rt mut ()>,
 }
 
@@ -50,6 +51,7 @@ fn host_fn_callback<'s, 'i>(
     let cx_raw = V8Context {
         scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
         runtime: std::ptr::null_mut(),
+        pending_exception: None,
         _phantom: std::marker::PhantomData,
     };
 
@@ -69,6 +71,17 @@ fn host_fn_callback<'s, 'i>(
 
     match result {
         Ok(val) => rv.set(val.into_raw()),
+        Err(rjsi_core::Error::Exception) => {
+            let v8cx = rjsi_core::__cx::context_mut(callback_cx.cx());
+            if let Some(global) = v8cx.pending_exception.take() {
+                let local = v8::Local::new(&mut context_scope, global);
+                context_scope.throw_exception(local);
+            } else {
+                let msg = v8::String::new(&mut context_scope, "JavaScript exception").unwrap();
+                let err_val = v8::Exception::error(&mut context_scope, msg);
+                context_scope.throw_exception(err_val);
+            }
+        }
         Err(e) => {
             let msg = v8::String::new(&mut context_scope, e.to_string().as_str()).unwrap();
             let err_val = v8::Exception::error(&mut context_scope, msg);
@@ -150,7 +163,13 @@ impl Engine for V8Engine {
 
         match result {
             Some(v) => Ok(unsafe { cast_local(v) }),
-            None => Err(Error::Exception),
+            None => {
+                let exc: Option<v8::Local<'static, v8::Value>> =
+                    try_catch.exception().map(|e| unsafe { cast_local(e) });
+                let isolate: &mut v8::Isolate = try_catch.as_mut();
+                cx.pending_exception = exc.map(|e| v8::Global::new(isolate, e));
+                Err(Error::Exception)
+            }
         }
     }
 
@@ -187,6 +206,10 @@ impl Engine for V8Engine {
         if let Some(v) = obj.get(&mut try_catch, key_val) {
             Ok(unsafe { cast_local(v) })
         } else {
+            let exc: Option<v8::Local<'static, v8::Value>> =
+                try_catch.exception().map(|e| unsafe { cast_local(e) });
+            let isolate: &mut v8::Isolate = try_catch.as_mut();
+            cx.pending_exception = exc.map(|e| v8::Global::new(isolate, e));
             Err(Error::Exception)
         }
     }
@@ -211,12 +234,14 @@ impl Engine for V8Engine {
         let mut try_catch = try_catch_pin.init();
         if let Some(true) = obj.set(&mut try_catch, key_val, val) {
             Ok(())
+        } else if try_catch.has_caught() {
+            let exc: Option<v8::Local<'static, v8::Value>> =
+                try_catch.exception().map(|e| unsafe { cast_local(e) });
+            let isolate: &mut v8::Isolate = try_catch.as_mut();
+            cx.pending_exception = exc.map(|e| v8::Global::new(isolate, e));
+            Err(Error::Exception)
         } else {
-            if try_catch.has_caught() {
-                Err(Error::Exception)
-            } else {
-                Err(Error::type_err("failed to set object property"))
-            }
+            Err(Error::type_err("failed to set object property"))
         }
     }
 
@@ -240,6 +265,10 @@ impl Engine for V8Engine {
         if let Some(res) = obj.has(&mut try_catch, key_val) {
             Ok(res)
         } else {
+            let exc: Option<v8::Local<'static, v8::Value>> =
+                try_catch.exception().map(|e| unsafe { cast_local(e) });
+            let isolate: &mut v8::Isolate = try_catch.as_mut();
+            cx.pending_exception = exc.map(|e| v8::Global::new(isolate, e));
             Err(Error::Exception)
         }
     }
@@ -263,12 +292,14 @@ impl Engine for V8Engine {
         let mut try_catch = try_catch_pin.init();
         if let Some(res) = obj.delete(&mut try_catch, key_val) {
             Ok(res)
+        } else if try_catch.has_caught() {
+            let exc: Option<v8::Local<'static, v8::Value>> =
+                try_catch.exception().map(|e| unsafe { cast_local(e) });
+            let isolate: &mut v8::Isolate = try_catch.as_mut();
+            cx.pending_exception = exc.map(|e| v8::Global::new(isolate, e));
+            Err(Error::Exception)
         } else {
-            if try_catch.has_caught() {
-                Err(Error::Exception)
-            } else {
-                Err(Error::type_err("failed to delete object property"))
-            }
+            Err(Error::type_err("failed to delete object property"))
         }
     }
 
@@ -286,6 +317,10 @@ impl Engine for V8Engine {
         if let Some(v) = func.call(&mut try_catch, this, args) {
             Ok(unsafe { cast_local(v) })
         } else {
+            let exc: Option<v8::Local<'static, v8::Value>> =
+                try_catch.exception().map(|e| unsafe { cast_local(e) });
+            let isolate: &mut v8::Isolate = try_catch.as_mut();
+            cx.pending_exception = exc.map(|e| v8::Global::new(isolate, e));
             Err(Error::Exception)
         }
     }
@@ -425,6 +460,13 @@ impl Engine for V8Engine {
 
     fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> {
         f.into()
+    }
+
+    fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
+        let global = cx.pending_exception.take()?;
+        let scope = unsafe { get_scope(cx) };
+        let local = v8::Local::new(&mut **scope, global);
+        Some(unsafe { cast_local(local) })
     }
 }
 

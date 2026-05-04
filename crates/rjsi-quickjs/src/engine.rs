@@ -243,6 +243,11 @@ impl Engine for QuickJsEngine {
         f.into_value().into_object().unwrap()
     }
 
+    fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
+        let val = cx.qctx.catch();
+        if val.is_undefined() { None } else { Some(val) }
+    }
+
     fn make_function<'rt, F>(
         cx: &mut Self::Context<'rt>,
         name: &str,

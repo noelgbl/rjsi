@@ -17,6 +17,7 @@ fn class_ctor_callback<C: JsClass<V8Engine>>(
     let cx_raw = V8Context {
         scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
         runtime: std::ptr::null_mut(),
+        pending_exception: None,
         _phantom: std::marker::PhantomData,
     };
     let mut rjsi_cx = Context::new(cx_raw);
@@ -87,6 +88,7 @@ impl ClassEngine for V8Engine {
             let cx_raw = V8Context {
                 scope: scope_ptr,
                 runtime: v8_cx.runtime,
+                pending_exception: None,
                 _phantom: std::marker::PhantomData,
             };
             let mut define_cx = Context::new(cx_raw);

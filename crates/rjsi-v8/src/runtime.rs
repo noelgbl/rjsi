@@ -84,6 +84,7 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
         let cx_raw = crate::engine::V8Context {
             scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
             runtime: runtime_ptr,
+            pending_exception: None,
             _phantom: std::marker::PhantomData,
         };
         let mut cx = Context::new(cx_raw);

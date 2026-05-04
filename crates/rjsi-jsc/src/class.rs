@@ -92,6 +92,7 @@ impl<C: JsClass<JscEngine>> RawCtor for ConcreteCtor<C> {
         let cx_raw = JscContext {
             ctx,
             runtime: std::ptr::null_mut(),
+            pending_exception: None,
             _phantom: std::marker::PhantomData,
         };
         let mut rjsi_cx = Context::new(cx_raw);
@@ -198,6 +199,7 @@ impl ClassEngine for JscEngine {
             let cx_raw = JscContext {
                 ctx,
                 runtime: jsc_cx.runtime,
+                pending_exception: None,
                 _phantom: std::marker::PhantomData,
             };
             let mut define_cx = Context::new(cx_raw);

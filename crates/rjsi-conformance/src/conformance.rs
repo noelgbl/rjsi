@@ -329,6 +329,21 @@ where
     });
 }
 
+pub fn exception_value_is_accessible<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let res = cx.eval("throw new Error('rjsi-test')");
+        assert!(matches!(res, Err(Error::Exception)));
+        let exc = cx.catch_exception();
+        assert!(exc.is_some(), "engine must expose the thrown value via catch_exception");
+        let exc = exc.unwrap();
+        assert!(exc.is_object(), "thrown Error must be an object");
+    });
+}
+
 pub fn json_parse_roundtrip<E, R>(runtime: &mut R)
 where
     E: Engine,
@@ -491,6 +506,7 @@ where
     js_function_call_no_args(runtime);
     strict_mode_this_undefined_when_calling_with_undefined(runtime);
     eval_syntax_error_surfaces(runtime);
+    exception_value_is_accessible(runtime);
     json_parse_roundtrip(runtime);
     array_spread_and_length(runtime);
     template_literal_basic(runtime);
