@@ -159,7 +159,8 @@ impl Engine for HermesEngine {
         unsafe {
             if hermes__Runtime__HasPendingError(rt) {
                 clear_pending_error_message(rt);
-                let _ = clear_pending_js_value(rt);
+                let hv = clear_pending_js_value(rt);
+                drop(value_from_hermes_raw(rt, hv));
                 return Err(JsError::Exception);
             }
         }
@@ -167,8 +168,6 @@ impl Engine for HermesEngine {
     }
 
     fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
-        // SAFETY: `Object` is an opaque handle tied to the same `HermesRt` as
-        // `cx.inner`.
         unsafe { std::mem::transmute(cx.inner.global()) }
     }
 
@@ -373,7 +372,8 @@ impl Engine for HermesEngine {
                     hermes__Function__Release(func_pv);
                 }
                 clear_pending_error_message(rt_ptr);
-                let _ = clear_pending_js_value(rt_ptr);
+                let hv = clear_pending_js_value(rt_ptr);
+                drop(value_from_hermes_raw(rt_ptr, hv));
                 return Err(JsError::Exception);
             }
         }

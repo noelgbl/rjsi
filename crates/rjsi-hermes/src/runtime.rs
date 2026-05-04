@@ -1,16 +1,17 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
 use rusty_hermes::{PropNameId, Runtime as HermesRtInner};
 
 use crate::engine::{HermesEngine, runtime_ffi_ptr};
 
-pub struct HermesPreparedKeyData {
-    key: PropNameId<'static>,
-}
+/// Marker type for [`HermesEngine::PreparedKeyData`](crate::engine::HermesEngine).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HermesPreparedKeyData;
 
 pub struct HermesRuntime {
-    prepared_keys: HashMap<u64, HermesPreparedKeyData>,
+    /// IDs registered via [`HermesRuntime::prepare_key`].
+    prepared_keys: HashSet<u64>,
     pub inner: HermesRtInner,
     microtask_policy: MicrotaskDrainPolicy,
 }
@@ -18,7 +19,7 @@ pub struct HermesRuntime {
 impl HermesRuntime {
     pub fn new() -> Result<Self, rusty_hermes::Error> {
         Ok(Self {
-            prepared_keys: HashMap::new(),
+            prepared_keys: HashSet::new(),
             inner: HermesRtInner::new()?,
             microtask_policy: MicrotaskDrainPolicy::Explicit,
         })
@@ -26,7 +27,7 @@ impl HermesRuntime {
 
     pub fn with_config(config: rusty_hermes::RuntimeConfig) -> Result<Self, rusty_hermes::Error> {
         Ok(Self {
-            prepared_keys: HashMap::new(),
+            prepared_keys: HashSet::new(),
             inner: HermesRtInner::with_config(config)?,
             microtask_policy: MicrotaskDrainPolicy::Explicit,
         })
@@ -41,18 +42,8 @@ impl HermesRuntime {
         Ok(key)
     }
 
-    fn ensure_prepared_key(&mut self, id: u64, name: &str) {
-        if self.prepared_keys.contains_key(&id) {
-            return;
-        }
-
-        let key = PropNameId::from_utf8(&self.inner, name);
-        self.prepared_keys.insert(
-            id,
-            HermesPreparedKeyData {
-                key: unsafe { std::mem::transmute(key) },
-            },
-        );
+    fn ensure_prepared_key(&mut self, id: u64, _name: &str) {
+        self.prepared_keys.insert(id);
     }
 }
 
@@ -90,14 +81,14 @@ pub(crate) fn prepared_key<'cx>(
     key: &PreparedKey<HermesEngine>,
 ) -> JsResult<PropNameId<'cx>> {
     if cx.runtime.is_null() {
-        let prepared = PropNameId::from_utf8(&*cx.inner, key.as_str());
-        return Ok(unsafe { std::mem::transmute(prepared) });
+        let p = PropNameId::from_utf8(&*cx.inner, key.as_str());
+        return Ok(unsafe { std::mem::transmute(p) });
     }
 
     let runtime = unsafe { &mut *cx.runtime };
     runtime.ensure_prepared_key(key.id(), key.as_str());
-    let prepared = &runtime.prepared_keys.get(&key.id()).unwrap().key;
-    Ok(unsafe { std::mem::transmute_copy(prepared) })
+    let p = PropNameId::from_utf8(&*cx.inner, key.as_str());
+    Ok(unsafe { std::mem::transmute(p) })
 }
 
 impl HermesRuntime {

@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use std::mem;
 
 use libhermes_sys::{
-    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
+    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction,
+    hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release,
+    hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage,
 };
 use rjsi_core::{
     __cx, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
@@ -11,7 +13,7 @@ use rjsi_core::{
 use rusty_hermes::{Object as HermesObject, Runtime, Value};
 
 use crate::engine::{
-    HERMES_HOST_FUNCTION_MAX_ARGS, HermesArgs, HermesContext, HermesEngine, clear_pending_error_message, clear_pending_js_value, function_from_raw_parts, runtime_ffi_ptr
+    HERMES_HOST_FUNCTION_MAX_ARGS, HermesArgs, HermesContext, HermesEngine, clear_pending_error_message, clear_pending_js_value, function_from_raw_parts, runtime_ffi_ptr, value_from_hermes_raw,
 };
 use crate::runtime::HermesRuntime;
 
@@ -165,7 +167,8 @@ impl ClassEngine for HermesEngine {
             if hermes__Runtime__HasPendingError(rt_ffi) {
                 hermes__Function__Release(func_pv);
                 clear_pending_error_message(rt_ffi);
-                let _ = clear_pending_js_value(rt_ffi);
+                let hv = clear_pending_js_value(rt_ffi);
+                drop(value_from_hermes_raw(rt_ffi, hv));
                 ctor_user_data_finalizer::<C>(user_data.cast());
                 return Err(JsError::Exception);
             }
