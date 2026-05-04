@@ -74,6 +74,7 @@ trait RawCtor: Send + Sync {
 
 struct ConcreteCtor<C: JsClass<JscEngine>> {
     instance_class: jsc::JSClassRef,
+    prototype_object: jsc::JSObjectRef,
     _marker: std::marker::PhantomData<C>,
 }
 
@@ -107,7 +108,17 @@ impl<C: JsClass<JscEngine>> RawCtor for ConcreteCtor<C> {
         match C::construct(&mut callback_cx, rjsi_args) {
             Ok(instance) => {
                 let raw = Box::into_raw(Box::new(instance)) as *mut std::ffi::c_void;
-                unsafe { jsc::JSObjectMake(ctx, self.instance_class, raw) }
+                let obj = unsafe { jsc::JSObjectMake(ctx, self.instance_class, raw) };
+                if !obj.is_null() {
+                    unsafe {
+                        jsc::JSObjectSetPrototype(
+                            ctx,
+                            obj,
+                            self.prototype_object as jsc::JSValueRef,
+                        );
+                    }
+                }
+                obj
             }
             Err(err) => {
                 if !exception.is_null() {
@@ -194,12 +205,9 @@ impl ClassEngine for JscEngine {
             C::define_prototype(&mut define_cx, &proto_rjsi)?;
         }
 
-        unsafe {
-            jsc::JSObjectSetPrototype(ctx, proto_obj, proto_obj as jsc::JSValueRef);
-        }
-
         let ctor_data: Box<dyn RawCtor> = Box::new(ConcreteCtor::<C> {
             instance_class,
+            prototype_object: proto_obj,
             _marker: std::marker::PhantomData,
         });
         let ctor_ptr = Box::into_raw(Box::new(ctor_data)) as *mut std::ffi::c_void;
