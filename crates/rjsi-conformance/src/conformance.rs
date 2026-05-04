@@ -1,6 +1,6 @@
-use rjsi_core::{Args, CallbackCx, Engine, JsError, JsResult, PreparedKey, Runtime, Value};
+use rjsi_core::{Args, CallbackCx, Engine, Error, PreparedKey, Result, Runtime, Value};
 
-fn expect_js<T, E>(r: Result<T, E>, msg: &'static str) -> T {
+fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
 }
 
@@ -8,13 +8,11 @@ fn conformance_sum_args<'cx, 'rt, E: Engine>(
     cb: &mut CallbackCx<'cx, 'rt, E>,
     _this: Value<'rt, E>,
     args: Args<'rt, E>,
-) -> JsResult<Value<'rt, E>> {
+) -> Result<Value<'rt, E>> {
     let cx = cb.cx();
     let mut acc = 0.0f64;
     for i in 0..args.len() {
-        let v = args
-            .get(i)
-            .ok_or_else(|| JsError::type_err("missing arg"))?;
+        let v = args.get(i).ok_or_else(|| Error::type_err("missing arg"))?;
         acc += v.to_f64(cx)?;
     }
     Ok(cx.number(acc))
@@ -24,7 +22,7 @@ fn conformance_greet<'cx, 'rt, E: Engine>(
     cb: &mut CallbackCx<'cx, 'rt, E>,
     _this: Value<'rt, E>,
     _args: Args<'rt, E>,
-) -> JsResult<Value<'rt, E>> {
+) -> Result<Value<'rt, E>> {
     cb.cx().string("hello")
 }
 
@@ -325,7 +323,7 @@ where
         assert!(res.is_err(), "expected syntax error");
         let err = res.err().expect("err");
         assert!(
-            matches!(err, JsError::Exception),
+            matches!(err, Error::Exception),
             "expected JS exception for syntax error"
         );
     });
@@ -440,7 +438,7 @@ where
             cb: &mut CallbackCx<'cx, 'rt, E>,
             _this: Value<'rt, E>,
             _args: Args<'rt, E>,
-        ) -> JsResult<Value<'rt, E>> {
+        ) -> Result<Value<'rt, E>> {
             let cx = cb.cx();
             let global = cx.globals();
             let value = cx.number(7.0);

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use rjsi_core::{
-    __cx, Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
+    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
 };
 use rusty_jsc_sys as jsc;
 
@@ -132,7 +132,7 @@ impl<C: JsClass<JscEngine>> RawCtor for ConcreteCtor<C> {
     }
 }
 
-fn jsc_error_val(ctx: jsc::JSContextRef, err: &JsError) -> jsc::JSValueRef {
+fn jsc_error_val(ctx: jsc::JSContextRef, err: &Error) -> jsc::JSValueRef {
     let make_err = |msg: &str| {
         let js_msg = ManagedJSString::new(msg);
         let err_str = unsafe { jsc::JSValueMakeString(ctx, js_msg.0) };
@@ -185,7 +185,7 @@ unsafe extern "C" fn ctor_finalize(object: jsc::JSObjectRef) {
 impl ClassEngine for JscEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<Function<'rt, Self>> {
+    ) -> Result<Function<'rt, Self>> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
 

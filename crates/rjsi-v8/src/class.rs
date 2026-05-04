@@ -1,7 +1,7 @@
 use std::pin::pin;
 
 use rjsi_core::{
-    __cx, Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
+    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
 };
 
 use crate::engine::{V8Args, V8Context, V8Engine, cast_local, get_scope};
@@ -51,14 +51,14 @@ fn class_ctor_callback<C: JsClass<V8Engine>>(
 impl ClassEngine for V8Engine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<Function<'rt, Self>> {
+    ) -> Result<Function<'rt, Self>> {
         let v8_cx = __cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
 
         let templ = v8::FunctionTemplate::builder(class_ctor_callback::<C>).build(scope);
 
         let class_name = v8::String::new(scope, C::NAME)
-            .ok_or_else(|| JsError::type_err("failed to create class name string"))?;
+            .ok_or_else(|| Error::type_err("failed to create class name string"))?;
         templ.set_class_name(class_name);
 
         let inst_templ = templ.instance_template(scope);
@@ -66,21 +66,21 @@ impl ClassEngine for V8Engine {
 
         let ctor = templ
             .get_function(scope)
-            .ok_or_else(|| JsError::type_err("failed to create class constructor"))?;
+            .ok_or_else(|| Error::type_err("failed to create class constructor"))?;
 
         let proto_key = v8::String::new(scope, "prototype")
-            .ok_or_else(|| JsError::type_err("failed to create 'prototype' key"))?;
+            .ok_or_else(|| Error::type_err("failed to create 'prototype' key"))?;
 
         let proto_val = {
             let tc_obj = v8::TryCatch::new(scope);
             let tc_pin = pin!(tc_obj);
             let mut tc = tc_pin.init();
             ctor.get(&mut tc, proto_key.into())
-                .ok_or_else(|| JsError::type_err("failed to get prototype"))?
+                .ok_or_else(|| Error::type_err("failed to get prototype"))?
         };
 
         let proto_obj = v8::Local::<v8::Object>::try_from(proto_val)
-            .map_err(|_| JsError::type_err("prototype is not an object"))?;
+            .map_err(|_| Error::type_err("prototype is not an object"))?;
 
         {
             let scope_ptr = scope as *mut _ as *mut std::ffi::c_void;

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
 
 pub struct V8Runtime {
     prepared_keys: HashMap<u64, v8::Global<v8::Name>>,
@@ -102,11 +102,11 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut crate::engine::V8Context<'cx>,
     key: &PreparedKey<crate::engine::V8Engine>,
-) -> JsResult<v8::Local<'cx, v8::Name>> {
+) -> Result<v8::Local<'cx, v8::Name>> {
     let scope = unsafe { crate::engine::get_scope(cx) };
     if cx.runtime.is_null() {
         let string = v8::String::new(scope, key.as_str())
-            .ok_or_else(|| rjsi_core::JsError::type_err("failed to create V8 property name"))?;
+            .ok_or_else(|| rjsi_core::Error::type_err("failed to create V8 property name"))?;
         let local_name: v8::Local<'_, v8::Name> = string.into();
         return Ok(unsafe { crate::engine::cast_local(local_name) });
     }
@@ -115,7 +115,7 @@ pub(crate) fn prepared_key<'cx>(
     if !runtime.prepared_keys.contains_key(&key.id()) {
         runtime
             .ensure_prepared_key(key.id(), key.as_str())
-            .map_err(rjsi_core::JsError::from_host)?;
+            .map_err(rjsi_core::Error::from_host)?;
     }
     let global = runtime.prepared_keys.get(&key.id()).unwrap();
     Ok(unsafe { crate::engine::cast_local(v8::Local::new(scope, global)) })

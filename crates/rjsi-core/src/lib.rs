@@ -21,7 +21,7 @@ pub use class::{ClassEngine, ContextClassExt, InstanceRef, JsClass};
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
-pub use error::{JsError, JsResult};
+pub use error::{Error, Result};
 pub use function::Function;
 pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use object::Object;

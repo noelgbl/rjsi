@@ -1,4 +1,4 @@
-use crate::{Context, Engine, JsResult};
+use crate::{Context, Engine, Result};
 
 /// Engines that expose native Promise primitives.
 pub trait Promises: Engine {
@@ -8,21 +8,21 @@ pub trait Promises: Engine {
     /// Creates a new native Promise.
     fn promise_new<'rt>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<(Self::Object<'rt>, Self::PromiseResolver<'rt>)>;
+    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)>;
 
     /// Resolves a promise.
     fn promise_resolve<'rt>(
         cx: &mut Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         value: Self::Value<'rt>,
-    ) -> JsResult<()>;
+    ) -> Result<()>;
 
     /// Rejects a promise.
     fn promise_reject<'rt>(
         cx: &mut Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         reason: Self::Value<'rt>,
-    ) -> JsResult<()>;
+    ) -> Result<()>;
 }
 
 /// Engines that allow manual manipulation of the microtask queue.

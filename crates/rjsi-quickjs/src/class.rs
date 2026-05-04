@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::ffi::CString;
 
 use rjsi_core::{
-    __cx, Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
+    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
 };
 use rquickjs::qjs;
 
@@ -72,7 +72,7 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
     let rjsi_args = Args::new(QuickJsArgs { argv: args.0 });
 
     let instance = C::construct(&mut callback_cx, rjsi_args).map_err(|e| {
-        if matches!(&e, JsError::Exception) {
+        if matches!(&e, Error::Exception) {
             rquickjs::Error::Exception
         } else {
             let msg = e.to_string();
@@ -102,7 +102,7 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
 impl ClassEngine for QuickJsEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<Function<'rt, Self>> {
+    ) -> Result<Function<'rt, Self>> {
         let qjs_cx = __cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
         let runtime = qjs_cx.runtime;
@@ -112,7 +112,7 @@ impl ClassEngine for QuickJsEngine {
 
         let class_id = get_or_register_class_id::<C>(rt_ptr, C::NAME);
 
-        let proto = rquickjs::Object::new(qctx.clone()).map_err(|e| JsError::Host(Box::new(e)))?;
+        let proto = rquickjs::Object::new(qctx.clone()).map_err(|e| Error::Host(Box::new(e)))?;
 
         {
             let mut define_cx = Context::new(QuickJsContext {
@@ -129,7 +129,7 @@ impl ClassEngine for QuickJsEngine {
         let ctor = rquickjs::Function::new(qctx.clone(), move |ctx, this, args| {
             qjs_ctor_call::<C>(runtime, ctx, this, args)
         })
-        .map_err(|e| JsError::Host(Box::new(e)))?
+        .map_err(|e| Error::Host(Box::new(e)))?
         .with_constructor(true);
 
         {

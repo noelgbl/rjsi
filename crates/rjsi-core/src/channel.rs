@@ -4,7 +4,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use crate::capabilities::{Microtasks, Promises};
 use crate::context::{ContextMicrotaskExt, ContextPromiseExt};
 use crate::convert::ToJs;
-use crate::{Context, Engine, JsResult, Object};
+use crate::{Context, Engine, Object, Result as RjsiResult};
 
 pub type PromiseId = u64;
 
@@ -65,7 +65,7 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
     pub fn create_promise(
         &mut self,
         cx: &mut Context<'rt, E>,
-    ) -> JsResult<(PromiseId, Object<'rt, E>)> {
+    ) -> RjsiResult<(PromiseId, Object<'rt, E>)> {
         let (promise, resolver) = cx.promise_new()?;
         let id = self.next_id;
         self.next_id += 1;
@@ -78,10 +78,10 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
         cx: &mut Context<'rt, E>,
         mut map_resolve: F,
         mut map_reject: G,
-    ) -> JsResult<()>
+    ) -> RjsiResult<()>
     where
-        F: FnMut(&mut Context<'rt, E>, T) -> JsResult<crate::Value<'rt, E>>,
-        G: FnMut(&mut Context<'rt, E>, Err) -> JsResult<crate::Value<'rt, E>>,
+        F: FnMut(&mut Context<'rt, E>, T) -> RjsiResult<crate::Value<'rt, E>>,
+        G: FnMut(&mut Context<'rt, E>, Err) -> RjsiResult<crate::Value<'rt, E>>,
     {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
@@ -102,7 +102,7 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
         Ok(())
     }
 
-    pub fn pump_to_js(&mut self, cx: &mut Context<'rt, E>) -> JsResult<()>
+    pub fn pump_to_js(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
     where
         T: ToJs<'rt, E>,
         Err: ToJs<'rt, E>,
@@ -116,7 +116,7 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
 }
 
 impl<'rt, E: Engine + Promises + Microtasks, T, Err> JsChannel<'rt, E, T, Err> {
-    pub fn pump_and_drain_to_js(&mut self, cx: &mut Context<'rt, E>) -> JsResult<()>
+    pub fn pump_and_drain_to_js(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
     where
         T: ToJs<'rt, E>,
         Err: ToJs<'rt, E>,

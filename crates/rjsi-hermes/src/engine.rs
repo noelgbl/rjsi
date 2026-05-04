@@ -8,7 +8,7 @@ use std::ptr::read;
 use libhermes_sys::{
     HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__EvaluateJavaScript, hermes__Runtime__GetAndClearError, hermes__Runtime__GetAndClearErrorMessage, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
-use rjsi_core::{Engine, JsError, JsResult, PropertyKey, RawHostFn};
+use rjsi_core::{Engine, Error, PropertyKey, RawHostFn, Result};
 use rusty_hermes::{Function, JsString, Object, PropNameId, Runtime, Symbol, Value};
 
 pub const HERMES_HOST_FUNCTION_MAX_ARGS: usize = 32;
@@ -100,14 +100,14 @@ pub(crate) unsafe fn clear_pending_js_value(rt: *mut HermesRt) -> HermesValue {
     unsafe { hermes__Runtime__GetAndClearError(rt) }
 }
 
-fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> JsResult<T> {
-    res.map_err(JsError::from_host)
+fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> Result<T> {
+    res.map_err(Error::from_host)
 }
 
-fn map_hermes_value<'rt>(res: rusty_hermes::Result<Value<'_>>) -> JsResult<Value<'rt>> {
+fn map_hermes_value<'rt>(res: rusty_hermes::Result<Value<'_>>) -> Result<Value<'rt>> {
     match res {
         Ok(v) => Ok(unsafe { std::mem::transmute(v) }),
-        Err(e) => Err(JsError::from_host(e)),
+        Err(e) => Err(Error::from_host(e)),
     }
 }
 
@@ -144,7 +144,7 @@ impl Engine for HermesEngine {
         cx: &mut Self::Context<'rt>,
         src: &str,
         filename: Option<&str>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let rt = runtime_ffi_ptr(cx.inner);
         let url = filename.unwrap_or("<eval>");
         let raw = unsafe {
@@ -161,7 +161,7 @@ impl Engine for HermesEngine {
                 clear_pending_error_message(rt);
                 let hv = clear_pending_js_value(rt);
                 drop(value_from_hermes_raw(rt, hv));
-                return Err(JsError::Exception);
+                return Err(Error::Exception);
             }
         }
         Ok(unsafe { value_from_hermes_raw(rt, raw) })
@@ -171,7 +171,7 @@ impl Engine for HermesEngine {
         unsafe { std::mem::transmute(cx.inner.global()) }
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
         let o = Object::new(cx.inner);
         Ok(unsafe { std::mem::transmute(o) })
     }
@@ -180,7 +180,7 @@ impl Engine for HermesEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         match key {
             PropertyKey::Str(s) => map_hermes_value(obj.get(s)),
             PropertyKey::Prepared(p) => {
@@ -203,7 +203,7 @@ impl Engine for HermesEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         match key {
             PropertyKey::Str(s) => map_hermes(obj.set(s, val)),
             PropertyKey::Prepared(p) => {
@@ -225,7 +225,7 @@ impl Engine for HermesEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         Ok(match key {
             PropertyKey::Str(s) => obj.has(s),
             PropertyKey::Prepared(p) => {
@@ -247,7 +247,7 @@ impl Engine for HermesEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         let _ = match key {
             PropertyKey::Str(s) => map_hermes(obj.delete(s)),
             PropertyKey::Prepared(p) => {
@@ -271,7 +271,7 @@ impl Engine for HermesEngine {
         func: &Self::Function<'rt>,
         this: Self::Value<'rt>,
         args: &[Self::Value<'rt>],
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let _ = cx;
         map_hermes_value(func.call_with_this(&this, args))
     }
@@ -336,7 +336,7 @@ impl Engine for HermesEngine {
         Value::from_number(v)
     }
 
-    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
         Ok(unsafe { std::mem::transmute(Value::from(JsString::new(cx.inner, s))) })
     }
 
@@ -344,7 +344,7 @@ impl Engine for HermesEngine {
         cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<Self::Function<'rt>>
+    ) -> Result<Self::Function<'rt>>
     where
         F: RawHostFn<Self> + 'static,
     {
@@ -374,12 +374,12 @@ impl Engine for HermesEngine {
                 clear_pending_error_message(rt_ptr);
                 let hv = clear_pending_js_value(rt_ptr);
                 drop(value_from_hermes_raw(rt_ptr, hv));
-                return Err(JsError::Exception);
+                return Err(Error::Exception);
             }
         }
 
         if func_pv.is_null() {
-            return Err(JsError::from_host(std::io::Error::new(
+            return Err(Error::from_host(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "hermes__Function__CreateFromHostFunction returned null",
             )));
@@ -392,16 +392,16 @@ impl Engine for HermesEngine {
         val.as_bool()
     }
 
-    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
         let _ = cx;
         val.as_number()
-            .ok_or_else(|| JsError::type_err("expected number"))
+            .ok_or_else(|| Error::type_err("expected number"))
     }
 
     fn value_to_string_utf8<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<String> {
+    ) -> Result<String> {
         let _ = cx;
         let js = map_hermes(val.duplicate().to_js_string())?;
         map_hermes(js.to_rust_string())

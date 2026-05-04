@@ -1,7 +1,7 @@
-pub type JsResult<T> = Result<T, JsError>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
-pub enum JsError {
+pub enum Error {
     /// An exception raised by the engine execution itself.
     /// The actual JavaScript value can be retrieved from the engine (for
     /// example via [`crate::scope::TryCatch`] where implemented).
@@ -38,36 +38,36 @@ pub enum JsError {
     Host(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
-impl JsError {
+impl Error {
     pub fn from_js(from: &'static str, to: &'static str, message: Option<String>) -> Self {
-        JsError::FromJs { from, to, message }
+        Error::FromJs { from, to, message }
     }
 
     pub fn into_js(from: &'static str, to: &'static str, message: Option<String>) -> Self {
-        JsError::IntoJs { from, to, message }
+        Error::IntoJs { from, to, message }
     }
 
     pub fn missing_args(expected: usize, given: usize) -> Self {
-        JsError::MissingArgs { expected, given }
+        Error::MissingArgs { expected, given }
     }
 
     pub fn too_many_args(expected: usize, given: usize) -> Self {
-        JsError::TooManyArgs { expected, given }
+        Error::TooManyArgs { expected, given }
     }
 
     pub fn exception() -> Self {
-        JsError::Exception
+        Error::Exception
     }
 
     pub fn from_engine(e: impl std::error::Error + Send + Sync + 'static) -> Self {
-        JsError::Engine(Box::new(e))
+        Error::Engine(Box::new(e))
     }
 
     pub fn from_host(e: impl std::error::Error + Send + Sync + 'static) -> Self {
-        JsError::Host(Box::new(e))
+        Error::Host(Box::new(e))
     }
 
     pub fn type_err(msg: impl Into<String>) -> Self {
-        JsError::from_js("JavaScript value", "Rust type", Some(msg.into()))
+        Error::from_js("JavaScript value", "Rust type", Some(msg.into()))
     }
 }

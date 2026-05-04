@@ -1,4 +1,4 @@
-use rjsi_core::{Engine, JsError, JsResult, PropertyKey};
+use rjsi_core::{Engine, Error, PropertyKey, Result};
 
 pub struct V8Engine;
 
@@ -111,7 +111,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         src: &str,
         filename: Option<&str>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let code = v8::String::new(scope, src).unwrap();
 
@@ -150,7 +150,7 @@ impl Engine for V8Engine {
 
         match result {
             Some(v) => Ok(unsafe { cast_local(v) }),
-            None => Err(JsError::Exception),
+            None => Err(Error::Exception),
         }
     }
 
@@ -161,7 +161,7 @@ impl Engine for V8Engine {
         unsafe { cast_local(global) }
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let obj = v8::Object::new(scope);
         Ok(unsafe { cast_local(obj) })
@@ -171,7 +171,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -187,7 +187,7 @@ impl Engine for V8Engine {
         if let Some(v) = obj.get(&mut try_catch, key_val) {
             Ok(unsafe { cast_local(v) })
         } else {
-            Err(JsError::Exception)
+            Err(Error::Exception)
         }
     }
 
@@ -196,7 +196,7 @@ impl Engine for V8Engine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -213,9 +213,9 @@ impl Engine for V8Engine {
             Ok(())
         } else {
             if try_catch.has_caught() {
-                Err(JsError::Exception)
+                Err(Error::Exception)
             } else {
-                Err(JsError::type_err("failed to set object property"))
+                Err(Error::type_err("failed to set object property"))
             }
         }
     }
@@ -224,7 +224,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -240,7 +240,7 @@ impl Engine for V8Engine {
         if let Some(res) = obj.has(&mut try_catch, key_val) {
             Ok(res)
         } else {
-            Err(JsError::Exception)
+            Err(Error::Exception)
         }
     }
 
@@ -248,7 +248,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -265,9 +265,9 @@ impl Engine for V8Engine {
             Ok(res)
         } else {
             if try_catch.has_caught() {
-                Err(JsError::Exception)
+                Err(Error::Exception)
             } else {
-                Err(JsError::type_err("failed to delete object property"))
+                Err(Error::type_err("failed to delete object property"))
             }
         }
     }
@@ -277,7 +277,7 @@ impl Engine for V8Engine {
         func: &Self::Function<'rt>,
         this: Self::Value<'rt>,
         args: &[Self::Value<'rt>],
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let try_catch_obj = v8::TryCatch::new(scope);
         let try_catch_pin = std::pin::pin!(try_catch_obj);
@@ -286,7 +286,7 @@ impl Engine for V8Engine {
         if let Some(v) = func.call(&mut try_catch, this, args) {
             Ok(unsafe { cast_local(v) })
         } else {
-            Err(JsError::Exception)
+            Err(Error::Exception)
         }
     }
 
@@ -342,12 +342,12 @@ impl Engine for V8Engine {
         unsafe { cast_local(v8::Number::new(scope, v).into()) }
     }
 
-    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         if let Some(v) = v8::String::new(scope, s) {
             Ok(unsafe { cast_local(v.into()) })
         } else {
-            Err(JsError::type_err("failed to create string"))
+            Err(Error::type_err("failed to create string"))
         }
     }
 
@@ -355,7 +355,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<Self::Function<'rt>>
+    ) -> Result<Self::Function<'rt>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -373,7 +373,7 @@ impl Engine for V8Engine {
             f.set_name(name_str);
             Ok(unsafe { cast_local(f) })
         } else {
-            Err(JsError::type_err("failed to create function"))
+            Err(Error::type_err("failed to create function"))
         }
     }
 
@@ -385,25 +385,25 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
         let scope = unsafe { get_scope(cx) };
         if let Some(num) = val.to_number(&mut **scope) {
             Ok(num.value())
         } else {
-            Err(JsError::type_err("not a number"))
+            Err(Error::type_err("not a number"))
         }
     }
 
     fn value_to_string_utf8<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<std::string::String> {
+    ) -> Result<std::string::String> {
         let scope = unsafe { get_scope(cx) };
         if let Some(str) = val.to_string(&mut **scope) {
             let isolate: &v8::Isolate = &**scope;
             Ok(str.to_rust_string_lossy(isolate))
         } else {
-            Err(JsError::type_err("not a string"))
+            Err(Error::type_err("not a string"))
         }
     }
 
@@ -433,7 +433,7 @@ impl rjsi_core::capabilities::Promises for V8Engine {
 
     fn promise_new<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> JsResult<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(resolver) = v8::PromiseResolver::new(scope) {
@@ -442,7 +442,7 @@ impl rjsi_core::capabilities::Promises for V8Engine {
                 cast_local(resolver)
             }))
         } else {
-            Err(JsError::type_err("failed to create promise"))
+            Err(Error::type_err("failed to create promise"))
         }
     }
 
@@ -450,13 +450,13 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         value: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(true) = resolver.resolve(scope, value) {
             Ok(())
         } else {
-            Err(JsError::type_err("failed to resolve promise"))
+            Err(Error::type_err("failed to resolve promise"))
         }
     }
 
@@ -464,13 +464,13 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         reason: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(true) = resolver.reject(scope, reason) {
             Ok(())
         } else {
-            Err(JsError::type_err("failed to reject promise"))
+            Err(Error::type_err("failed to reject promise"))
         }
     }
 }

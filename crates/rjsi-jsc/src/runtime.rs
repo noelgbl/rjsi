@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
 
 pub struct JscPreparedKeyData {
     ctx: rusty_jsc_sys::JSContextRef,
@@ -88,7 +88,7 @@ impl Runtime<crate::engine::JscEngine> for JscRuntime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut crate::engine::JscContext<'cx>,
     key: &PreparedKey<crate::engine::JscEngine>,
-) -> JsResult<crate::engine::JscKey<'cx>> {
+) -> Result<crate::engine::JscKey<'cx>> {
     if cx.runtime.is_null() {
         let js_str = crate::engine::ManagedJSString::new(key.as_str());
         let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, js_str.0) };

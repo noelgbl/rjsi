@@ -1,6 +1,6 @@
 use core::iter::FusedIterator;
 
-use crate::{CallbackCx, Engine, JsResult, Value};
+use crate::{CallbackCx, Engine, Result, Value};
 
 #[repr(transparent)]
 pub struct Args<'cx, E: Engine> {
@@ -94,7 +94,7 @@ pub trait RawHostFn<E: Engine> {
         cx: &mut CallbackCx<'cx, 'rt, E>,
         this: Value<'rt, E>,
         args: Args<'rt, E>,
-    ) -> JsResult<Value<'rt, E>>;
+    ) -> Result<Value<'rt, E>>;
 }
 
 impl<E: Engine, F> RawHostFn<E> for F
@@ -103,14 +103,14 @@ where
         &mut CallbackCx<'cx, 'rt, E>,
         Value<'rt, E>,
         Args<'rt, E>,
-    ) -> JsResult<Value<'rt, E>>,
+    ) -> Result<Value<'rt, E>>,
 {
     fn call<'cx, 'rt>(
         &mut self,
         cx: &mut CallbackCx<'cx, 'rt, E>,
         this: Value<'rt, E>,
         args: Args<'rt, E>,
-    ) -> JsResult<Value<'rt, E>> {
+    ) -> Result<Value<'rt, E>> {
         self(cx, this, args)
     }
 }

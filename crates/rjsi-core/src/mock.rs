@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{Context, Engine, FromJs, JsError, JsResult, PropertyKey, ToJs};
+use crate::{Context, Engine, Error, FromJs, PropertyKey, Result, ToJs};
 
 pub struct MockEngine;
 
@@ -120,7 +120,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _src: &str,
         _filename: Option<&str>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -128,7 +128,7 @@ impl Engine for MockEngine {
         MockObject::new()
     }
 
-    fn object_new<'rt>(_cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
+    fn object_new<'rt>(_cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
         Ok(MockObject::new())
     }
 
@@ -136,7 +136,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -145,7 +145,7 @@ impl Engine for MockEngine {
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
         _val: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -153,7 +153,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         Ok(false)
     }
 
@@ -161,7 +161,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         Ok(true)
     }
 
@@ -170,7 +170,7 @@ impl Engine for MockEngine {
         _func: &Self::Function<'rt>,
         _this: Self::Value<'rt>,
         _args: &[Self::Value<'rt>],
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -220,7 +220,7 @@ impl Engine for MockEngine {
     fn make_f64<'rt>(_cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
         MockValue::number(v as u32)
     }
-    fn make_string<'rt>(_cx: &mut Self::Context<'rt>, _s: &str) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(_cx: &mut Self::Context<'rt>, _s: &str) -> Result<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -232,18 +232,18 @@ impl Engine for MockEngine {
         }
     }
 
-    fn value_to_f64<'rt>(_cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
+    fn value_to_f64<'rt>(_cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
         if val.tag >= 4 {
             Ok((val.tag - 4) as f64)
         } else {
-            Err(JsError::type_err("not a number"))
+            Err(Error::type_err("not a number"))
         }
     }
 
     fn value_to_string_utf8<'rt>(
         _cx: &mut Self::Context<'rt>,
         _val: &Self::Value<'rt>,
-    ) -> JsResult<String> {
+    ) -> Result<String> {
         Ok(String::from("mock"))
     }
 
@@ -267,7 +267,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _name: &str,
         _func: F,
-    ) -> JsResult<Self::Function<'rt>>
+    ) -> Result<Self::Function<'rt>>
     where
         F: crate::args::RawHostFn<Self> + 'static,
     {
@@ -276,17 +276,17 @@ impl Engine for MockEngine {
 }
 
 impl<'cx> ToJs<'cx, MockEngine> for u32 {
-    fn to_js(self, _cx: &mut Context<'cx, MockEngine>) -> JsResult<MockValue<'cx>> {
+    fn to_js(self, _cx: &mut Context<'cx, MockEngine>) -> Result<MockValue<'cx>> {
         Ok(MockValue::number(self))
     }
 }
 
 impl<'cx> FromJs<'cx, MockEngine> for u32 {
-    fn from_js(_cx: &mut Context<'cx, MockEngine>, value: MockValue<'cx>) -> JsResult<Self> {
+    fn from_js(_cx: &mut Context<'cx, MockEngine>, value: MockValue<'cx>) -> Result<Self> {
         if value.tag >= 4 && (value.tag - 4) < 100 {
             Ok(value.tag - 4)
         } else {
-            Err(JsError::type_err("mock range"))
+            Err(Error::type_err("mock range"))
         }
     }
 }

@@ -8,7 +8,7 @@ use boa_engine::script::Script;
 use boa_engine::{
     Context as BoaCx, JsResult as BoaJsResult, JsString, JsSymbol, JsValue, NativeFunction, Source
 };
-use rjsi_core::{Engine, JsError, JsResult, PropertyKey};
+use rjsi_core::{Engine, Error, PropertyKey, Result};
 
 thread_local! {
     static PENDING_BOA_JS_ERROR: RefCell<Option<boa_engine::JsError>> =
@@ -40,19 +40,19 @@ pub struct BoaArgs {
     pub(crate) argv: Vec<JsValue>,
 }
 
-pub(crate) fn map_js<T>(_cx: &mut BoaCx, res: BoaJsResult<T>) -> JsResult<T> {
+pub(crate) fn map_js<T>(_cx: &mut BoaCx, res: BoaJsResult<T>) -> Result<T> {
     res.map_err(|e| {
         PENDING_BOA_JS_ERROR.with(|slot| {
             *slot.borrow_mut() = Some(e);
         });
-        JsError::Exception
+        Error::Exception
     })
 }
 
 fn property_key<'cx>(
     cx: &mut BoaContext<'cx>,
     key: PropertyKey<'cx, BoaEngine>,
-) -> JsResult<BoaPropertyKey> {
+) -> Result<BoaPropertyKey> {
     match key {
         PropertyKey::Str(s) => Ok(JsString::from(s).into()),
         PropertyKey::Prepared(k) => Ok(crate::runtime::prepared_key(cx, &k)?.into()),
@@ -94,7 +94,7 @@ impl Engine for BoaEngine {
         cx: &mut Self::Context<'rt>,
         src: &str,
         filename: Option<&str>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let source = match filename {
             Some(path) => Source::from_reader(src.as_bytes(), Some(Path::new(path))),
             None => Source::from_bytes(src),
@@ -109,7 +109,7 @@ impl Engine for BoaEngine {
         cx.global_object().clone()
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
         let obj = ObjectInitializer::new(cx.deref_mut()).build();
         Ok(obj)
     }
@@ -118,7 +118,7 @@ impl Engine for BoaEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let k = property_key(cx, key)?;
         let res = obj.get(k, cx.deref_mut());
         map_js(cx.deref_mut(), res)
@@ -129,7 +129,7 @@ impl Engine for BoaEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         let k = property_key(cx, key)?;
         let res = obj.set(k, val, true, cx.deref_mut());
         map_js(cx.deref_mut(), res)?;
@@ -140,7 +140,7 @@ impl Engine for BoaEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         let k = property_key(cx, key)?;
         let res = obj.has_property(k, cx.deref_mut());
         map_js(cx.deref_mut(), res)
@@ -150,7 +150,7 @@ impl Engine for BoaEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         let k = property_key(cx, key)?;
         let res = obj.delete_property_or_throw(k, cx.deref_mut());
         map_js(cx.deref_mut(), res)
@@ -161,7 +161,7 @@ impl Engine for BoaEngine {
         func: &Self::Function<'rt>,
         this: Self::Value<'rt>,
         args: &[Self::Value<'rt>],
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let res = func.call(&this, args, cx.deref_mut());
         map_js(cx.deref_mut(), res)
     }
@@ -226,7 +226,7 @@ impl Engine for BoaEngine {
         JsValue::rational(v)
     }
 
-    fn make_string<'rt>(_: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(_: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
         Ok(JsValue::from(JsString::from(s)))
     }
 
@@ -234,7 +234,7 @@ impl Engine for BoaEngine {
         cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<Self::Function<'rt>>
+    ) -> Result<Self::Function<'rt>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -261,7 +261,7 @@ impl Engine for BoaEngine {
 
                 match res {
                     Ok(v) => Ok(v.into_raw()),
-                    Err(JsError::Exception) => {
+                    Err(Error::Exception) => {
                         let err = PENDING_BOA_JS_ERROR.with(|slot| slot.borrow_mut().take());
                         Err(err.unwrap_or_else(|| {
                             boa_engine::JsNativeError::error()
@@ -289,7 +289,7 @@ impl Engine for BoaEngine {
         val.as_boolean()
     }
 
-    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
         let n = val.to_number(cx.deref_mut());
         map_js(cx.deref_mut(), n)
     }
@@ -297,7 +297,7 @@ impl Engine for BoaEngine {
     fn value_to_string_utf8<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<String> {
+    ) -> Result<String> {
         let s = val.to_string(cx.deref_mut());
         let s = map_js(cx.deref_mut(), s)?;
         Ok(s.to_std_string_lossy())
@@ -331,7 +331,7 @@ impl rjsi_core::capabilities::Promises for BoaEngine {
 
     fn promise_new<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> JsResult<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
         let (promise, resolvers) = boa_engine::object::builtins::JsPromise::new_pending(boa_cx);
         Ok((
@@ -347,7 +347,7 @@ impl rjsi_core::capabilities::Promises for BoaEngine {
         cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         value: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
         let res = resolver
             .resolve
@@ -360,7 +360,7 @@ impl rjsi_core::capabilities::Promises for BoaEngine {
         cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         reason: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
         let res = resolver
             .reject

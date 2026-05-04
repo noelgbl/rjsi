@@ -1,4 +1,4 @@
-use crate::{Engine, JsResult, Object, Value};
+use crate::{Engine, Object, Result, Value};
 
 pub struct Context<'rt, E: Engine> {
     pub(crate) raw: E::Context<'rt>,
@@ -13,11 +13,11 @@ impl<'rt, E: Engine> Context<'rt, E> {
         f(&mut self.raw)
     }
 
-    pub fn eval_with_filename(&mut self, src: &str, filename: &str) -> JsResult<Value<'rt, E>> {
+    pub fn eval_with_filename(&mut self, src: &str, filename: &str) -> Result<Value<'rt, E>> {
         E::eval(&mut self.raw, src, Some(filename)).map(Value::new)
     }
 
-    pub fn eval(&mut self, src: &str) -> JsResult<Value<'rt, E>> {
+    pub fn eval(&mut self, src: &str) -> Result<Value<'rt, E>> {
         E::eval(&mut self.raw, src, None).map(Value::new)
     }
 
@@ -25,7 +25,7 @@ impl<'rt, E: Engine> Context<'rt, E> {
         Object::new(E::global_object(&mut self.raw))
     }
 
-    pub fn new_object(&mut self) -> JsResult<Object<'rt, E>> {
+    pub fn new_object(&mut self) -> Result<Object<'rt, E>> {
         E::object_new(&mut self.raw).map(Object::new)
     }
 
@@ -49,11 +49,11 @@ impl<'rt, E: Engine> Context<'rt, E> {
         Value::new(E::make_f64(&mut self.raw, v))
     }
 
-    pub fn string(&mut self, s: &str) -> JsResult<Value<'rt, E>> {
+    pub fn string(&mut self, s: &str) -> Result<Value<'rt, E>> {
         E::make_string(&mut self.raw, s).map(Value::new)
     }
 
-    pub fn function<F>(&mut self, name: &str, func: F) -> JsResult<crate::Function<'rt, E>>
+    pub fn function<F>(&mut self, name: &str, func: F) -> Result<crate::Function<'rt, E>>
     where
         F: crate::args::RawHostFn<E> + 'static,
     {
@@ -62,24 +62,24 @@ impl<'rt, E: Engine> Context<'rt, E> {
 }
 
 pub trait ContextPromiseExt<'rt, E: Engine + crate::capabilities::Promises> {
-    fn promise_new(&mut self) -> JsResult<(crate::Object<'rt, E>, E::PromiseResolver<'rt>)>;
+    fn promise_new(&mut self) -> Result<(crate::Object<'rt, E>, E::PromiseResolver<'rt>)>;
     fn promise_resolve(
         &mut self,
         resolver: E::PromiseResolver<'rt>,
         value: crate::Value<'rt, E>,
-    ) -> JsResult<()>;
+    ) -> Result<()>;
     fn promise_reject(
         &mut self,
         resolver: E::PromiseResolver<'rt>,
         reason: crate::Value<'rt, E>,
-    ) -> JsResult<()>;
+    ) -> Result<()>;
 }
 
 impl<'rt, E> ContextPromiseExt<'rt, E> for Context<'rt, E>
 where
     E: Engine + crate::capabilities::Promises,
 {
-    fn promise_new(&mut self) -> JsResult<(crate::Object<'rt, E>, E::PromiseResolver<'rt>)> {
+    fn promise_new(&mut self) -> Result<(crate::Object<'rt, E>, E::PromiseResolver<'rt>)> {
         let (obj, resolver) = E::promise_new(self)?;
         Ok((crate::Object::new(obj), resolver))
     }
@@ -88,7 +88,7 @@ where
         &mut self,
         resolver: E::PromiseResolver<'rt>,
         value: crate::Value<'rt, E>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         E::promise_resolve(self, resolver, value.into_raw())
     }
 
@@ -96,7 +96,7 @@ where
         &mut self,
         resolver: E::PromiseResolver<'rt>,
         reason: crate::Value<'rt, E>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         E::promise_reject(self, resolver, reason.into_raw())
     }
 }

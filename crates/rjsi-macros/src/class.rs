@@ -22,9 +22,9 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
         .map(|s| syn::LitStr::new(s, Span::call_site()))
         .unwrap_or_else(|| syn::LitStr::new(&ident.to_string(), Span::call_site()));
     let constructor_body = if attrs.no_constructor {
-        quote! { Err(#core::JsError::type_err("constructor is not exposed")) }
+        quote! { Err(#core::Error::type_err("constructor is not exposed")) }
     } else {
-        quote! { Err(#core::JsError::type_err("constructor not implemented")) }
+        quote! { Err(#core::Error::type_err("constructor not implemented")) }
     };
 
     quote! {
@@ -34,7 +34,7 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
             fn define_prototype<'cx>(
                 _cx: &mut #core::Context<'cx, E>,
                 _proto: &#core::Object<'cx, E>,
-            ) -> #core::JsResult<()>
+            ) -> #core::Result<()>
             where
                 E: #core::ClassEngine,
             {
@@ -44,7 +44,7 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
             fn construct<'cx, 'rt>(
                 _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                 _args: #core::Args<'rt, E>,
-            ) -> #core::JsResult<Self>
+            ) -> #core::Result<Self>
             where
                 E: #core::ClassEngine,
             {
@@ -105,7 +105,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                     fn construct<'cx, 'rt>(
                         cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         args: #core::Args<'rt, E>,
-                    ) -> #core::JsResult<Self>
+                    ) -> #core::Result<Self>
                     where
                         E: #core::ClassEngine,
                     {
@@ -131,16 +131,16 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                         cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
-                    ) -> #core::JsResult<#core::Value<'rt, E>> {
+                    ) -> #core::Result<#core::Value<'rt, E>> {
                         let _ = args.len();
                         let __this_obj = #core::Object::new(
                             E::value_to_object(this.into_raw())
-                                .ok_or_else(|| #core::JsError::type_err("expected object"))?
+                                .ok_or_else(|| #core::Error::type_err("expected object"))?
                         );
                         let ptr = unsafe {
                             E::class_get_instance_ptr::<#self_ty>(cb_cx.cx(), &__this_obj)
                         }
-                        .ok_or_else(|| #core::JsError::type_err(
+                        .ok_or_else(|| #core::Error::type_err(
                             concat!("not an instance of ", stringify!(#self_ty))
                         ))?;
                         #( #arg_extractions )*
@@ -170,7 +170,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                         cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         _this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
-                    ) -> #core::JsResult<#core::Value<'rt, E>> {
+                    ) -> #core::Result<#core::Value<'rt, E>> {
                         #( #arg_extractions )*
                         #ret_expr
                     }
@@ -194,11 +194,11 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 fn construct<'cx, 'rt>(
                     _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                     _args: #core::Args<'rt, E>,
-                ) -> #core::JsResult<Self>
+                ) -> #core::Result<Self>
                 where
                     E: #core::ClassEngine,
                 {
-                    Err(#core::JsError::type_err("constructor is not exposed"))
+                    Err(#core::Error::type_err("constructor is not exposed"))
                 }
             }
         } else {
@@ -206,11 +206,11 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 fn construct<'cx, 'rt>(
                     _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                     _args: #core::Args<'rt, E>,
-                ) -> #core::JsResult<Self>
+                ) -> #core::Result<Self>
                 where
                     E: #core::ClassEngine,
                 {
-                    Err(#core::JsError::type_err("constructor not implemented"))
+                    Err(#core::Error::type_err("constructor not implemented"))
                 }
             }
         }
@@ -243,7 +243,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
             fn define_prototype<'cx>(
                 cx: &mut #core::Context<'cx, E>,
                 proto: &#core::Object<'cx, E>,
-            ) -> #core::JsResult<()>
+            ) -> #core::Result<()>
             {
                 #( #method_registrations )*
                 Ok(())
@@ -268,7 +268,7 @@ fn constructor_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec
             let #arg_ident: #ty = #core::FromJs::from_js(
                 cx.cx(),
                 args.get(#idx_lit)
-                    .ok_or_else(|| #core::JsError::type_err(
+                    .ok_or_else(|| #core::Error::type_err(
                         concat!("missing argument ", stringify!(#idx_lit))
                     ))?
                     .into_raw(),
@@ -293,7 +293,7 @@ fn method_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec<Toke
                     let #arg_ident: #ty = #core::FromJs::from_js(
                         cb_cx.cx(),
                         args.get(#idx_lit)
-                            .ok_or_else(|| #core::JsError::type_err(
+                            .ok_or_else(|| #core::Error::type_err(
                                 concat!("missing argument ", stringify!(#idx_lit))
                             ))?
                             .into_raw(),

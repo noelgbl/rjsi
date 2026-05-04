@@ -1,6 +1,6 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
-use rjsi_core::{Args, Context, Engine, Function, JsResult, Object, Value};
+use rjsi_core::{Args, Context, Engine, Function, Object, Result, Value};
 
 pub const NEWLINE: char = '\n';
 pub const CARRIAGE_RETURN: char = '\r';
@@ -126,7 +126,7 @@ pub struct FormatOptions<'cx, E: Engine> {
 }
 
 impl<'cx, E: Engine> FormatOptions<'cx, E> {
-    pub fn new(ctx: &mut Context<'cx, E>, color: bool, newline: bool) -> JsResult<Self> {
+    pub fn new(ctx: &mut Context<'cx, E>, color: bool, newline: bool) -> Result<Self> {
         let globals = ctx.globals();
         let number_function = globals.get(ctx, "Number")?.try_as_function()?;
         let parse_float = globals.get(ctx, "parseFloat")?.try_as_function()?;
@@ -152,7 +152,7 @@ pub fn build_formatted_string<'a, E: Engine>(
     ctx: &mut Context<'a, E>,
     args: Args<'a, E>,
     options: &mut FormatOptions<'a, E>,
-) -> JsResult<()> {
+) -> Result<()> {
     let size = args.len();
     let mut iter = args.iter().enumerate().peekable();
 
@@ -262,7 +262,7 @@ fn format_raw<'a, E: Engine>(
     ctx: &mut Context<'a, E>,
     value: Value<'a, E>,
     _options: &FormatOptions<'a, E>,
-) -> JsResult<()> {
+) -> Result<()> {
     let s = value.to_string(ctx)?;
     result.push_str(&s);
     Ok(())

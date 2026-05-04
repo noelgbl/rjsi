@@ -1,10 +1,10 @@
-use rjsi::{Args, CallbackCx, DefaultRuntime, Engine, JsResult, Runtime, Value};
+use rjsi::{Args, CallbackCx, DefaultRuntime, Engine, Result, Runtime, Value};
 
 fn add<'cx, 'rt, E: Engine>(
     cx: &mut CallbackCx<'cx, 'rt, E>,
     _this: Value<'rt, E>,
     args: Args<'rt, E>,
-) -> JsResult<Value<'rt, E>> {
+) -> Result<Value<'rt, E>> {
     let a_val = args.get(0).unwrap();
     let b_val = args.get(1).unwrap();
 

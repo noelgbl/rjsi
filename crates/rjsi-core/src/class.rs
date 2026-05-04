@@ -1,15 +1,15 @@
 use std::marker::PhantomData;
 
-use crate::{Args, CallbackCx, Context, Engine, Function, JsResult, Object};
+use crate::{Args, CallbackCx, Context, Engine, Function, Object, Result};
 
 pub trait JsClass<E: Engine>: Sized + 'static {
     const NAME: &'static str;
 
-    fn define_prototype<'cx>(cx: &mut Context<'cx, E>, proto: &Object<'cx, E>) -> JsResult<()>
+    fn define_prototype<'cx>(cx: &mut Context<'cx, E>, proto: &Object<'cx, E>) -> Result<()>
     where
         E: ClassEngine;
 
-    fn construct<'cx, 'rt>(cx: &mut CallbackCx<'cx, 'rt, E>, args: Args<'rt, E>) -> JsResult<Self>
+    fn construct<'cx, 'rt>(cx: &mut CallbackCx<'cx, 'rt, E>, args: Args<'rt, E>) -> Result<Self>
     where
         E: ClassEngine;
 }
@@ -17,7 +17,7 @@ pub trait JsClass<E: Engine>: Sized + 'static {
 pub trait ClassEngine: Engine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<Function<'rt, Self>>;
+    ) -> Result<Function<'rt, Self>>;
 
     unsafe fn class_get_instance_ptr<C: 'static>(
         cx: &mut Context<'_, Self>,
@@ -48,11 +48,11 @@ impl<'cx, C: 'static> InstanceRef<'cx, C> {
 }
 
 pub trait ContextClassExt<'rt, E: Engine + ClassEngine> {
-    fn register_class<C: JsClass<E>>(&mut self) -> JsResult<Function<'rt, E>>;
+    fn register_class<C: JsClass<E>>(&mut self) -> Result<Function<'rt, E>>;
 }
 
 impl<'rt, E: Engine + ClassEngine> ContextClassExt<'rt, E> for Context<'rt, E> {
-    fn register_class<C: JsClass<E>>(&mut self) -> JsResult<Function<'rt, E>> {
+    fn register_class<C: JsClass<E>>(&mut self) -> Result<Function<'rt, E>> {
         E::class_register::<C>(self)
     }
 }

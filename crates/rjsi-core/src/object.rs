@@ -1,4 +1,4 @@
-use crate::{Context, Engine, IntoKey, JsResult, Value};
+use crate::{Context, Engine, IntoKey, Result, Value};
 
 #[repr(transparent)]
 pub struct Object<'cx, E: Engine> {
@@ -22,7 +22,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         &self,
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
-    ) -> JsResult<Value<'cx, E>> {
+    ) -> Result<Value<'cx, E>> {
         E::object_get(&mut cx.raw, &self.raw, key.into_key()).map(Value::new)
     }
 
@@ -31,19 +31,19 @@ impl<'cx, E: Engine> Object<'cx, E> {
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
         val: Value<'cx, E>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         E::object_set(&mut cx.raw, &self.raw, key.into_key(), val.raw)
     }
 
-    pub fn has(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> JsResult<bool> {
+    pub fn has(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> Result<bool> {
         E::object_has(&mut cx.raw, &self.raw, key.into_key())
     }
 
-    pub fn delete(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> JsResult<bool> {
+    pub fn delete(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> Result<bool> {
         E::object_delete(&mut cx.raw, &self.raw, key.into_key())
     }
 
-    pub fn get_typed<V>(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> JsResult<V>
+    pub fn get_typed<V>(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> Result<V>
     where
         V: crate::FromJs<'cx, E>,
     {
@@ -56,7 +56,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
         val: V,
-    ) -> JsResult<()>
+    ) -> Result<()>
     where
         V: crate::ToJs<'cx, E>,
     {

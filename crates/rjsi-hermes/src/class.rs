@@ -6,7 +6,7 @@ use libhermes_sys::{
     HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
 use rjsi_core::{
-    __cx, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
+    __cx, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
 };
 use rusty_hermes::{Object as HermesObject, Runtime, Value};
 
@@ -98,14 +98,14 @@ unsafe extern "C" fn class_ctor_trampoline<C: JsClass<HermesEngine> + 'static>(
     }
 }
 
-fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> JsResult<T> {
-    res.map_err(JsError::from_host)
+fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> Result<T> {
+    res.map_err(Error::from_host)
 }
 
 impl ClassEngine for HermesEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<Function<'rt, Self>> {
+    ) -> Result<Function<'rt, Self>> {
         let hermes_cx = __cx::context_mut(cx);
         let runtime_ptr = hermes_cx.runtime;
         let rt_ffi = runtime_ffi_ptr(unsafe { &(*runtime_ptr).inner });
@@ -127,7 +127,7 @@ impl ClassEngine for HermesEngine {
         let proto_obj = proto_val
             .duplicate()
             .into_object()
-            .map_err(|_| JsError::type_err("class prototype is not an object"))?;
+            .map_err(|_| Error::type_err("class prototype is not an object"))?;
 
         let prototype_for_ctor: Value<'static> = unsafe { mem::transmute(proto_val.duplicate()) };
 
@@ -155,7 +155,7 @@ impl ClassEngine for HermesEngine {
             unsafe {
                 ctor_user_data_finalizer::<C>(user_data.cast());
             }
-            return Err(JsError::from_host(std::io::Error::new(
+            return Err(Error::from_host(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "hermes__Function__CreateFromHostFunction returned null",
             )));
@@ -168,7 +168,7 @@ impl ClassEngine for HermesEngine {
                 let hv = clear_pending_js_value(rt_ffi);
                 drop(value_from_hermes_raw(rt_ffi, hv));
                 ctor_user_data_finalizer::<C>(user_data.cast());
-                return Err(JsError::Exception);
+                return Err(Error::Exception);
             }
         }
 
@@ -177,12 +177,12 @@ impl ClassEngine for HermesEngine {
         let ctor_obj = ctor_val
             .duplicate()
             .into_object()
-            .map_err(|_| JsError::type_err("constructor is not an object"))?;
+            .map_err(|_| Error::type_err("constructor is not an object"))?;
 
         let wire = (|| {
             map_hermes(ctor_obj.set("prototype", proto_val.duplicate()))?;
             map_hermes(proto_obj.set("constructor", ctor_val.duplicate()))?;
-            Ok::<_, JsError>(())
+            Ok::<_, Error>(())
         })();
 
         if let Err(e) = wire {
@@ -192,7 +192,7 @@ impl ClassEngine for HermesEngine {
 
         let ctor_rusty = ctor_val
             .into_function()
-            .map_err(|_| JsError::type_err("constructor is not a function"))?;
+            .map_err(|_| Error::type_err("constructor is not a function"))?;
         Ok(Function::new(ctor_rusty))
     }
 

@@ -1,4 +1,4 @@
-use rjsi_core::{Engine, JsError, JsResult, PropertyKey};
+use rjsi_core::{Engine, Error, PropertyKey, Result};
 use rquickjs::{
     Atom, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol, Value
 };
@@ -20,11 +20,11 @@ pub struct QuickJsArgs<'js> {
     pub(crate) argv: Vec<Value<'js>>,
 }
 
-pub(crate) fn map_err<'rt, T>(_cx: &QuickJsContext<'rt>, res: rquickjs::Result<T>) -> JsResult<T> {
+pub(crate) fn map_err<'rt, T>(_cx: &QuickJsContext<'rt>, res: rquickjs::Result<T>) -> Result<T> {
     match res {
         Ok(v) => Ok(v),
-        Err(QError::Exception) => Err(JsError::Exception),
-        Err(e) => Err(JsError::from_host(e)),
+        Err(QError::Exception) => Err(Error::Exception),
+        Err(e) => Err(Error::from_host(e)),
     }
 }
 
@@ -57,7 +57,7 @@ impl Engine for QuickJsEngine {
         cx: &mut Self::Context<'rt>,
         src: &str,
         _filename: Option<&str>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let res: rquickjs::Result<Value<'_>> = cx.qctx.eval(src);
         map_err(cx, res)
     }
@@ -66,7 +66,7 @@ impl Engine for QuickJsEngine {
         cx.qctx.globals()
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
         let res = Object::new(cx.clone_ctx());
         map_err(cx, res)
     }
@@ -75,7 +75,7 @@ impl Engine for QuickJsEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let res: rquickjs::Result<Value<'_>> = match key {
             PropertyKey::Str(s) => obj.get(s),
             PropertyKey::Prepared(k) => obj.get(crate::runtime::prepared_key(cx, &k)?),
@@ -90,7 +90,7 @@ impl Engine for QuickJsEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         let val_local: Value<'_> = val;
         let res: rquickjs::Result<()> = match key {
             PropertyKey::Str(s) => obj.set(s, val_local),
@@ -105,7 +105,7 @@ impl Engine for QuickJsEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         let res: rquickjs::Result<bool> = match key {
             PropertyKey::Str(s) => obj.contains_key(s),
             PropertyKey::Prepared(k) => obj.contains_key(crate::runtime::prepared_key(cx, &k)?),
@@ -119,7 +119,7 @@ impl Engine for QuickJsEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<bool> {
+    ) -> Result<bool> {
         let res: rquickjs::Result<bool> = match key {
             PropertyKey::Str(s) => {
                 let _ = obj.remove(s);
@@ -146,7 +146,7 @@ impl Engine for QuickJsEngine {
         func: &Self::Function<'rt>,
         this: Self::Value<'rt>,
         args: &[Self::Value<'rt>],
-    ) -> JsResult<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'rt>> {
         let func_local: Function<'_> = func.clone();
         let this_local: Value<'_> = this;
         let mut fargs = rquickjs::function::Args::new(cx.clone_ctx(), args.len());
@@ -205,7 +205,7 @@ impl Engine for QuickJsEngine {
         Value::new_float(cx.clone_ctx(), v)
     }
 
-    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
         let res = QString::from_str(cx.clone_ctx(), s).map(|s| s.into_value());
         map_err(cx, res)
     }
@@ -214,7 +214,7 @@ impl Engine for QuickJsEngine {
         val.as_bool()
     }
 
-    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
         let res: rquickjs::Result<f64> = val.clone().get();
         map_err(cx, res)
     }
@@ -222,7 +222,7 @@ impl Engine for QuickJsEngine {
     fn value_to_string_utf8<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<std::string::String> {
+    ) -> Result<std::string::String> {
         let s: rquickjs::Result<std::string::String> = val.clone().get();
         map_err(cx, s)
     }
@@ -247,7 +247,7 @@ impl Engine for QuickJsEngine {
         cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<Self::Function<'rt>>
+    ) -> Result<Self::Function<'rt>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -273,7 +273,7 @@ impl Engine for QuickJsEngine {
                 .call(&mut callback_cx, this_core, args_core)
             {
                 Ok(v) => Ok(v.into_raw()),
-                Err(rjsi_core::JsError::Exception) => Err(rquickjs::Error::Exception),
+                Err(rjsi_core::Error::Exception) => Err(rquickjs::Error::Exception),
                 Err(e) => {
                     let msg = e.to_string();
                     let err = rquickjs::Exception::from_message(ctx.clone(), &msg).unwrap();
@@ -309,9 +309,9 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
 
     fn promise_new<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> JsResult<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
         let qctx = &rjsi_core::__cx::context_mut(cx).qctx;
-        let (promise, resolve, reject) = qctx.promise().map_err(|e| JsError::Host(Box::new(e)))?;
+        let (promise, resolve, reject) = qctx.promise().map_err(|e| Error::Host(Box::new(e)))?;
         Ok((
             promise.into_value().into_object().unwrap(),
             QuickJsPromiseResolver { resolve, reject },
@@ -322,11 +322,11 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
         _cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         value: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         resolver
             .resolve
             .call::<_, ()>((value,))
-            .map_err(|e| JsError::Host(Box::new(e)))?;
+            .map_err(|e| Error::Host(Box::new(e)))?;
         Ok(())
     }
 
@@ -334,11 +334,11 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
         _cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         reason: Self::Value<'rt>,
-    ) -> JsResult<()> {
+    ) -> Result<()> {
         resolver
             .reject
             .call::<_, ()>((reason,))
-            .map_err(|e| JsError::Host(Box::new(e)))?;
+            .map_err(|e| Error::Host(Box::new(e)))?;
         Ok(())
     }
 }

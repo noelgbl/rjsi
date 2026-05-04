@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::ops::DerefMut;
 
 use boa_engine::{Context as BoaCx, JsString};
-use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
 
 use crate::engine::BoaEngine;
 
@@ -69,7 +69,7 @@ impl Runtime<BoaEngine> for BoaRuntime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut crate::engine::BoaContext<'cx>,
     key: &PreparedKey<BoaEngine>,
-) -> JsResult<JsString> {
+) -> Result<JsString> {
     if cx.runtime.is_null() {
         return Ok(JsString::from(key.as_str()));
     }

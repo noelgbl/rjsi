@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rjsi_core::{Context, JsResult, MicrotaskDrainPolicy, PreparedKey, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result as RjsiResult, Runtime};
 use rquickjs::{Atom, Context as QContext, Ctx, Runtime as QRuntime};
 
 use crate::engine::{QuickJsContext, QuickJsEngine, map_err};
@@ -87,7 +87,7 @@ impl Runtime<QuickJsEngine> for QuickJsRuntime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut QuickJsContext<'cx>,
     key: &PreparedKey<QuickJsEngine>,
-) -> JsResult<Atom<'cx>> {
+) -> RjsiResult<Atom<'cx>> {
     let runtime = unsafe { &mut *cx.runtime };
     if !runtime.prepared_keys.contains_key(&key.id()) {
         let atom = Atom::from_str(cx.qctx.clone(), key.as_str());
@@ -106,6 +106,6 @@ pub(crate) fn prepared_key<'cx>(
 pub(crate) fn _map_prepare_err<'cx, T>(
     cx: &QuickJsContext<'cx>,
     res: rquickjs::Result<T>,
-) -> JsResult<T> {
+) -> RjsiResult<T> {
     map_err(cx, res)
 }
