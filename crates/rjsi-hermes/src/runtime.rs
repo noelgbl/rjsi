@@ -5,7 +5,8 @@ use rusty_hermes::{PropNameId, Runtime as HermesRtInner};
 
 use crate::engine::{HermesEngine, runtime_ffi_ptr};
 
-/// Marker type for [`HermesEngine::PreparedKeyData`](crate::engine::HermesEngine).
+/// Marker type for
+/// [`HermesEngine::PreparedKeyData`](crate::engine::HermesEngine).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct HermesPreparedKeyData;
 
