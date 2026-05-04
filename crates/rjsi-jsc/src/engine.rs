@@ -143,27 +143,10 @@ unsafe extern "C" fn host_fn_callback(
     match result {
         Ok(val) => val.into_raw().val,
         Err(e) => {
-            let err_val = match e {
-                JsError::Exception(ex) => ex.val,
-                JsError::TypeError(m) => {
-                    let msg = ManagedJSString::new(m);
-                    let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
-                    rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
-                        as rusty_jsc_sys::JSValueRef
-                }
-                JsError::RangeError(m) => {
-                    let msg = ManagedJSString::new(m);
-                    let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
-                    rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
-                        as rusty_jsc_sys::JSValueRef
-                }
-                JsError::Host(h) => {
-                    let msg = ManagedJSString::new(&h.to_string());
-                    let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
-                    rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
-                        as rusty_jsc_sys::JSValueRef
-                }
-            };
+            let msg = ManagedJSString::new(&e.to_string());
+            let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
+            let err_val = rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
+                as rusty_jsc_sys::JSValueRef;
             if !exception.is_null() {
                 *exception = err_val;
             }
@@ -192,7 +175,6 @@ impl Engine for JscEngine {
     type Symbol<'cx> = JscValue<'cx>;
     type Key<'cx> = JscKey<'cx>;
     type PreparedKeyData = crate::runtime::JscPreparedKeyData;
-    type Error<'cx> = JscValue<'cx>;
     type RawArgs<'cx> = JscArgs<'cx>;
 
     fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
@@ -216,7 +198,7 @@ impl Engine for JscEngine {
         cx: &mut Self::Context<'rt>,
         src: &str,
         filename: Option<&str>,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let script = ManagedJSString::new(src);
         let source_url = filename.map(ManagedJSString::new);
         let source_url_ref = source_url
@@ -237,7 +219,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
-            Err(JsError::Exception(JscValue::new(cx.ctx, exception)))
+            Err(JsError::Exception)
         } else {
             Ok(JscValue::new(cx.ctx, value))
         }
@@ -248,7 +230,7 @@ impl Engine for JscEngine {
         JscObject::new(cx.ctx, global)
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<'rt, Self, Self::Object<'rt>> {
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
         let obj = unsafe {
             rusty_jsc_sys::JSObjectMake(cx.ctx, std::ptr::null_mut(), std::ptr::null_mut())
         };
@@ -259,7 +241,7 @@ impl Engine for JscEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let val_ref = match key {
             PropertyKey::Str(s) => {
@@ -286,7 +268,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
-            Err(JsError::Exception(JscValue::new(cx.ctx, exception)))
+            Err(JsError::Exception)
         } else {
             Ok(JscValue::new(cx.ctx, val_ref))
         }
@@ -297,7 +279,7 @@ impl Engine for JscEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, ()> {
+    ) -> JsResult<()> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         match key {
             PropertyKey::Str(s) => {
@@ -352,7 +334,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
-            Err(JsError::Exception(JscValue::new(cx.ctx, exception)))
+            Err(JsError::Exception)
         } else {
             Ok(())
         }
@@ -362,7 +344,7 @@ impl Engine for JscEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, bool> {
+    ) -> JsResult<bool> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let has = match key {
             PropertyKey::Str(s) => {
@@ -388,7 +370,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
-            Err(JsError::Exception(JscValue::new(cx.ctx, exception)))
+            Err(JsError::Exception)
         } else {
             Ok(has)
         }
@@ -398,7 +380,7 @@ impl Engine for JscEngine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, bool> {
+    ) -> JsResult<bool> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let deleted = match key {
             PropertyKey::Str(s) => {
@@ -428,7 +410,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
-            Err(JsError::Exception(JscValue::new(cx.ctx, exception)))
+            Err(JsError::Exception)
         } else {
             Ok(deleted)
         }
@@ -439,7 +421,7 @@ impl Engine for JscEngine {
         func: &Self::Function<'rt>,
         this: Self::Value<'rt>,
         args: &[Self::Value<'rt>],
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let args_refs: Vec<_> = args.iter().map(|v| v.val).collect();
 
@@ -451,7 +433,7 @@ impl Engine for JscEngine {
         } else {
             let obj = unsafe { rusty_jsc_sys::JSValueToObject(cx.ctx, this.val, &mut exception) };
             if !exception.is_null() {
-                return Err(JsError::Exception(JscValue::new(cx.ctx, exception)));
+                return Err(JsError::Exception);
             }
             obj
         };
@@ -468,7 +450,7 @@ impl Engine for JscEngine {
         };
 
         if !exception.is_null() {
-            Err(JsError::Exception(JscValue::new(cx.ctx, exception)))
+            Err(JsError::Exception)
         } else {
             Ok(JscValue::new(cx.ctx, result))
         }
@@ -560,7 +542,7 @@ impl Engine for JscEngine {
     fn make_string<'rt>(
         cx: &mut Self::Context<'rt>,
         s: &str,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let js_str = ManagedJSString::new(s);
         let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, js_str.0) };
         Ok(JscValue::new(cx.ctx, val))
@@ -570,7 +552,7 @@ impl Engine for JscEngine {
         cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<'rt, Self, Self::Function<'rt>>
+    ) -> JsResult<Self::Function<'rt>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -612,11 +594,11 @@ impl Engine for JscEngine {
     fn value_to_f64<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, f64> {
+    ) -> JsResult<f64> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let num = unsafe { rusty_jsc_sys::JSValueToNumber(cx.ctx, val.val, &mut exception) };
         if !exception.is_null() {
-            Err(JsError::Exception(JscValue::new(cx.ctx, exception)))
+            Err(JsError::Exception)
         } else {
             Ok(num)
         }
@@ -625,12 +607,12 @@ impl Engine for JscEngine {
     fn value_to_string_utf8<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, String> {
+    ) -> JsResult<String> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let js_str_ref =
             unsafe { rusty_jsc_sys::JSValueToStringCopy(cx.ctx, val.val, &mut exception) };
         if !exception.is_null() {
-            return Err(JsError::Exception(JscValue::new(cx.ctx, exception)));
+            return Err(JsError::Exception);
         }
 
         let len = unsafe { rusty_jsc_sys::JSStringGetMaximumUTF8CStringSize(js_str_ref) };

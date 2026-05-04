@@ -69,7 +69,7 @@ impl Runtime<BoaEngine> for BoaRuntime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut crate::engine::BoaContext<'cx>,
     key: &PreparedKey<BoaEngine>,
-) -> JsResult<'cx, BoaEngine, JsString> {
+) -> JsResult<JsString> {
     if cx.runtime.is_null() {
         return Ok(JsString::from(key.as_str()));
     }

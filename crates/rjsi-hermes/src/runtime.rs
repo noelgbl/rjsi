@@ -88,7 +88,7 @@ impl Runtime<HermesEngine> for HermesRuntime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut crate::engine::HermesContext<'cx>,
     key: &PreparedKey<HermesEngine>,
-) -> JsResult<'cx, HermesEngine, PropNameId<'cx>> {
+) -> JsResult<PropNameId<'cx>> {
     if cx.runtime.is_null() {
         let prepared = PropNameId::from_utf8(&*cx.inner, key.as_str());
         return Ok(unsafe { std::mem::transmute(prepared) });

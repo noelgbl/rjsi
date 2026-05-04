@@ -126,7 +126,7 @@ pub struct FormatOptions<'cx, E: Engine> {
 }
 
 impl<'cx, E: Engine> FormatOptions<'cx, E> {
-    pub fn new(ctx: &mut Context<'cx, E>, color: bool, newline: bool) -> JsResult<'cx, E, Self> {
+    pub fn new(ctx: &mut Context<'cx, E>, color: bool, newline: bool) -> JsResult<Self> {
         let globals = ctx.globals();
         let number_function = globals.get(ctx, "Number")?.try_as_function()?;
         let parse_float = globals.get(ctx, "parseFloat")?.try_as_function()?;
@@ -152,7 +152,7 @@ pub fn build_formatted_string<'a, E: Engine>(
     ctx: &mut Context<'a, E>,
     args: Args<'a, E>,
     options: &mut FormatOptions<'a, E>,
-) -> JsResult<'a, E, ()> {
+) -> JsResult<()> {
     let size = args.len();
     let mut iter = args.iter().enumerate().peekable();
 
@@ -266,7 +266,7 @@ fn format_raw<'a, E: Engine>(
     ctx: &mut Context<'a, E>,
     value: Value<'a, E>,
     _options: &FormatOptions<'a, E>,
-) -> JsResult<'a, E, ()> {
+) -> JsResult<()> {
     let s = value.to_string(ctx)?;
     result.push_str(&s);
     Ok(())

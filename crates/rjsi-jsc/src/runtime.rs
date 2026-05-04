@@ -88,7 +88,7 @@ impl Runtime<crate::engine::JscEngine> for JscRuntime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut crate::engine::JscContext<'cx>,
     key: &PreparedKey<crate::engine::JscEngine>,
-) -> JsResult<'cx, crate::engine::JscEngine, crate::engine::JscKey<'cx>> {
+) -> JsResult<crate::engine::JscKey<'cx>> {
     if cx.runtime.is_null() {
         let js_str = crate::engine::ManagedJSString::new(key.as_str());
         let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, js_str.0) };

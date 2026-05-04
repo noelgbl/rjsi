@@ -33,7 +33,7 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
             fn define_prototype<'cx>(
                 _cx: &mut #core::Context<'cx, E>,
                 _proto: &#core::Object<'cx, E>,
-            ) -> #core::JsResult<'cx, E, ()>
+            ) -> #core::JsResult<()>
             where
                 E: #core::ClassEngine,
             {
@@ -43,7 +43,7 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
             fn construct<'cx, 'rt>(
                 _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                 _args: #core::Args<'rt, E>,
-            ) -> #core::JsResult<'rt, E, Self>
+            ) -> #core::JsResult<Self>
             where
                 E: #core::ClassEngine,
             {
@@ -103,7 +103,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                     fn construct<'cx, 'rt>(
                         cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         args: #core::Args<'rt, E>,
-                    ) -> #core::JsResult<'rt, E, Self>
+                    ) -> #core::JsResult<Self>
                     where
                         E: #core::ClassEngine,
                     {
@@ -129,7 +129,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                         cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
-                    ) -> #core::JsResult<'rt, E, #core::Value<'rt, E>> {
+                    ) -> #core::JsResult<#core::Value<'rt, E>> {
                         let _ = args.len();
                         let __this_obj = #core::Object::new(
                             E::value_to_object(this.into_raw())
@@ -169,7 +169,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                         cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         _this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
-                    ) -> #core::JsResult<'rt, E, #core::Value<'rt, E>> {
+                    ) -> #core::JsResult<#core::Value<'rt, E>> {
                         #( #arg_extractions )*
                         #ret_expr
                     }
@@ -193,7 +193,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 fn construct<'cx, 'rt>(
                     _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                     _args: #core::Args<'rt, E>,
-                ) -> #core::JsResult<'rt, E, Self>
+                ) -> #core::JsResult<Self>
                 where
                     E: #core::ClassEngine,
                 {
@@ -205,7 +205,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 fn construct<'cx, 'rt>(
                     _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                     _args: #core::Args<'rt, E>,
-                ) -> #core::JsResult<'rt, E, Self>
+                ) -> #core::JsResult<Self>
                 where
                     E: #core::ClassEngine,
                 {
@@ -242,7 +242,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
             fn define_prototype<'cx>(
                 cx: &mut #core::Context<'cx, E>,
                 proto: &#core::Object<'cx, E>,
-            ) -> #core::JsResult<'cx, E, ()>
+            ) -> #core::JsResult<()>
             {
                 #( #method_registrations )*
                 Ok(())

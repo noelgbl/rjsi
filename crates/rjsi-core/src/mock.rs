@@ -35,7 +35,6 @@ phantom_val!(MockFunction);
 phantom_val!(MockString);
 phantom_val!(MockSymbol);
 phantom_val!(MockKey);
-phantom_val!(MockError);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct MockValue<'cx> {
@@ -101,7 +100,6 @@ impl Engine for MockEngine {
     type Symbol<'cx> = MockSymbol<'cx>;
     type Key<'cx> = MockKey<'cx>;
     type PreparedKeyData = ();
-    type Error<'cx> = MockError<'cx>;
     type RawArgs<'cx> = MockRawArgs<'cx>;
 
     fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
@@ -122,7 +120,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _src: &str,
         _filename: Option<&str>,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -130,7 +128,7 @@ impl Engine for MockEngine {
         MockObject::new()
     }
 
-    fn object_new<'rt>(_cx: &mut Self::Context<'rt>) -> JsResult<'rt, Self, Self::Object<'rt>> {
+    fn object_new<'rt>(_cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
         Ok(MockObject::new())
     }
 
@@ -138,7 +136,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -147,7 +145,7 @@ impl Engine for MockEngine {
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
         _val: Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, ()> {
+    ) -> JsResult<()> {
         Ok(())
     }
 
@@ -155,7 +153,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, bool> {
+    ) -> JsResult<bool> {
         Ok(false)
     }
 
@@ -163,7 +161,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _obj: &Self::Object<'rt>,
         _key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, bool> {
+    ) -> JsResult<bool> {
         Ok(true)
     }
 
@@ -172,7 +170,7 @@ impl Engine for MockEngine {
         _func: &Self::Function<'rt>,
         _this: Self::Value<'rt>,
         _args: &[Self::Value<'rt>],
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -225,7 +223,7 @@ impl Engine for MockEngine {
     fn make_string<'rt>(
         _cx: &mut Self::Context<'rt>,
         _s: &str,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -240,7 +238,7 @@ impl Engine for MockEngine {
     fn value_to_f64<'rt>(
         _cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, f64> {
+    ) -> JsResult<f64> {
         if val.tag >= 4 {
             Ok((val.tag - 4) as f64)
         } else {
@@ -251,7 +249,7 @@ impl Engine for MockEngine {
     fn value_to_string_utf8<'rt>(
         _cx: &mut Self::Context<'rt>,
         _val: &Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, String> {
+    ) -> JsResult<String> {
         Ok(String::from("mock"))
     }
 
@@ -275,7 +273,7 @@ impl Engine for MockEngine {
         _cx: &mut Self::Context<'rt>,
         _name: &str,
         _func: F,
-    ) -> JsResult<'rt, Self, Self::Function<'rt>>
+    ) -> JsResult<Self::Function<'rt>>
     where
         F: crate::args::RawHostFn<Self> + 'static,
     {
@@ -287,7 +285,7 @@ impl<'cx> ToJs<'cx, MockEngine> for u32 {
     fn to_js(
         self,
         _cx: &mut Context<'cx, MockEngine>,
-    ) -> JsResult<'cx, MockEngine, MockValue<'cx>> {
+    ) -> JsResult<MockValue<'cx>> {
         Ok(MockValue::number(self))
     }
 }
@@ -296,11 +294,11 @@ impl<'cx> FromJs<'cx, MockEngine> for u32 {
     fn from_js(
         _cx: &mut Context<'cx, MockEngine>,
         value: MockValue<'cx>,
-    ) -> JsResult<'cx, MockEngine, Self> {
+    ) -> JsResult<Self> {
         if value.tag >= 4 && (value.tag - 4) < 100 {
             Ok(value.tag - 4)
         } else {
-            Err(JsError::TypeError("mock range"))
+            Err(JsError::type_err("mock range"))
         }
     }
 }

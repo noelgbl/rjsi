@@ -78,20 +78,14 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
     let mut callback_cx = CallbackCx::new(scope_obj);
     let rjsi_args = Args::new(QuickJsArgs { argv: args.0 });
 
-    let instance = C::construct(&mut callback_cx, rjsi_args).map_err(|e| match e {
-        JsError::Exception(ex) => {
-            ctx.throw(ex);
+    let instance = C::construct(&mut callback_cx, rjsi_args).map_err(|e| {
+        if matches!(&e, JsError::Exception) {
+            rquickjs::Error::Exception
+        } else {
+            let msg = e.to_string();
+            ctx.throw(rquickjs::Exception::from_message(ctx.clone(), &msg).unwrap().into_value());
             rquickjs::Error::Exception
         }
-        JsError::TypeError(m) => {
-            ctx.throw(rquickjs::Exception::from_message(ctx.clone(), &m).unwrap().into_value());
-            rquickjs::Error::Exception
-        }
-        JsError::RangeError(m) => {
-            ctx.throw(rquickjs::Exception::from_message(ctx.clone(), &m).unwrap().into_value());
-            rquickjs::Error::Exception
-        }
-        JsError::Host(_) => rquickjs::Error::Unknown,
     })?;
 
     let class_id = class_id_for::<C>();
@@ -111,7 +105,7 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
 impl ClassEngine for QuickJsEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<'rt, Self, Function<'rt, Self>> {
+    ) -> JsResult<Function<'rt, Self>> {
         let qjs_cx = __cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
         let runtime = qjs_cx.runtime;

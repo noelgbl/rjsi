@@ -70,21 +70,8 @@ fn host_fn_callback<'s, 'i>(
     match result {
         Ok(val) => rv.set(val.into_raw()),
         Err(e) => {
-            let err_val = match e {
-                rjsi_core::JsError::Exception(ex) => ex,
-                rjsi_core::JsError::TypeError(m) => {
-                    let msg = v8::String::new(&mut context_scope, &m).unwrap();
-                    v8::Exception::type_error(&mut context_scope, msg)
-                }
-                rjsi_core::JsError::RangeError(m) => {
-                    let msg = v8::String::new(&mut context_scope, &m).unwrap();
-                    v8::Exception::range_error(&mut context_scope, msg)
-                }
-                rjsi_core::JsError::Host(h) => {
-                    let msg = v8::String::new(&mut context_scope, &h.to_string()).unwrap();
-                    v8::Exception::error(&mut context_scope, msg)
-                }
-            };
+            let msg = v8::String::new(&mut context_scope, e.to_string().as_str()).unwrap();
+            let err_val = v8::Exception::error(&mut context_scope, msg);
             context_scope.throw_exception(err_val);
         }
     }
@@ -101,7 +88,6 @@ impl Engine for V8Engine {
     type Symbol<'cx> = v8::Local<'cx, v8::Symbol>;
     type Key<'cx> = v8::Local<'cx, v8::Name>;
     type PreparedKeyData = v8::Global<v8::Name>;
-    type Error<'cx> = v8::Local<'cx, v8::Value>;
     type RawArgs<'cx> = V8Args<'cx>;
 
     fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
@@ -125,7 +111,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         src: &str,
         filename: Option<&str>,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let code = v8::String::new(scope, src).unwrap();
 
@@ -165,8 +151,7 @@ impl Engine for V8Engine {
         match result {
             Some(v) => Ok(unsafe { cast_local(v) }),
             None => {
-                let ex = try_catch.exception().unwrap();
-                Err(JsError::Exception(unsafe { cast_local(ex) }))
+                Err(JsError::Exception)
             }
         }
     }
@@ -178,7 +163,7 @@ impl Engine for V8Engine {
         unsafe { cast_local(global) }
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<'rt, Self, Self::Object<'rt>> {
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> JsResult<Self::Object<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let obj = v8::Object::new(scope);
         Ok(unsafe { cast_local(obj) })
@@ -188,7 +173,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -204,8 +189,7 @@ impl Engine for V8Engine {
         if let Some(v) = obj.get(&mut try_catch, key_val) {
             Ok(unsafe { cast_local(v) })
         } else {
-            let ex = try_catch.exception().unwrap();
-            Err(JsError::Exception(unsafe { cast_local(ex) }))
+            Err(JsError::Exception)
         }
     }
 
@@ -214,7 +198,7 @@ impl Engine for V8Engine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, ()> {
+    ) -> JsResult<()> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -231,8 +215,7 @@ impl Engine for V8Engine {
             Ok(())
         } else {
             if try_catch.has_caught() {
-                let ex = try_catch.exception().unwrap();
-                Err(JsError::Exception(unsafe { cast_local(ex) }))
+                Err(JsError::Exception)
             } else {
                 Err(JsError::type_err("failed to set object property"))
             }
@@ -243,7 +226,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, bool> {
+    ) -> JsResult<bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -259,8 +242,7 @@ impl Engine for V8Engine {
         if let Some(res) = obj.has(&mut try_catch, key_val) {
             Ok(res)
         } else {
-            let ex = try_catch.exception().unwrap();
-            Err(JsError::Exception(unsafe { cast_local(ex) }))
+            Err(JsError::Exception)
         }
     }
 
@@ -268,7 +250,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
-    ) -> JsResult<'rt, Self, bool> {
+    ) -> JsResult<bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
@@ -285,8 +267,7 @@ impl Engine for V8Engine {
             Ok(res)
         } else {
             if try_catch.has_caught() {
-                let ex = try_catch.exception().unwrap();
-                Err(JsError::Exception(unsafe { cast_local(ex) }))
+                Err(JsError::Exception)
             } else {
                 Err(JsError::type_err("failed to delete object property"))
             }
@@ -298,7 +279,7 @@ impl Engine for V8Engine {
         func: &Self::Function<'rt>,
         this: Self::Value<'rt>,
         args: &[Self::Value<'rt>],
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         let try_catch_obj = v8::TryCatch::new(scope);
         let try_catch_pin = std::pin::pin!(try_catch_obj);
@@ -307,8 +288,7 @@ impl Engine for V8Engine {
         if let Some(v) = func.call(&mut try_catch, this, args) {
             Ok(unsafe { cast_local(v) })
         } else {
-            let ex = try_catch.exception().unwrap();
-            Err(JsError::Exception(unsafe { cast_local(ex) }))
+            Err(JsError::Exception)
         }
     }
 
@@ -367,7 +347,7 @@ impl Engine for V8Engine {
     fn make_string<'rt>(
         cx: &mut Self::Context<'rt>,
         s: &str,
-    ) -> JsResult<'rt, Self, Self::Value<'rt>> {
+    ) -> JsResult<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         if let Some(v) = v8::String::new(scope, s) {
             Ok(unsafe { cast_local(v.into()) })
@@ -380,7 +360,7 @@ impl Engine for V8Engine {
         cx: &mut Self::Context<'rt>,
         name: &str,
         func: F,
-    ) -> JsResult<'rt, Self, Self::Function<'rt>>
+    ) -> JsResult<Self::Function<'rt>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -413,7 +393,7 @@ impl Engine for V8Engine {
     fn value_to_f64<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, f64> {
+    ) -> JsResult<f64> {
         let scope = unsafe { get_scope(cx) };
         if let Some(num) = val.to_number(&mut **scope) {
             Ok(num.value())
@@ -425,7 +405,7 @@ impl Engine for V8Engine {
     fn value_to_string_utf8<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, std::string::String> {
+    ) -> JsResult<std::string::String> {
         let scope = unsafe { get_scope(cx) };
         if let Some(str) = val.to_string(&mut **scope) {
             let isolate: &v8::Isolate = &**scope;
@@ -461,7 +441,7 @@ impl rjsi_core::capabilities::Promises for V8Engine {
 
     fn promise_new<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> JsResult<'rt, Self, (Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+    ) -> JsResult<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(resolver) = v8::PromiseResolver::new(scope) {
@@ -478,7 +458,7 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         value: Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, ()> {
+    ) -> JsResult<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(true) = resolver.resolve(scope, value) {
@@ -492,7 +472,7 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         cx: &mut rjsi_core::Context<'rt, Self>,
         resolver: Self::PromiseResolver<'rt>,
         reason: Self::Value<'rt>,
-    ) -> JsResult<'rt, Self, ()> {
+    ) -> JsResult<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(true) = resolver.reject(scope, reason) {

@@ -122,17 +122,13 @@ impl<C: JsClass<JscEngine>> RawCtor for ConcreteCtor<C> {
     }
 }
 
-fn jsc_error_val(ctx: jsc::JSContextRef, err: &JsError<JscEngine>) -> jsc::JSValueRef {
+fn jsc_error_val(ctx: jsc::JSContextRef, err: &JsError) -> jsc::JSValueRef {
     let make_err = |msg: &str| {
         let js_msg = ManagedJSString::new(msg);
         let err_str = unsafe { jsc::JSValueMakeString(ctx, js_msg.0) };
         unsafe { jsc::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut()) as jsc::JSValueRef }
     };
-    match err {
-        JsError::Exception(ex) => ex.val,
-        JsError::TypeError(m) | JsError::RangeError(m) => make_err(m),
-        JsError::Host(h) => make_err(&h.to_string()),
-    }
+    make_err(&err.to_string())
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
@@ -179,7 +175,7 @@ unsafe extern "C" fn ctor_finalize(object: jsc::JSObjectRef) {
 impl ClassEngine for JscEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<'rt, Self, Function<'rt, Self>> {
+    ) -> JsResult<Function<'rt, Self>> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
 

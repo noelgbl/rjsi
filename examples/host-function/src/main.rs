@@ -4,7 +4,7 @@ fn add<'cx, 'rt, E: Engine>(
     cx: &mut CallbackCx<'cx, 'rt, E>,
     _this: Value<'rt, E>,
     args: Args<'rt, E>,
-) -> JsResult<'rt, E, Value<'rt, E>> {
+) -> JsResult<Value<'rt, E>> {
     let a_val = args.get(0).unwrap();
     let b_val = args.get(1).unwrap();
 

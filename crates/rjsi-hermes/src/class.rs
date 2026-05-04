@@ -14,7 +14,7 @@ use rusty_hermes::{Object as HermesObject, Runtime, Value};
 
 use crate::engine::{
     HermesArgs, HermesContext, HermesEngine, clear_pending_error_message, clear_pending_js_value,
-    function_from_raw_parts, runtime_ffi_ptr, value_from_hermes_raw, HERMES_HOST_FUNCTION_MAX_ARGS,
+    function_from_raw_parts, runtime_ffi_ptr, HERMES_HOST_FUNCTION_MAX_ARGS,
 };
 use crate::runtime::HermesRuntime;
 
@@ -92,28 +92,8 @@ unsafe extern "C" fn class_ctor_trampoline<C: JsClass<HermesEngine> + 'static>(
                     }
                 }
             }
-            Err(JsError::Exception(ex)) => {
-                let msg = match ex.duplicate().to_js_string() {
-                    Ok(js) => js
-                        .to_rust_string()
-                        .unwrap_or_else(|_| "Exception".to_string()),
-                    Err(_) => "Exception".to_string(),
-                };
-                hermes__Runtime__SetPendingErrorMessage(rt, msg.as_ptr(), msg.len());
-                rusty_hermes::__private::undefined_value()
-            }
-            Err(JsError::TypeError(m)) => {
-                let msg = format!("TypeError: {m}");
-                hermes__Runtime__SetPendingErrorMessage(rt, msg.as_ptr(), msg.len());
-                rusty_hermes::__private::undefined_value()
-            }
-            Err(JsError::RangeError(m)) => {
-                let msg = format!("RangeError: {m}");
-                hermes__Runtime__SetPendingErrorMessage(rt, msg.as_ptr(), msg.len());
-                rusty_hermes::__private::undefined_value()
-            }
-            Err(JsError::Host(h)) => {
-                let msg = h.to_string();
+            Err(e) => {
+                let msg = e.to_string();
                 hermes__Runtime__SetPendingErrorMessage(rt, msg.as_ptr(), msg.len());
                 rusty_hermes::__private::undefined_value()
             }
@@ -121,14 +101,14 @@ unsafe extern "C" fn class_ctor_trampoline<C: JsClass<HermesEngine> + 'static>(
     }
 }
 
-fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> JsResult<'rt, HermesEngine, T> {
+fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> JsResult<T> {
     res.map_err(JsError::from_host)
 }
 
 impl ClassEngine for HermesEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<'rt, Self, Function<'rt, Self>> {
+    ) -> JsResult<Function<'rt, Self>> {
         let hermes_cx = __cx::context_mut(cx);
         let runtime_ptr = hermes_cx.runtime;
         let rt_ffi = runtime_ffi_ptr(unsafe { &(*runtime_ptr).inner });
@@ -189,9 +169,9 @@ impl ClassEngine for HermesEngine {
             if hermes__Runtime__HasPendingError(rt_ffi) {
                 hermes__Function__Release(func_pv);
                 clear_pending_error_message(rt_ffi);
-                let hv = clear_pending_js_value(rt_ffi);
+                let _ = clear_pending_js_value(rt_ffi);
                 ctor_user_data_finalizer::<C>(user_data.cast());
-                return Err(JsError::Exception(value_from_hermes_raw(rt_ffi, hv)));
+                return Err(JsError::Exception);
             }
         }
 
@@ -205,7 +185,7 @@ impl ClassEngine for HermesEngine {
         let wire = (|| {
             map_hermes(ctor_obj.set("prototype", proto_val.duplicate()))?;
             map_hermes(proto_obj.set("constructor", ctor_val.duplicate()))?;
-            Ok::<_, JsError<'_, HermesEngine>>(())
+            Ok::<_, JsError>(())
         })();
 
         if let Err(e) = wire {

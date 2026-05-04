@@ -22,7 +22,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         &self,
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
-    ) -> JsResult<'cx, E, Value<'cx, E>> {
+    ) -> JsResult<Value<'cx, E>> {
         E::object_get(&mut cx.raw, &self.raw, key.into_key()).map(Value::new)
     }
 
@@ -31,7 +31,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
         val: Value<'cx, E>,
-    ) -> JsResult<'cx, E, ()> {
+    ) -> JsResult<()> {
         E::object_set(&mut cx.raw, &self.raw, key.into_key(), val.raw)
     }
 
@@ -39,7 +39,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         &self,
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
-    ) -> JsResult<'cx, E, bool> {
+    ) -> JsResult<bool> {
         E::object_has(&mut cx.raw, &self.raw, key.into_key())
     }
 
@@ -47,7 +47,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         &self,
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
-    ) -> JsResult<'cx, E, bool> {
+    ) -> JsResult<bool> {
         E::object_delete(&mut cx.raw, &self.raw, key.into_key())
     }
 
@@ -55,7 +55,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         &self,
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
-    ) -> JsResult<'cx, E, V>
+    ) -> JsResult<V>
     where
         V: crate::FromJs<'cx, E>,
     {
@@ -68,7 +68,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         cx: &mut Context<'cx, E>,
         key: impl IntoKey<'cx, E>,
         val: V,
-    ) -> JsResult<'cx, E, ()>
+    ) -> JsResult<()>
     where
         V: crate::ToJs<'cx, E>,
     {

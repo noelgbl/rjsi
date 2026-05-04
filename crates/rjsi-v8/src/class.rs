@@ -42,21 +42,8 @@ fn class_ctor_callback<C: JsClass<V8Engine>>(
             );
         }
         Err(err) => {
-            let err_val = match err {
-                JsError::Exception(ex) => ex,
-                JsError::TypeError(m) => {
-                    let msg = v8::String::new(&mut context_scope, &m).unwrap();
-                    v8::Exception::type_error(&mut context_scope, msg)
-                }
-                JsError::RangeError(m) => {
-                    let msg = v8::String::new(&mut context_scope, &m).unwrap();
-                    v8::Exception::range_error(&mut context_scope, msg)
-                }
-                JsError::Host(h) => {
-                    let msg = v8::String::new(&mut context_scope, &h.to_string()).unwrap();
-                    v8::Exception::error(&mut context_scope, msg)
-                }
-            };
+            let msg = v8::String::new(&mut context_scope, err.to_string().as_str()).unwrap();
+            let err_val = v8::Exception::error(&mut context_scope, msg);
             context_scope.throw_exception(err_val);
         }
     }
@@ -65,7 +52,7 @@ fn class_ctor_callback<C: JsClass<V8Engine>>(
 impl ClassEngine for V8Engine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
-    ) -> JsResult<'rt, Self, Function<'rt, Self>> {
+    ) -> JsResult<Function<'rt, Self>> {
         let v8_cx = __cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
 

@@ -8,7 +8,7 @@ fn conformance_sum_args<'cx, 'rt, E: Engine>(
     cb: &mut CallbackCx<'cx, 'rt, E>,
     _this: Value<'rt, E>,
     args: Args<'rt, E>,
-) -> JsResult<'rt, E, Value<'rt, E>> {
+) -> JsResult<Value<'rt, E>> {
     let cx = cb.cx();
     let mut acc = 0.0f64;
     for i in 0..args.len() {
@@ -24,7 +24,7 @@ fn conformance_greet<'cx, 'rt, E: Engine>(
     cb: &mut CallbackCx<'cx, 'rt, E>,
     _this: Value<'rt, E>,
     _args: Args<'rt, E>,
-) -> JsResult<'rt, E, Value<'rt, E>> {
+) -> JsResult<Value<'rt, E>> {
     cb.cx().string("hello")
 }
 
@@ -325,7 +325,7 @@ where
         assert!(res.is_err(), "expected syntax error");
         let err = res.err().expect("err");
         assert!(
-            matches!(err, JsError::Exception(_)),
+            matches!(err, JsError::Exception),
             "expected JS exception for syntax error"
         );
     });
@@ -440,7 +440,7 @@ where
             cb: &mut CallbackCx<'cx, 'rt, E>,
             _this: Value<'rt, E>,
             _args: Args<'rt, E>,
-        ) -> JsResult<'rt, E, Value<'rt, E>> {
+        ) -> JsResult<Value<'rt, E>> {
             let cx = cb.cx();
             let global = cx.globals();
             let value = cx.number(7.0);

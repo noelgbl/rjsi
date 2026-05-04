@@ -110,7 +110,7 @@ fn expand_into_js(input: &DeriveInput) -> TokenStream2 {
                     where
                         E: #path::Engine,
                     {
-                        fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<'cx, E, E::Value<'cx>> {
+                        fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<E::Value<'cx>> {
                             let object = cx.new_object()?;
                             #( #setters )*
                             Ok(object.into_value().into_raw())
@@ -131,7 +131,7 @@ fn expand_into_js(input: &DeriveInput) -> TokenStream2 {
                     where
                         E: #path::Engine,
                     {
-                        fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<'cx, E, E::Value<'cx>> {
+                        fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<E::Value<'cx>> {
                             let array_value = cx.eval("[]")?;
                             let array = array_value.try_as_object()?;
                             #( #setters )*
@@ -145,7 +145,7 @@ fn expand_into_js(input: &DeriveInput) -> TokenStream2 {
                 where
                     E: #path::Engine,
                 {
-                    fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<'cx, E, E::Value<'cx>> {
+                    fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<E::Value<'cx>> {
                         let object = cx.new_object()?;
                         Ok(object.into_value().into_raw())
                     }
@@ -174,7 +174,7 @@ fn expand_from_js(input: &DeriveInput) -> TokenStream2 {
                     where
                         E: #path::Engine,
                     {
-                        fn from_js(cx: &mut #path::Context<'cx, E>, value: E::Value<'cx>) -> #path::JsResult<'cx, E, Self> {
+                        fn from_js(cx: &mut #path::Context<'cx, E>, value: E::Value<'cx>) -> #path::JsResult<Self> {
                             let value = #path::Value::new(value);
                             if !value.is_object() {
                                 return Err(#path::JsError::type_err("expected object"));
@@ -197,7 +197,7 @@ fn expand_from_js(input: &DeriveInput) -> TokenStream2 {
                     where
                         E: #path::Engine,
                     {
-                        fn from_js(cx: &mut #path::Context<'cx, E>, value: E::Value<'cx>) -> #path::JsResult<'cx, E, Self> {
+                        fn from_js(cx: &mut #path::Context<'cx, E>, value: E::Value<'cx>) -> #path::JsResult<Self> {
                             let value = #path::Value::new(value);
                             if !value.is_array() {
                                 return Err(#path::JsError::type_err("expected array"));
@@ -213,7 +213,7 @@ fn expand_from_js(input: &DeriveInput) -> TokenStream2 {
                 where
                     E: #path::Engine,
                 {
-                    fn from_js(_cx: &mut #path::Context<'cx, E>, _value: E::Value<'cx>) -> #path::JsResult<'cx, E, Self> {
+                    fn from_js(_cx: &mut #path::Context<'cx, E>, _value: E::Value<'cx>) -> #path::JsResult<Self> {
                         Ok(Self)
                     }
                 }

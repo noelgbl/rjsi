@@ -102,7 +102,7 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
 pub(crate) fn prepared_key<'cx>(
     cx: &mut crate::engine::V8Context<'cx>,
     key: &PreparedKey<crate::engine::V8Engine>,
-) -> JsResult<'cx, crate::engine::V8Engine, v8::Local<'cx, v8::Name>> {
+) -> JsResult<v8::Local<'cx, v8::Name>> {
     let scope = unsafe { crate::engine::get_scope(cx) };
     if cx.runtime.is_null() {
         let string = v8::String::new(scope, key.as_str())

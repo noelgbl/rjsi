@@ -67,11 +67,11 @@ impl<'cx, E: Engine> Value<'cx, E> {
         E::value_to_bool(&self.raw)
     }
 
-    pub fn to_f64(&self, cx: &mut Context<'cx, E>) -> JsResult<'cx, E, f64> {
+    pub fn to_f64(&self, cx: &mut Context<'cx, E>) -> JsResult<f64> {
         E::value_to_f64(&mut cx.raw, &self.raw)
     }
 
-    pub fn to_string(&self, cx: &mut Context<'cx, E>) -> JsResult<'cx, E, String> {
+    pub fn to_string(&self, cx: &mut Context<'cx, E>) -> JsResult<String> {
         E::value_to_string_utf8(&mut cx.raw, &self.raw)
     }
 
@@ -83,12 +83,12 @@ impl<'cx, E: Engine> Value<'cx, E> {
         E::value_to_function(self.raw).map(Function::new)
     }
 
-    pub fn try_as_object(self) -> JsResult<'cx, E, Object<'cx, E>> {
+    pub fn try_as_object(self) -> JsResult<Object<'cx, E>> {
         self.as_object()
             .ok_or_else(|| JsError::type_err("expected object"))
     }
 
-    pub fn try_as_function(self) -> JsResult<'cx, E, Function<'cx, E>> {
+    pub fn try_as_function(self) -> JsResult<Function<'cx, E>> {
         self.as_function()
             .ok_or_else(|| JsError::type_err("expected function"))
     }
