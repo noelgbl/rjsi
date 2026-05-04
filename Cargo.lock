@@ -626,6 +626,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-console"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+ "rjsi-console",
+]
+
+[[package]]
 name = "example-hello-world"
 version = "0.1.0"
 dependencies = [
@@ -1607,6 +1615,7 @@ name = "rjsi-console"
 version = "0.1.0"
 dependencies = [
  "rjsi-core",
+ "rjsi-logging",
  "tracing",
 ]
 

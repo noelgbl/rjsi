@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
+rjsi-logging = { path = "../rjsi-logging" }
 tracing.workspace = true
