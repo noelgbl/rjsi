@@ -47,15 +47,15 @@ fn main() {
                 const c = new Counter(10, 3);
                 c.increment();
                 c.increment();
-                const after_two_increments = c.getValue();
+                const afterTwoIncrements = c.getValue();
 
                 c.decrement();
-                const after_decrement = c.getValue();
+                const afterDecrement = c.getValue();
 
                 c.reset();
-                const after_reset = c.getValue();
+                const afterReset = c.getValue();
 
-                [after_two_increments, after_decrement, after_reset]
+                [afterTwoIncrements, afterDecrement, afterReset]
             ",
             )
             .unwrap();
