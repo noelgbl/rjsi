@@ -1,6 +1,7 @@
 use rjsi_core::{Engine, Error, PropertyKey, Result};
 use rquickjs::{
-    Atom, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol, Value
+    Atom, Coerced, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol,
+    Value,
 };
 
 pub struct QuickJsEngine;
@@ -223,8 +224,8 @@ impl Engine for QuickJsEngine {
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
     ) -> Result<std::string::String> {
-        let s: rquickjs::Result<std::string::String> = val.clone().get();
-        map_err(cx, s)
+        let s: rquickjs::Result<Coerced<std::string::String>> = val.clone().get();
+        map_err(cx, s.map(|c| (*c).clone()))
     }
 
     fn object_to_value<'rt>(obj: Self::Object<'rt>) -> Self::Value<'rt> {

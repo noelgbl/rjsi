@@ -135,6 +135,7 @@ impl<'cx, E: Engine> FormatOptions<'cx, E> {
         let get_own_property_desc_fn = ctx
             .eval("Object.getOwnPropertyDescriptor")?
             .try_as_function()?;
+        
         Ok(Self {
             color,
             newline,
@@ -147,6 +148,99 @@ impl<'cx, E: Engine> FormatOptions<'cx, E> {
     }
 }
 
+fn write_percent_format<'a, E: Engine>(
+    result: &mut String,
+    ctx: &mut Context<'a, E>,
+    args: &Args<'a, E>,
+    options: &mut FormatOptions<'a, E>,
+    bytes: &[u8],
+) -> Result<usize> {
+    let len = bytes.len();
+    let size = args.len();
+    let mut i = 0usize;
+    let mut arg_idx = 1usize;
+
+    while i < len {
+        let byte = bytes[i];
+        if byte == b'%' && i + 1 < len {
+            let next_byte = bytes[i + 1];
+            i += 1;
+            if arg_idx < size {
+                i += 1;
+                let next_val = args.get(arg_idx).expect("arg_idx < size");
+                arg_idx += 1;
+
+                match next_byte {
+                    b's' => {
+                        let str = next_val.to_string(ctx).unwrap_or_default();
+                        result.push_str(str.as_str());
+                        continue;
+                    }
+                    b'd' => {
+                        let undefined = ctx.undefined();
+                        let value =
+                            options.number_function.call(ctx, undefined, &[next_val])?;
+                        options.color = false;
+                        format_raw(result, ctx, value, options)?;
+                        continue;
+                    }
+                    b'i' => {
+                        let undefined = ctx.undefined();
+                        let value = options.parse_int.call(ctx, undefined, &[next_val])?;
+                        options.color = false;
+                        format_raw(result, ctx, value, options)?;
+                        continue;
+                    }
+                    b'f' => {
+                        let undefined = ctx.undefined();
+                        let value =
+                            options.parse_float.call(ctx, undefined, &[next_val])?;
+                        options.color = false;
+                        format_raw(result, ctx, value, options)?;
+                        continue;
+                    }
+                    b'j' => {
+                        // TODO: Implement JSON stringification
+                        continue;
+                    }
+                    b'O' => {
+                        // TODO: Implement object formatting
+                        options.color = false;
+                        format_raw(result, ctx, next_val, options)?;
+                        continue;
+                    }
+                    b'o' => {
+                        options.color = false;
+                        format_raw(result, ctx, next_val, options)?;
+                        continue;
+                    }
+                    b'c' => {
+                        // TODO: Implement color formatting
+                        continue;
+                    }
+                    b'%' => {
+                        result.push_byte(byte);
+                        continue;
+                    }
+                    _ => {
+                        result.push_byte(byte);
+                        result.push_byte(next_byte);
+                        continue;
+                    }
+                }
+            }
+            result.push_byte(byte);
+            result.push_byte(next_byte);
+        } else {
+            result.push_byte(byte);
+        }
+
+        i += 1;
+    }
+
+    Ok(arg_idx)
+}
+
 pub fn build_formatted_string<'a, E: Engine>(
     result: &mut String,
     ctx: &mut Context<'a, E>,
@@ -154,103 +248,32 @@ pub fn build_formatted_string<'a, E: Engine>(
     options: &mut FormatOptions<'a, E>,
 ) -> Result<()> {
     let size = args.len();
-    let mut iter = args.iter().enumerate().peekable();
+    if size == 0 {
+        return Ok(());
+    }
 
-    while let Some((index, arg)) = iter.next() {
-        let arg = Value::new(arg);
-        if index == 0 && size > 1 {
-            if let Some(str) = arg.to_string(ctx).ok() {
-                if str.find('%').is_none() {
-                    format_raw_string(result, str, options);
-                    continue;
-                }
-                let bytes = str.as_bytes();
-                let mut i = 0;
-                let len = bytes.len();
-                let mut next_byte;
-                let mut byte;
-
-                while i < len {
-                    byte = bytes[i];
-                    if byte == b'%' && i + 1 < len {
-                        next_byte = bytes[i + 1];
-                        i += 1;
-                        if iter.peek().is_some() {
-                            i += 1;
-
-                            let (_, raw_next) = match iter.next() {
-                                Some(p) => p,
-                                None => {
-                                    result.push_byte(byte);
-                                    result.push_byte(next_byte);
-                                    continue;
-                                }
-                            };
-                            let next_val = Value::new(raw_next);
-
-                            let value = match next_byte {
-                                b's' => {
-                                    let str = next_val.to_string(ctx).unwrap_or_default();
-                                    result.push_str(str.as_str());
-                                    continue;
-                                }
-                                b'd' => {
-                                    let undefined = ctx.undefined();
-                                    options.number_function.call(ctx, undefined, &[next_val])?
-                                }
-                                b'i' => {
-                                    let undefined = ctx.undefined();
-                                    options.parse_int.call(ctx, undefined, &[next_val])?
-                                }
-                                b'f' => {
-                                    let undefined = ctx.undefined();
-                                    options.parse_float.call(ctx, undefined, &[next_val])?
-                                }
-                                b'j' => {
-                                    // TODO: Implement JSON stringification
-                                    continue;
-                                }
-                                b'O' => {
-                                    // TODO: Implement object formatting
-                                    next_val
-                                }
-                                b'o' => next_val,
-                                b'c' => {
-                                    // TODO: Implement color formatting
-                                    continue;
-                                }
-                                b'%' => {
-                                    result.push_byte(byte);
-                                    continue;
-                                }
-                                _ => {
-                                    result.push_byte(byte);
-                                    result.push_byte(next_byte);
-                                    continue;
-                                }
-                            };
-                            options.color = false;
-
-                            format_raw(result, ctx, value, options)?;
-                            continue;
-                        }
-                        result.push_byte(byte);
-                        result.push_byte(next_byte);
-                    } else {
-                        result.push_byte(byte);
-                    }
-
-                    i += 1;
-                }
-                continue;
+    let consumed = if size > 1 {
+        let first = args.get(0).expect("len > 0");
+        if let Some(s) = first.to_string(ctx).ok() {
+            if s.find('%').is_none() {
+                format_raw_string(result, s, options);
+                1
+            } else {
+                write_percent_format(result, ctx, &args, options, s.as_bytes())?
             }
+        } else {
+            format_raw(result, ctx, first, options)?;
+            1
         }
+    } else {
+        let v = args.get(0).expect("len > 0");
+        format_raw(result, ctx, v, options)?;
+        return Ok(());
+    };
 
-        if index != 0 {
-            result.push(SPACING);
-        }
-
-        format_raw(result, ctx, arg, options)?;
+    for raw in args.rest_from(consumed).iter() {
+        result.push(SPACING);
+        format_raw(result, ctx, Value::new(raw), options)?;
     }
 
     Ok(())
