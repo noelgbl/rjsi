@@ -13,5 +13,4 @@ jsc = ["rjsi/default-runtime-jsc"]
 hermes = ["rjsi/default-runtime-hermes"]
 
 [dependencies]
-rjsi = { path = "../../crates/rjsi" }
-rjsi-console = { path = "../../crates/rjsi-console" }
+rjsi = { path = "../../crates/rjsi", features = ["console"] }

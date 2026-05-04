@@ -630,7 +630,6 @@ name = "example-console"
 version = "0.1.0"
 dependencies = [
  "rjsi",
- "rjsi-console",
 ]
 
 [[package]]
