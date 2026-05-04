@@ -44,3 +44,9 @@ impl<'cx, E: Engine> Function<'cx, E> {
         Object::new(E::function_to_object(self.raw))
     }
 }
+
+impl<'cx, E: Engine> crate::convert::ToJs<'cx, E> for Function<'cx, E> {
+    fn to_js(self, _cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+        Ok(self.into_value())
+    }
+}

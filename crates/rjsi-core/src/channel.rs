@@ -109,8 +109,8 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
     {
         self.pump(
             cx,
-            |cx, val| val.to_js(cx).map(crate::Value::new),
-            |cx, err| err.to_js(cx).map(crate::Value::new),
+            |cx, val| val.to_js(cx),
+            |cx, err| err.to_js(cx),
         )
     }
 }

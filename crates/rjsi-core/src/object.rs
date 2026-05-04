@@ -48,7 +48,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         V: crate::FromJs<'cx, E>,
     {
         let val = self.get(cx, key)?;
-        V::from_js(&mut *cx, val.raw)
+        V::from_js(&mut *cx, val)
     }
 
     pub fn set_typed<V>(
@@ -61,7 +61,7 @@ impl<'cx, E: Engine> Object<'cx, E> {
         V: crate::ToJs<'cx, E>,
     {
         let js_val = val.to_js(&mut *cx)?;
-        E::object_set(&mut cx.raw, &self.raw, key.into_key(), js_val)
+        E::object_set(&mut cx.raw, &self.raw, key.into_key(), js_val.raw)
     }
 
     pub fn into_value(self) -> Value<'cx, E> {

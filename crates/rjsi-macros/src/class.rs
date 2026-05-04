@@ -270,8 +270,7 @@ fn constructor_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec
                 args.get(#idx_lit)
                     .ok_or_else(|| #core::Error::type_err(
                         concat!("missing argument ", stringify!(#idx_lit))
-                    ))?
-                    .into_raw(),
+                    ))?,
             )?;
         });
         idx += 1;
@@ -295,8 +294,7 @@ fn method_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec<Toke
                         args.get(#idx_lit)
                             .ok_or_else(|| #core::Error::type_err(
                                 concat!("missing argument ", stringify!(#idx_lit))
-                            ))?
-                            .into_raw(),
+                            ))?,
                     )?;
                 });
                 idx += 1;
@@ -353,14 +351,13 @@ fn method_return_expr(
                 quote! {
                     #self_ref
                     instance.#rust_name( #( #call_arg_idents ),* )
-                        .map(|__v| #core::Value::<E>::new(E::function_to_value(__v.into_raw())))
+                        .and_then(|__v| #core::ToJs::to_js(__v, cb_cx.cx()))
                 }
             } else {
                 quote! {
                     #self_ref
                     let __result: #ty = instance.#rust_name( #( #call_arg_idents ),* );
                     #core::ToJs::to_js(__result, cb_cx.cx())
-                        .map(|__v| #core::Value::<E>::new(__v))
                 }
             }
         }
@@ -381,7 +378,6 @@ fn static_return_expr(
         ReturnType::Type(_, ty) => quote! {
             let __result: #ty = Self::#rust_name( #( #call_arg_idents ),* );
             #core::ToJs::to_js(__result, cb_cx.cx())
-                .map(|__v| #core::Value::<E>::new(__v))
         },
     }
 }

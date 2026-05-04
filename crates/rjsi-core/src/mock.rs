@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{Context, Engine, Error, FromJs, PropertyKey, Result, ToJs};
+use crate::{Context, Engine, Error, FromJs, PropertyKey, Result, ToJs, Value};
 
 pub struct MockEngine;
 
@@ -276,15 +276,15 @@ impl Engine for MockEngine {
 }
 
 impl<'cx> ToJs<'cx, MockEngine> for u32 {
-    fn to_js(self, _cx: &mut Context<'cx, MockEngine>) -> Result<MockValue<'cx>> {
-        Ok(MockValue::number(self))
+    fn to_js(self, _cx: &mut Context<'cx, MockEngine>) -> Result<Value<'cx, MockEngine>> {
+        Ok(Value::new(MockValue::number(self)))
     }
 }
 
 impl<'cx> FromJs<'cx, MockEngine> for u32 {
-    fn from_js(_cx: &mut Context<'cx, MockEngine>, value: MockValue<'cx>) -> Result<Self> {
-        if value.tag >= 4 && (value.tag - 4) < 100 {
-            Ok(value.tag - 4)
+    fn from_js(_cx: &mut Context<'cx, MockEngine>, value: Value<'cx, MockEngine>) -> Result<Self> {
+        if value.is_number() && (value.to_f64(_cx)? as u32) < 100 {
+            Ok(value.to_f64(_cx)? as u32)
         } else {
             Err(Error::type_err("mock range"))
         }
