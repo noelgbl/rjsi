@@ -391,28 +391,34 @@ where
     E: Engine,
     R: Runtime<E>,
 {
-    let key: &'static PreparedKey<E> = Box::leak(Box::new(PreparedKey::new("preparedAnswer")));
+    let key = PreparedKey::new("preparedAnswer");
 
-    runtime.with_scope(move |cx| {
-        let global = cx.globals();
-        let value = cx.number(42.0);
-        global.set(cx, key, value).unwrap();
+    runtime.with_scope({
+        let key = key.clone();
+        move |cx| {
+            let global = cx.globals();
+            let value = cx.number(42.0);
+            global.set(cx, &key, value).unwrap();
+        }
     });
 
-    runtime.with_scope(move |cx| {
-        let global = cx.globals();
-        assert!(expect_js(global.has(cx, key), "prepared key has after set"));
+    runtime.with_scope({
+        let key = key.clone();
+        move |cx| {
+            let global = cx.globals();
+            assert!(expect_js(global.has(cx, &key), "prepared key has after set"));
 
-        let got = global.get(cx, key).unwrap();
-        let n = expect_js(got.to_f64(cx), "prepared key get");
-        assert_eq!(n, 42.0);
+            let got = global.get(cx, &key).unwrap();
+            let n = expect_js(got.to_f64(cx), "prepared key get");
+            assert_eq!(n, 42.0);
 
-        let deleted = expect_js(global.delete(cx, key), "prepared key delete");
-        assert!(deleted);
-        assert!(!expect_js(
-            global.has(cx, key),
-            "prepared key gone after delete"
-        ));
+            let deleted = expect_js(global.delete(cx, &key), "prepared key delete");
+            assert!(deleted);
+            assert!(!expect_js(
+                global.has(cx, &key),
+                "prepared key gone after delete"
+            ));
+        }
     });
 }
 
@@ -422,7 +428,7 @@ where
     R: Runtime<E>,
 {
     struct InstallPrepared<E: Engine> {
-        key: &'static PreparedKey<E>,
+        key: PreparedKey<E>,
     }
 
     impl<E: Engine> rjsi_core::RawHostFn<E> for InstallPrepared<E> {
@@ -435,16 +441,21 @@ where
             let cx = cb.cx();
             let global = cx.globals();
             let value = cx.number(7.0);
-            global.set(cx, self.key, value)?;
+            global.set(cx, &self.key, value)?;
             Ok(cx.undefined())
         }
     }
 
-    let key: &'static PreparedKey<E> = Box::leak(Box::new(PreparedKey::new("preparedFromHost")));
+    let key = PreparedKey::new("preparedFromHost");
 
     runtime.with_scope(move |cx| {
         let install = expect_js(
-            cx.function("installPrepared", InstallPrepared { key }),
+            cx.function(
+                "installPrepared",
+                InstallPrepared {
+                    key: key.clone(),
+                },
+            ),
             "prepared host function",
         );
 
@@ -454,7 +465,7 @@ where
             .unwrap();
         cx.eval("installPrepared()").unwrap();
 
-        let got = global.get(cx, key).unwrap();
+        let got = global.get(cx, &key).unwrap();
         let n = expect_js(got.to_f64(cx), "prepared key host callback");
         assert_eq!(n, 7.0);
     });

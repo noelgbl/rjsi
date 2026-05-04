@@ -1,4 +1,4 @@
-use crate::{Context, Engine, IntoKey, JsResult, Value};
+use crate::{Context, Engine, IntoKey, JsResult, NativePtr, Value};
 
 #[repr(transparent)]
 pub struct Object<'cx, E: Engine> {
@@ -78,5 +78,17 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn into_value(self) -> Value<'cx, E> {
         Value::new(E::object_to_value(self.raw))
+    }
+
+    pub fn set_native_ptr(
+        &self,
+        cx: &mut Context<'cx, E>,
+        ptr: NativePtr,
+    ) -> JsResult<'cx, E, ()> {
+        E::object_set_native_ptr(&mut cx.raw, &self.raw, ptr)
+    }
+
+    pub fn native_ptr(&self, cx: &mut Context<'cx, E>) -> JsResult<'cx, E, NativePtr> {
+        E::object_get_native_ptr(&mut cx.raw, &self.raw)
     }
 }

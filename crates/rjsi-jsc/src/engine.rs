@@ -269,7 +269,7 @@ impl Engine for JscEngine {
                 }
             }
             PropertyKey::Prepared(k) => unsafe {
-                let prepared = crate::runtime::prepared_key(cx, k)?;
+                let prepared = crate::runtime::prepared_key(cx, &k)?;
                 rusty_jsc_sys::JSObjectGetPropertyForKey(
                     cx.ctx,
                     obj.val,
@@ -314,7 +314,7 @@ impl Engine for JscEngine {
                 };
             }
             PropertyKey::Prepared(k) => {
-                let prepared = crate::runtime::prepared_key(cx, k)?;
+                let prepared = crate::runtime::prepared_key(cx, &k)?;
                 unsafe {
                     rusty_jsc_sys::JSObjectSetPropertyForKey(
                         cx.ctx,
@@ -370,7 +370,7 @@ impl Engine for JscEngine {
                 unsafe { rusty_jsc_sys::JSObjectHasProperty(cx.ctx, obj.val, js_str.0) }
             }
             PropertyKey::Prepared(k) => unsafe {
-                let prepared = crate::runtime::prepared_key(cx, k)?;
+                let prepared = crate::runtime::prepared_key(cx, &k)?;
                 rusty_jsc_sys::JSObjectHasPropertyForKey(
                     cx.ctx,
                     obj.val,
@@ -408,7 +408,7 @@ impl Engine for JscEngine {
                 }
             }
             PropertyKey::Prepared(k) => unsafe {
-                let prepared = crate::runtime::prepared_key(cx, k)?;
+                let prepared = crate::runtime::prepared_key(cx, &k)?;
                 rusty_jsc_sys::JSObjectDeletePropertyForKey(
                     cx.ctx,
                     obj.val,

@@ -1,4 +1,4 @@
-use crate::{JsResult, PropertyKey};
+use crate::{JsError, JsResult, NativePtr, PropertyKey};
 
 pub trait Engine: Sized + 'static {
     type Runtime;
@@ -92,6 +92,17 @@ pub trait Engine: Sized + 'static {
     where
         F: crate::args::RawHostFn<Self> + 'static;
 
+    fn make_constructor<'rt, F>(
+        cx: &mut Self::Context<'rt>,
+        name: &str,
+        func: F,
+    ) -> JsResult<'rt, Self, Self::Function<'rt>>
+    where
+        F: crate::args::RawHostFn<Self> + 'static,
+    {
+        Self::make_function(cx, name, func)
+    }
+
     fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool>;
 
     fn value_to_f64<'rt>(
@@ -113,4 +124,19 @@ pub trait Engine: Sized + 'static {
     fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>>;
 
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx>;
+
+    fn object_set_native_ptr<'rt>(
+        _cx: &mut Self::Context<'rt>,
+        _obj: &Self::Object<'rt>,
+        _ptr: NativePtr,
+    ) -> JsResult<'rt, Self, ()> {
+        Err(JsError::type_err("native ptr unsupported"))
+    }
+
+    fn object_get_native_ptr<'rt>(
+        _cx: &mut Self::Context<'rt>,
+        _obj: &Self::Object<'rt>,
+    ) -> JsResult<'rt, Self, NativePtr> {
+        Err(JsError::type_err("native ptr unsupported"))
+    }
 }

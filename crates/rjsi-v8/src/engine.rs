@@ -193,7 +193,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
@@ -219,7 +219,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
@@ -248,7 +248,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
@@ -273,7 +273,7 @@ impl Engine for V8Engine {
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
-            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, k)?.into(),
+            PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
             PropertyKey::Symbol(s) => s.into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };

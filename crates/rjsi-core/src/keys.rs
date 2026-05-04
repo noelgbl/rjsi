@@ -71,7 +71,7 @@ impl<E: Engine> std::hash::Hash for PreparedKey<E> {
 
 pub enum PropertyKey<'cx, E: Engine> {
     Str(&'cx str),
-    Prepared(&'cx PreparedKey<E>),
+    Prepared(PreparedKey<E>),
     Symbol(E::Symbol<'cx>),
     Index(u32),
 }
@@ -98,8 +98,14 @@ impl<'cx, E: Engine> IntoKey<'cx, E> for u32 {
     }
 }
 
-impl<'cx, E: Engine> IntoKey<'cx, E> for &'cx PreparedKey<E> {
+impl<'cx, E: Engine> IntoKey<'cx, E> for PreparedKey<E> {
     fn into_key(self) -> PropertyKey<'cx, E> {
         PropertyKey::Prepared(self)
+    }
+}
+
+impl<'cx, E: Engine> IntoKey<'cx, E> for &PreparedKey<E> {
+    fn into_key(self) -> PropertyKey<'cx, E> {
+        PropertyKey::Prepared(self.clone())
     }
 }

@@ -85,7 +85,7 @@ impl Engine for QuickJsEngine {
     ) -> JsResult<'rt, Self, Self::Value<'rt>> {
         let res: rquickjs::Result<Value<'_>> = match key {
             PropertyKey::Str(s) => obj.get(s),
-            PropertyKey::Prepared(k) => obj.get(crate::runtime::prepared_key(cx, k)?),
+            PropertyKey::Prepared(k) => obj.get(crate::runtime::prepared_key(cx, &k)?),
             PropertyKey::Symbol(s) => obj.get(s),
             PropertyKey::Index(i) => obj.get(i),
         };
@@ -101,7 +101,7 @@ impl Engine for QuickJsEngine {
         let val_local: Value<'_> = val;
         let res: rquickjs::Result<()> = match key {
             PropertyKey::Str(s) => obj.set(s, val_local),
-            PropertyKey::Prepared(k) => obj.set(crate::runtime::prepared_key(cx, k)?, val_local),
+            PropertyKey::Prepared(k) => obj.set(crate::runtime::prepared_key(cx, &k)?, val_local),
             PropertyKey::Symbol(s) => obj.set(s, val_local),
             PropertyKey::Index(i) => obj.set(i, val_local),
         };
@@ -115,7 +115,7 @@ impl Engine for QuickJsEngine {
     ) -> JsResult<'rt, Self, bool> {
         let res: rquickjs::Result<bool> = match key {
             PropertyKey::Str(s) => obj.contains_key(s),
-            PropertyKey::Prepared(k) => obj.contains_key(crate::runtime::prepared_key(cx, k)?),
+            PropertyKey::Prepared(k) => obj.contains_key(crate::runtime::prepared_key(cx, &k)?),
             PropertyKey::Symbol(s) => obj.contains_key(s),
             PropertyKey::Index(i) => obj.contains_key(i),
         };
@@ -133,7 +133,7 @@ impl Engine for QuickJsEngine {
                 Ok(true)
             }
             PropertyKey::Prepared(k) => {
-                let _ = obj.remove(crate::runtime::prepared_key(cx, k)?);
+                let _ = obj.remove(crate::runtime::prepared_key(cx, &k)?);
                 Ok(true)
             }
             PropertyKey::Symbol(s) => {
