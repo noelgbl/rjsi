@@ -1,4 +1,4 @@
-use rjsi::{ContextClassExt, DefaultRuntime, Runtime, Value, js_constructor, js_methods};
+use rjsi::{ContextClassExt, DefaultRuntime, Runtime, js_methods};
 
 struct Counter {
     value: i32,
@@ -9,7 +9,10 @@ struct Counter {
 impl Counter {
     #[js_constructor]
     fn new(initial: i32, step: i32) -> Self {
-        Self { value: initial, step }
+        Self {
+            value: initial,
+            step,
+        }
     }
 
     fn increment(&mut self) {
@@ -58,18 +61,19 @@ fn main() {
             .unwrap();
 
         let arr = result.try_as_object().unwrap();
+
         let a = arr.get(cx, 0u32).unwrap().to_f64(cx).unwrap() as i32;
         let b = arr.get(cx, 1u32).unwrap().to_f64(cx).unwrap() as i32;
         let c = arr.get(cx, 2u32).unwrap().to_f64(cx).unwrap() as i32;
+
         (a, b, c)
     });
 
-    println!("after two increments (10 + 3 + 3 = 16): {}", results.0);
-    println!("after one decrement  (16 - 3 = 13):      {}", results.1);
-    println!("after reset          (0):                 {}", results.2);
+    println!("after two increments: {}", results.0);
+    println!("after one decrement: {}", results.1);
+    println!("after reset: {}", results.2);
 
     assert_eq!(results.0, 16);
     assert_eq!(results.1, 13);
     assert_eq!(results.2, 0);
-    println!("All assertions passed.");
 }
