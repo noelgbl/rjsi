@@ -406,7 +406,10 @@ where
         let key = key.clone();
         move |cx| {
             let global = cx.globals();
-            assert!(expect_js(global.has(cx, &key), "prepared key has after set"));
+            assert!(expect_js(
+                global.has(cx, &key),
+                "prepared key has after set"
+            ));
 
             let got = global.get(cx, &key).unwrap();
             let n = expect_js(got.to_f64(cx), "prepared key get");
@@ -450,12 +453,7 @@ where
 
     runtime.with_scope(move |cx| {
         let install = expect_js(
-            cx.function(
-                "installPrepared",
-                InstallPrepared {
-                    key: key.clone(),
-                },
-            ),
+            cx.function("installPrepared", InstallPrepared { key: key.clone() }),
             "prepared host function",
         );
 
