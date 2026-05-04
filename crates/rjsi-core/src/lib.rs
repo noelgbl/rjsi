@@ -1,7 +1,6 @@
 mod args;
 pub mod capabilities;
 pub mod channel;
-mod class;
 mod context;
 mod convert;
 mod engine;
@@ -17,11 +16,6 @@ mod value;
 
 pub use args::{Args, ArgsIter, RawHostFn};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
-#[doc(hidden)]
-pub use class::{
-    ClassAccessor, ClassDescriptor, ClassMethod, ClassMethodFn, JsClass, NativeBorrowError,
-    NativeBorrowGuard, NativeCell, NativeObject, NativePtr
-};
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;

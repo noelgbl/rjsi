@@ -1,4 +1,4 @@
-use crate::{JsError, JsResult, NativePtr, PropertyKey};
+use crate::{JsResult, PropertyKey};
 
 pub trait Engine: Sized + 'static {
     type Runtime;
@@ -124,19 +124,4 @@ pub trait Engine: Sized + 'static {
     fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>>;
 
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx>;
-
-    fn object_set_native_ptr<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _obj: &Self::Object<'rt>,
-        _ptr: NativePtr,
-    ) -> JsResult<'rt, Self, ()> {
-        Err(JsError::type_err("native ptr unsupported"))
-    }
-
-    fn object_get_native_ptr<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _obj: &Self::Object<'rt>,
-    ) -> JsResult<'rt, Self, NativePtr> {
-        Err(JsError::type_err("native ptr unsupported"))
-    }
 }

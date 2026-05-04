@@ -8,28 +8,12 @@ use std::ptr::read;
 use libhermes_sys::{
     HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__EvaluateJavaScript, hermes__Runtime__GetAndClearError, hermes__Runtime__GetAndClearErrorMessage, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
-use rjsi_core::{Engine, JsError, JsResult, NativePtr, PropertyKey, RawHostFn};
+use rjsi_core::{Engine, JsError, JsResult, PropertyKey, RawHostFn};
 use rusty_hermes::{Function, JsString, Object, PropNameId, Runtime, Symbol, Value};
 
 pub const HERMES_HOST_FUNCTION_MAX_ARGS: usize = 32;
 
 pub struct HermesEngine;
-
-const NATIVE_PTR_KEY: &str = "__rjsi_native_ptr";
-
-fn encode_native_ptr(ptr: NativePtr) -> String {
-    format!("{:p}", ptr.as_ptr())
-}
-
-fn decode_native_ptr(s: &str) -> Option<NativePtr> {
-    let trimmed = s.trim();
-    let hex = trimmed.strip_prefix("0x").unwrap_or(trimmed);
-    if hex.is_empty() {
-        return None;
-    }
-    let addr = usize::from_str_radix(hex, 16).ok()?;
-    Some(NativePtr::new(addr as *mut u8))
-}
 
 pub struct HermesArgs<'rt> {
     pub(crate) argv: Vec<Value<'rt>>,
@@ -281,27 +265,6 @@ impl Engine for HermesEngine {
             }
         };
         Ok(true)
-    }
-
-    fn object_set_native_ptr<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        ptr: NativePtr,
-    ) -> JsResult<'rt, Self, ()> {
-        let value = Self::make_string(cx, &encode_native_ptr(ptr))?;
-        Self::object_set(cx, obj, PropertyKey::Str(NATIVE_PTR_KEY), value)
-    }
-
-    fn object_get_native_ptr<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-    ) -> JsResult<'rt, Self, NativePtr> {
-        let value = Self::object_get(cx, obj, PropertyKey::Str(NATIVE_PTR_KEY))?;
-        if !Self::value_is_string(&value) {
-            return Err(JsError::type_err("invalid native ptr"));
-        }
-        let s = Self::value_to_string_utf8(cx, &value)?;
-        decode_native_ptr(&s).ok_or_else(|| JsError::type_err("invalid native ptr"))
     }
 
     fn function_call<'rt>(
