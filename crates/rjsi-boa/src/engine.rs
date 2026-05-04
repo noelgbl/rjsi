@@ -44,7 +44,7 @@ fn property_key<'cx>(
 ) -> JsResult<'cx, BoaEngine, BoaPropertyKey> {
     match key {
         PropertyKey::Str(s) => Ok(JsString::from(s).into()),
-        PropertyKey::Prepared(k) => Ok(crate::runtime::prepared_key(cx, k)?.into()),
+        PropertyKey::Prepared(k) => Ok(crate::runtime::prepared_key(cx, &k)?.into()),
         PropertyKey::Symbol(s) => Ok(s.into()),
         PropertyKey::Index(i) => Ok(i.into()),
     }

@@ -42,11 +42,6 @@ pub fn derive_from_js(input: TokenStream) -> TokenStream {
     expand_from_js(&input).into()
 }
 
-/// `proc_macro_crate` returns `Itself` for all targets in the `rjsi` package;
-/// expanding to `crate` breaks examples, which are separate crates. Emit
-/// `::rjsi` for that case: the `rjsi` crate re-exports `Runtime`, `HostError`,
-/// and the ser traits, and the path still resolves from the `rjsi` library
-/// itself.
 fn runtime_path() -> TokenStream2 {
     match crate_name("rjsi") {
         Ok(FoundCrate::Itself) => quote!(::rjsi),
@@ -73,57 +68,54 @@ fn expand_into_js(input: &DeriveInput) -> TokenStream2 {
             Fields::Named(fields) => {
                 let setters = fields.named.iter().map(|field| {
                     let name = field.ident.as_ref().unwrap();
-                    let ty = &field.ty;
                     let key = name.to_string();
                     quote! {
-                        let value = <#ty as #path::IntoJs<'s, R>>::into_js(self.#name, scope)?;
-                        #path::ValueLike::set(&object, scope, #key, value);
+                        object.set_typed(cx, #key, self.#name)?;
                     }
                 });
                 quote! {
-                    impl<'s, R> #path::IntoJs<'s, R> for #ident
+                    impl<'cx, E> #path::ToJs<'cx, E> for #ident
                     where
-                        R: #path::Runtime,
+                        E: #path::Engine,
                     {
-                        fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
-                            let object = #path::ScopeLike::object(scope);
+                        fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<'cx, E, E::Value<'cx>> {
+                            let object = cx.new_object()?;
                             #( #setters )*
-                            Ok(object)
+                            Ok(object.into_value().into_raw())
                         }
                     }
                 }
             }
             Fields::Unnamed(fields) => {
-                let len = fields.unnamed.len() as u32;
-                let setters = fields.unnamed.iter().enumerate().map(|(index, field)| {
+                let setters = fields.unnamed.iter().enumerate().map(|(index, _field)| {
                     let idx = Index::from(index);
-                    let ty = &field.ty;
                     let index_u32 = index as u32;
                     quote! {
-                        let value = <#ty as #path::IntoJs<'s, R>>::into_js(self.#idx, scope)?;
-                        #path::ValueLike::set_index(&array, scope, #index_u32, value);
+                        array.set_typed(cx, #index_u32, self.#idx)?;
                     }
                 });
                 quote! {
-                    impl<'s, R> #path::IntoJs<'s, R> for #ident
+                    impl<'cx, E> #path::ToJs<'cx, E> for #ident
                     where
-                        R: #path::Runtime,
+                        E: #path::Engine,
                     {
-                        fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
-                            let array = #path::ScopeLike::array(scope, #len);
+                        fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<'cx, E, E::Value<'cx>> {
+                            let array_value = cx.eval("[]")?;
+                            let array = array_value.try_as_object()?;
                             #( #setters )*
-                            Ok(array)
+                            Ok(array.into_value().into_raw())
                         }
                     }
                 }
             }
             Fields::Unit => quote! {
-                impl<'s, R> #path::IntoJs<'s, R> for #ident
+                impl<'cx, E> #path::ToJs<'cx, E> for #ident
                 where
-                    R: #path::Runtime,
+                    E: #path::Engine,
                 {
-                    fn into_js(self, scope: &mut R::Scope<'s, '_>) -> Result<R::Value<'s>, R::Error> {
-                        Ok(#path::ScopeLike::object(scope))
+                    fn to_js(self, cx: &mut #path::Context<'cx, E>) -> #path::JsResult<'cx, E, E::Value<'cx>> {
+                        let object = cx.new_object()?;
+                        Ok(object.into_value().into_raw())
                     }
                 }
             },
@@ -138,73 +130,58 @@ fn expand_from_js(input: &DeriveInput) -> TokenStream2 {
     match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => {
-                let bindings = fields.named.iter().map(|field| {
+                let readers = fields.named.iter().map(|field| {
                     let name = field.ident.as_ref().unwrap();
                     let key = name.to_string();
                     quote! {
-                        let #name = #path::ValueLike::get(&value, scope, #key);
-                    }
-                });
-                let readers = fields.named.iter().map(|field| {
-                    let name = field.ident.as_ref().unwrap();
-                    let ty = &field.ty;
-                    quote! {
-                        #name: <#ty as #path::FromJs<'s, R>>::from_js(scope, #name)?
+                        #name: object.get_typed(cx, #key)?
                     }
                 });
                 quote! {
-                    impl<'s, R> #path::FromJs<'s, R> for #ident
+                    impl<'cx, E> #path::FromJs<'cx, E> for #ident
                     where
-                        R: #path::Runtime,
+                        E: #path::Engine,
                     {
-                        fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
-                            if !#path::ValueLike::is_object(&value) {
-                                return Err(#path::HostError::type_error(#path::E_TYPE, "expected object").into());
+                        fn from_js(cx: &mut #path::Context<'cx, E>, value: E::Value<'cx>) -> #path::JsResult<'cx, E, Self> {
+                            let value = #path::Value::new(value);
+                            if !value.is_object() {
+                                return Err(#path::JsError::type_err("expected object"));
                             }
-                            #( #bindings )*
+                            let object = value.try_as_object()?;
                             Ok(Self { #( #readers, )* })
                         }
                     }
                 }
             }
             Fields::Unnamed(fields) => {
-                let bindings = fields.unnamed.iter().enumerate().map(|(index, _)| {
-                    let binding =
-                        syn::Ident::new(&format!("field_{index}"), proc_macro2::Span::call_site());
+                let readers = fields.unnamed.iter().enumerate().map(|(index, _field)| {
                     let index_u32 = index as u32;
                     quote! {
-                        let #binding = #path::ValueLike::get_index(&value, scope, #index_u32);
-                    }
-                });
-                let readers = fields.unnamed.iter().enumerate().map(|(index, field)| {
-                    let binding =
-                        syn::Ident::new(&format!("field_{index}"), proc_macro2::Span::call_site());
-                    let ty = &field.ty;
-                    quote! {
-                        <#ty as #path::FromJs<'s, R>>::from_js(scope, #binding)?
+                        object.get_typed(cx, #index_u32)?
                     }
                 });
                 quote! {
-                    impl<'s, R> #path::FromJs<'s, R> for #ident
+                    impl<'cx, E> #path::FromJs<'cx, E> for #ident
                     where
-                        R: #path::Runtime,
+                        E: #path::Engine,
                     {
-                        fn from_js(scope: &mut R::Scope<'s, '_>, value: R::Value<'s>) -> Result<Self, R::Error> {
-                            if !#path::ValueLike::is_array(&value) {
-                                return Err(#path::HostError::type_error(#path::E_TYPE, "expected array").into());
+                        fn from_js(cx: &mut #path::Context<'cx, E>, value: E::Value<'cx>) -> #path::JsResult<'cx, E, Self> {
+                            let value = #path::Value::new(value);
+                            if !value.is_array() {
+                                return Err(#path::JsError::type_err("expected array"));
                             }
-                            #( #bindings )*
+                            let object = value.try_as_object()?;
                             Ok(Self( #( #readers, )* ))
                         }
                     }
                 }
             }
             Fields::Unit => quote! {
-                impl<'s, R> #path::FromJs<'s, R> for #ident
+                impl<'cx, E> #path::FromJs<'cx, E> for #ident
                 where
-                    R: #path::Runtime,
+                    E: #path::Engine,
                 {
-                    fn from_js(_scope: &mut R::Scope<'s, '_>, _value: R::Value<'s>) -> Result<Self, R::Error> {
+                    fn from_js(_cx: &mut #path::Context<'cx, E>, _value: E::Value<'cx>) -> #path::JsResult<'cx, E, Self> {
                         Ok(Self)
                     }
                 }

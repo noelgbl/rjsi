@@ -19,7 +19,8 @@ pub use args::{Args, ArgsIter, RawHostFn};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
 #[doc(hidden)]
 pub use class::{
-    JsClass, NativeBorrowError, NativeBorrowGuard, NativeCell, NativeObject, NativePtr
+    ClassAccessor, ClassDescriptor, ClassMethod, ClassMethodFn, JsClass, NativeBorrowError,
+    NativeBorrowGuard, NativeCell, NativeObject, NativePtr
 };
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};

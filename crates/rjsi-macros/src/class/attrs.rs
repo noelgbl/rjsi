@@ -1,4 +1,3 @@
-//! Parsing for `#[js_class(...)]`, `#[js_methods(...)]`, and per-method attrs.
 #![allow(dead_code)]
 
 use heck::ToLowerCamelCase;

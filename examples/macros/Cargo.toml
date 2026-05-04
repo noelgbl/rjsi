@@ -1,0 +1,16 @@
+[package]
+name = "example-macros"
+version = "0.1.0"
+edition = "2024"
+
+# Pick one engine, e.g. Hermes: `cargo run --no-default-features --features hermes`
+[features]
+default = ["quickjs"]
+quickjs = ["rjsi/default-runtime-quickjs"]
+v8 = ["rjsi/default-runtime-v8"]
+boa = ["rjsi/default-runtime-boa"]
+jsc = ["rjsi/default-runtime-jsc"]
+hermes = ["rjsi/default-runtime-hermes"]
+
+[dependencies]
+rjsi = { path = "../../crates/rjsi", features = ["macros"] }

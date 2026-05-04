@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
 
-use crate::{Args, CallbackCx, Context, Engine, JsResult};
+use crate::{Args, CallbackCx, Context, Engine, JsResult, Object, Value};
 
 #[derive(Clone, Copy)]
 pub struct NativePtr {
@@ -36,7 +36,10 @@ pub trait NativeObject<E: Engine> {
 pub trait JsClass<E: Engine>: 'static {
     const NAME: &'static str;
 
-    fn prototype<'cx>(cx: &mut Context<'cx, E>, proto: E::Object<'cx>) -> JsResult<'cx, E, ()>;
+    fn prototype<'cx>(
+        cx: &mut Context<'cx, E>,
+        proto: &Object<'cx, E>,
+    ) -> JsResult<'cx, E, ()>;
 
     fn constructor<'cx, 'rt>(
         cx: &mut CallbackCx<'cx, 'rt, E>,
@@ -44,6 +47,41 @@ pub trait JsClass<E: Engine>: 'static {
     ) -> JsResult<'rt, E, Self>
     where
         Self: Sized;
+}
+
+pub type ClassMethodFn<E> = for<'cx, 'rt> fn(
+    &mut CallbackCx<'cx, 'rt, E>,
+    Value<'rt, E>,
+    Args<'rt, E>,
+) -> JsResult<'rt, E, Value<'rt, E>>;
+
+pub struct ClassMethod<E: Engine> {
+    pub name: &'static str,
+    pub func: ClassMethodFn<E>,
+}
+
+pub struct ClassAccessor<E: Engine> {
+    pub name: &'static str,
+    pub get: Option<ClassMethodFn<E>>,
+    pub set: Option<ClassMethodFn<E>>,
+}
+
+pub struct ClassDescriptor<E: Engine> {
+    pub name: &'static str,
+    pub methods: &'static [ClassMethod<E>],
+    pub statics: &'static [ClassMethod<E>],
+    pub accessors: &'static [ClassAccessor<E>],
+}
+
+impl<E: Engine> ClassDescriptor<E> {
+    pub const fn empty(name: &'static str) -> Self {
+        Self {
+            name,
+            methods: &[],
+            statics: &[],
+            accessors: &[],
+        }
+    }
 }
 
 pub struct NativeCell<T> {
