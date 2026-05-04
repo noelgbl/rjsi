@@ -1,3 +1,4 @@
+mod class;
 mod engine;
 mod runtime;
 

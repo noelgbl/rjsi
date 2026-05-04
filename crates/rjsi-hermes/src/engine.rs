@@ -52,7 +52,7 @@ struct RawHermesValue<'rt> {
 }
 
 #[inline]
-unsafe fn value_from_hermes_raw<'rt>(rt: *mut HermesRt, raw: HermesValue) -> Value<'rt> {
+pub(crate) unsafe fn value_from_hermes_raw<'rt>(rt: *mut HermesRt, raw: HermesValue) -> Value<'rt> {
     debug_assert_eq!(size_of::<RawHermesValue<'rt>>(), size_of::<Value<'rt>>());
     debug_assert_eq!(align_of::<RawHermesValue<'rt>>(), align_of::<Value<'rt>>());
     unsafe {
@@ -72,7 +72,7 @@ struct RawFunction<'rt> {
 }
 
 #[inline]
-unsafe fn function_from_raw_parts<'rt>(pv: *mut c_void, rt: *mut HermesRt) -> Function<'rt> {
+pub(crate) unsafe fn function_from_raw_parts<'rt>(pv: *mut c_void, rt: *mut HermesRt) -> Function<'rt> {
     debug_assert_eq!(size_of::<RawFunction<'rt>>(), size_of::<Function<'rt>>());
     debug_assert_eq!(align_of::<RawFunction<'rt>>(), align_of::<Function<'rt>>());
     unsafe {
@@ -84,7 +84,7 @@ unsafe fn function_from_raw_parts<'rt>(pv: *mut c_void, rt: *mut HermesRt) -> Fu
     }
 }
 
-unsafe fn clear_pending_error_message(rt: *mut HermesRt) {
+pub(crate) unsafe fn clear_pending_error_message(rt: *mut HermesRt) {
     unsafe {
         let c_msg = hermes__Runtime__GetAndClearErrorMessage(rt);
         if !c_msg.is_null() {
@@ -93,7 +93,7 @@ unsafe fn clear_pending_error_message(rt: *mut HermesRt) {
     }
 }
 
-unsafe fn clear_pending_js_value(rt: *mut HermesRt) -> HermesValue {
+pub(crate) unsafe fn clear_pending_js_value(rt: *mut HermesRt) -> HermesValue {
     unsafe { hermes__Runtime__GetAndClearError(rt) }
 }
 
