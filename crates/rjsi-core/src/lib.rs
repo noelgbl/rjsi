@@ -27,8 +27,7 @@ pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use object::Object;
 pub use runtime::{MicrotaskDrainPolicy, Runtime};
 pub use scope::{
-    CallbackCx, CallbackScope, CanEscape, CanScheduleMicrotask, CanThrow, EscapableScope,
-    HandleScope, ModuleScope, Scope, ScopeKind, TryCatch, TryCatchScope,
+    CallbackCx, CallbackScope, CanEscape, CanScheduleMicrotask, CanThrow, EscapableScope, HandleScope, ModuleScope, Scope, ScopeKind, TryCatch, TryCatchScope
 };
 pub use string::JsString;
 pub use symbol::Symbol;

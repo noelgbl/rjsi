@@ -196,11 +196,7 @@ pub fn build_formatted_string<'a, E: Engine>(
                                 }
                                 b'd' => {
                                     let undefined = ctx.undefined();
-                                    options.number_function.call(
-                                        ctx,
-                                        undefined,
-                                        &[next_val],
-                                    )?
+                                    options.number_function.call(ctx, undefined, &[next_val])?
                                 }
                                 b'i' => {
                                     let undefined = ctx.undefined();

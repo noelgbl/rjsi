@@ -4,8 +4,7 @@ use std::collections::HashMap;
 use std::ffi::CString;
 
 use rjsi_core::{
-    Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope,
-    __cx,
+    __cx, Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
 };
 use rquickjs::qjs;
 
@@ -16,10 +15,7 @@ thread_local! {
         RefCell::new(HashMap::new());
 }
 
-fn get_or_register_class_id<C: 'static>(
-    rt: *mut qjs::JSRuntime,
-    name: &str,
-) -> qjs::JSClassID {
+fn get_or_register_class_id<C: 'static>(rt: *mut qjs::JSRuntime, name: &str) -> qjs::JSClassID {
     CLASS_IDS.with(|map| {
         let mut map = map.borrow_mut();
         let type_id = TypeId::of::<C>();
@@ -50,10 +46,7 @@ fn class_id_for<C: 'static>() -> qjs::JSClassID {
     CLASS_IDS.with(|map| *map.borrow().get(&TypeId::of::<C>()).unwrap_or(&0))
 }
 
-unsafe extern "C" fn qjs_finalizer<C: 'static>(
-    _rt: *mut qjs::JSRuntime,
-    val: qjs::JSValue,
-) {
+unsafe extern "C" fn qjs_finalizer<C: 'static>(_rt: *mut qjs::JSRuntime, val: qjs::JSValue) {
     let class_id = class_id_for::<C>();
     if class_id == 0 {
         return;
@@ -83,7 +76,11 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
             rquickjs::Error::Exception
         } else {
             let msg = e.to_string();
-            ctx.throw(rquickjs::Exception::from_message(ctx.clone(), &msg).unwrap().into_value());
+            ctx.throw(
+                rquickjs::Exception::from_message(ctx.clone(), &msg)
+                    .unwrap()
+                    .into_value(),
+            );
             rquickjs::Error::Exception
         }
     })?;
@@ -115,8 +112,7 @@ impl ClassEngine for QuickJsEngine {
 
         let class_id = get_or_register_class_id::<C>(rt_ptr, C::NAME);
 
-        let proto = rquickjs::Object::new(qctx.clone())
-            .map_err(|e| JsError::Host(Box::new(e)))?;
+        let proto = rquickjs::Object::new(qctx.clone()).map_err(|e| JsError::Host(Box::new(e)))?;
 
         {
             let mut define_cx = Context::new(QuickJsContext {
@@ -155,6 +151,10 @@ impl ClassEngine for QuickJsEngine {
             return None;
         }
         let ptr = unsafe { qjs::JS_GetOpaque(obj.as_raw().as_raw(), class_id) };
-        if ptr.is_null() { None } else { Some(ptr as *mut C) }
+        if ptr.is_null() {
+            None
+        } else {
+            Some(ptr as *mut C)
+        }
     }
 }

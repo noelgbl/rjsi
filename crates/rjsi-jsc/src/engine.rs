@@ -539,10 +539,7 @@ impl Engine for JscEngine {
         })
     }
 
-    fn make_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        s: &str,
-    ) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
         let js_str = ManagedJSString::new(s);
         let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, js_str.0) };
         Ok(JscValue::new(cx.ctx, val))
@@ -591,10 +588,7 @@ impl Engine for JscEngine {
         }
     }
 
-    fn value_to_f64<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let num = unsafe { rusty_jsc_sys::JSValueToNumber(cx.ctx, val.val, &mut exception) };
         if !exception.is_null() {

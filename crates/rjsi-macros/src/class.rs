@@ -1,12 +1,13 @@
 mod attrs;
 
-use attrs::{JsMethodsAttrs, classify_method, js_method_name, MethodKind, strip_js_attrs_from_impl};
+use attrs::{
+    JsMethodsAttrs, MethodKind, classify_method, js_method_name, strip_js_attrs_from_impl
+};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{DeriveInput, FnArg, ItemImpl, Pat, ReturnType, Type};
 
 use crate::core_path;
-
 
 pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
     let core = core_path();
@@ -53,7 +54,6 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
     }
 }
 
-
 pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
     let core = core_path();
 
@@ -84,7 +84,9 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
     let mut method_registrations: Vec<TokenStream2> = Vec::new();
 
     for item in &input.items {
-        let syn::ImplItem::Fn(f) = item else { continue };
+        let syn::ImplItem::Fn(f) = item else {
+            continue;
+        };
 
         let kind = match classify_method(&f.attrs, &f.sig) {
             Ok(k) => k,
@@ -115,12 +117,12 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
 
             MethodKind::Instance => {
                 let rust_name = &f.sig.ident;
-                let js_name_lit =
-                    syn::LitStr::new(&js_method_name(rust_name), Span::call_site());
+                let js_name_lit = syn::LitStr::new(&js_method_name(rust_name), Span::call_site());
                 let is_mut = f.sig.receiver().map_or(false, |r| r.mutability.is_some());
                 let arg_extractions = method_arg_extractions(&core, &f.sig);
                 let call_arg_idents = call_idents(&f.sig);
-                let ret_expr = method_return_expr(&core, &f.sig, is_mut, rust_name, &call_arg_idents);
+                let ret_expr =
+                    method_return_expr(&core, &f.sig, is_mut, rust_name, &call_arg_idents);
 
                 let host_fn = instance_host_fn_ident(rust_name);
                 host_items.push(quote! {
@@ -156,8 +158,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
 
             MethodKind::Static => {
                 let rust_name = &f.sig.ident;
-                let js_name_lit =
-                    syn::LitStr::new(&js_method_name(rust_name), Span::call_site());
+                let js_name_lit = syn::LitStr::new(&js_method_name(rust_name), Span::call_site());
                 let arg_extractions = method_arg_extractions(&core, &f.sig);
                 let call_arg_idents = call_idents(&f.sig);
                 let ret_expr = static_return_expr(&core, &f.sig, rust_name, &call_arg_idents);
@@ -257,7 +258,9 @@ fn constructor_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec
     let mut result = Vec::new();
     let mut idx: usize = 0;
     for input in &sig.inputs {
-        let FnArg::Typed(pat_ty) = input else { continue };
+        let FnArg::Typed(pat_ty) = input else {
+            continue;
+        };
         let ty = &pat_ty.ty;
         let arg_ident = arg_ident_from_pat(&pat_ty.pat, idx);
         let idx_lit = syn::Index::from(idx);
@@ -404,22 +407,13 @@ fn host_struct_ident(self_ty: &Type) -> syn::Ident {
             .unwrap_or_else(|| "Type".to_string()),
         _ => "Type".to_string(),
     };
-    syn::Ident::new(
-        &format!("__RjsiHost_{}", suffix),
-        Span::call_site(),
-    )
+    syn::Ident::new(&format!("__RjsiHost_{}", suffix), Span::call_site())
 }
 
 fn instance_host_fn_ident(rust_name: &syn::Ident) -> syn::Ident {
-    syn::Ident::new(
-        &format!("__rjsi_i_{}", rust_name),
-        Span::call_site(),
-    )
+    syn::Ident::new(&format!("__rjsi_i_{}", rust_name), Span::call_site())
 }
 
 fn static_host_fn_ident(rust_name: &syn::Ident) -> syn::Ident {
-    syn::Ident::new(
-        &format!("__rjsi_s_{}", rust_name),
-        Span::call_site(),
-    )
+    syn::Ident::new(&format!("__rjsi_s_{}", rust_name), Span::call_site())
 }

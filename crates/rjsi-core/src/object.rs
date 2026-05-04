@@ -35,27 +35,15 @@ impl<'cx, E: Engine> Object<'cx, E> {
         E::object_set(&mut cx.raw, &self.raw, key.into_key(), val.raw)
     }
 
-    pub fn has(
-        &self,
-        cx: &mut Context<'cx, E>,
-        key: impl IntoKey<'cx, E>,
-    ) -> JsResult<bool> {
+    pub fn has(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> JsResult<bool> {
         E::object_has(&mut cx.raw, &self.raw, key.into_key())
     }
 
-    pub fn delete(
-        &self,
-        cx: &mut Context<'cx, E>,
-        key: impl IntoKey<'cx, E>,
-    ) -> JsResult<bool> {
+    pub fn delete(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> JsResult<bool> {
         E::object_delete(&mut cx.raw, &self.raw, key.into_key())
     }
 
-    pub fn get_typed<V>(
-        &self,
-        cx: &mut Context<'cx, E>,
-        key: impl IntoKey<'cx, E>,
-    ) -> JsResult<V>
+    pub fn get_typed<V>(&self, cx: &mut Context<'cx, E>, key: impl IntoKey<'cx, E>) -> JsResult<V>
     where
         V: crate::FromJs<'cx, E>,
     {

@@ -150,9 +150,7 @@ impl Engine for V8Engine {
 
         match result {
             Some(v) => Ok(unsafe { cast_local(v) }),
-            None => {
-                Err(JsError::Exception)
-            }
+            None => Err(JsError::Exception),
         }
     }
 
@@ -344,10 +342,7 @@ impl Engine for V8Engine {
         unsafe { cast_local(v8::Number::new(scope, v).into()) }
     }
 
-    fn make_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        s: &str,
-    ) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
         let scope = unsafe { get_scope(cx) };
         if let Some(v) = v8::String::new(scope, s) {
             Ok(unsafe { cast_local(v.into()) })
@@ -390,10 +385,7 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_f64<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
         let scope = unsafe { get_scope(cx) };
         if let Some(num) = val.to_number(&mut **scope) {
             Ok(num.value())

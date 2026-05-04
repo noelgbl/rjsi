@@ -220,10 +220,7 @@ impl Engine for MockEngine {
     fn make_f64<'rt>(_cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
         MockValue::number(v as u32)
     }
-    fn make_string<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _s: &str,
-    ) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(_cx: &mut Self::Context<'rt>, _s: &str) -> JsResult<Self::Value<'rt>> {
         Ok(MockValue::UNDEFINED)
     }
 
@@ -235,10 +232,7 @@ impl Engine for MockEngine {
         }
     }
 
-    fn value_to_f64<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> JsResult<f64> {
+    fn value_to_f64<'rt>(_cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
         if val.tag >= 4 {
             Ok((val.tag - 4) as f64)
         } else {
@@ -282,19 +276,13 @@ impl Engine for MockEngine {
 }
 
 impl<'cx> ToJs<'cx, MockEngine> for u32 {
-    fn to_js(
-        self,
-        _cx: &mut Context<'cx, MockEngine>,
-    ) -> JsResult<MockValue<'cx>> {
+    fn to_js(self, _cx: &mut Context<'cx, MockEngine>) -> JsResult<MockValue<'cx>> {
         Ok(MockValue::number(self))
     }
 }
 
 impl<'cx> FromJs<'cx, MockEngine> for u32 {
-    fn from_js(
-        _cx: &mut Context<'cx, MockEngine>,
-        value: MockValue<'cx>,
-    ) -> JsResult<Self> {
+    fn from_js(_cx: &mut Context<'cx, MockEngine>, value: MockValue<'cx>) -> JsResult<Self> {
         if value.tag >= 4 && (value.tag - 4) < 100 {
             Ok(value.tag - 4)
         } else {

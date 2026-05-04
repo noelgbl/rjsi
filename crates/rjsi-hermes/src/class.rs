@@ -3,18 +3,15 @@ use std::marker::PhantomData;
 use std::mem;
 
 use libhermes_sys::{
-    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction,
-    hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release,
-    hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage,
+    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
 use rjsi_core::{
-    CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope, __cx,
+    __cx, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
 };
 use rusty_hermes::{Object as HermesObject, Runtime, Value};
 
 use crate::engine::{
-    HermesArgs, HermesContext, HermesEngine, clear_pending_error_message, clear_pending_js_value,
-    function_from_raw_parts, runtime_ffi_ptr, HERMES_HOST_FUNCTION_MAX_ARGS,
+    HERMES_HOST_FUNCTION_MAX_ARGS, HermesArgs, HermesContext, HermesEngine, clear_pending_error_message, clear_pending_js_value, function_from_raw_parts, runtime_ffi_ptr
 };
 use crate::runtime::HermesRuntime;
 
@@ -132,8 +129,7 @@ impl ClassEngine for HermesEngine {
             .into_object()
             .map_err(|_| JsError::type_err("class prototype is not an object"))?;
 
-        let prototype_for_ctor: Value<'static> =
-            unsafe { mem::transmute(proto_val.duplicate()) };
+        let prototype_for_ctor: Value<'static> = unsafe { mem::transmute(proto_val.duplicate()) };
 
         let user_data = Box::into_raw(Box::new(HermesCtorData::<C> {
             runtime: runtime_ptr,

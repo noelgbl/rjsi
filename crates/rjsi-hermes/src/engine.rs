@@ -72,7 +72,10 @@ struct RawFunction<'rt> {
 }
 
 #[inline]
-pub(crate) unsafe fn function_from_raw_parts<'rt>(pv: *mut c_void, rt: *mut HermesRt) -> Function<'rt> {
+pub(crate) unsafe fn function_from_raw_parts<'rt>(
+    pv: *mut c_void,
+    rt: *mut HermesRt,
+) -> Function<'rt> {
     debug_assert_eq!(size_of::<RawFunction<'rt>>(), size_of::<Function<'rt>>());
     debug_assert_eq!(align_of::<RawFunction<'rt>>(), align_of::<Function<'rt>>());
     unsafe {
@@ -101,9 +104,7 @@ fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> JsResult<T> {
     res.map_err(JsError::from_host)
 }
 
-fn map_hermes_value<'rt>(
-    res: rusty_hermes::Result<Value<'_>>,
-) -> JsResult<Value<'rt>> {
+fn map_hermes_value<'rt>(res: rusty_hermes::Result<Value<'_>>) -> JsResult<Value<'rt>> {
     match res {
         Ok(v) => Ok(unsafe { std::mem::transmute(v) }),
         Err(e) => Err(JsError::from_host(e)),
@@ -336,10 +337,7 @@ impl Engine for HermesEngine {
         Value::from_number(v)
     }
 
-    fn make_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        s: &str,
-    ) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
         Ok(unsafe { std::mem::transmute(Value::from(JsString::new(cx.inner, s))) })
     }
 
@@ -394,10 +392,7 @@ impl Engine for HermesEngine {
         val.as_bool()
     }
 
-    fn value_to_f64<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
         let _ = cx;
         val.as_number()
             .ok_or_else(|| JsError::type_err("expected number"))

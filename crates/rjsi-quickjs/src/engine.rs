@@ -20,10 +20,7 @@ pub struct QuickJsArgs<'js> {
     pub(crate) argv: Vec<Value<'js>>,
 }
 
-pub(crate) fn map_err<'rt, T>(
-    _cx: &QuickJsContext<'rt>,
-    res: rquickjs::Result<T>,
-) -> JsResult<T> {
+pub(crate) fn map_err<'rt, T>(_cx: &QuickJsContext<'rt>, res: rquickjs::Result<T>) -> JsResult<T> {
     match res {
         Ok(v) => Ok(v),
         Err(QError::Exception) => Err(JsError::Exception),
@@ -208,10 +205,7 @@ impl Engine for QuickJsEngine {
         Value::new_float(cx.clone_ctx(), v)
     }
 
-    fn make_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        s: &str,
-    ) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
         let res = QString::from_str(cx.clone_ctx(), s).map(|s| s.into_value());
         map_err(cx, res)
     }
@@ -220,10 +214,7 @@ impl Engine for QuickJsEngine {
         val.as_bool()
     }
 
-    fn value_to_f64<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
         let res: rquickjs::Result<f64> = val.clone().get();
         map_err(cx, res)
     }

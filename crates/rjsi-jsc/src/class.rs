@@ -4,8 +4,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use rjsi_core::{
-    Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope,
-    __cx,
+    __cx, Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
 };
 use rusty_jsc_sys as jsc;
 
@@ -181,9 +180,8 @@ impl ClassEngine for JscEngine {
 
         let instance_class = get_instance_class::<C>(C::NAME);
 
-        let proto_obj = unsafe {
-            jsc::JSObjectMake(ctx, std::ptr::null_mut(), std::ptr::null_mut())
-        };
+        let proto_obj =
+            unsafe { jsc::JSObjectMake(ctx, std::ptr::null_mut(), std::ptr::null_mut()) };
 
         {
             let cx_raw = JscContext {
@@ -248,6 +246,10 @@ impl ClassEngine for JscEngine {
         obj: &Object<'_, Self>,
     ) -> Option<*mut C> {
         let ptr = unsafe { jsc::JSObjectGetPrivate(obj.as_raw().val) };
-        if ptr.is_null() { None } else { Some(ptr as *mut C) }
+        if ptr.is_null() {
+            None
+        } else {
+            Some(ptr as *mut C)
+        }
     }
 }

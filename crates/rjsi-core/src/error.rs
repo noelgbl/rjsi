@@ -3,10 +3,11 @@ pub type JsResult<T> = Result<T, JsError>;
 #[derive(thiserror::Error, Debug)]
 pub enum JsError {
     /// An exception raised by the engine execution itself.
-    /// The actual JavaScript value can be retrieved from the engine (for example via [`crate::scope::TryCatch`] where implemented).
+    /// The actual JavaScript value can be retrieved from the engine (for
+    /// example via [`crate::scope::TryCatch`] where implemented).
     ///
-    /// When returned from a callback the JavaScript will continue to unwind with the current
-    /// error.
+    /// When returned from a callback the JavaScript will continue to unwind
+    /// with the current error.
     #[error("JavaScript raised an exception")]
     Exception,
     /// Error converting from JavaScript to a Rust type.
@@ -25,16 +26,10 @@ pub enum JsError {
     },
     /// Error matching of function arguments
     #[error("Error matching of function arguments: expected {expected}, given {given}")]
-    MissingArgs {
-        expected: usize,
-        given: usize,
-    },
+    MissingArgs { expected: usize, given: usize },
     /// Too many arguments were provided to a function.
     #[error("Too many arguments: expected {expected}, given {given}")]
-    TooManyArgs {
-        expected: usize,
-        given: usize,
-    },
+    TooManyArgs { expected: usize, given: usize },
     /// An error provided by the engine implementation.
     #[error("Engine error: {0}")]
     Engine(Box<dyn std::error::Error + Send + Sync + 'static>),

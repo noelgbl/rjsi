@@ -78,10 +78,7 @@ pub trait Engine: Sized + 'static {
     fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt>;
     fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt>;
 
-    fn make_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        s: &str,
-    ) -> JsResult<Self::Value<'rt>>;
+    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>>;
 
     fn make_function<'rt, F>(
         cx: &mut Self::Context<'rt>,
@@ -104,10 +101,7 @@ pub trait Engine: Sized + 'static {
 
     fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool>;
 
-    fn value_to_f64<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> JsResult<f64>;
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64>;
 
     fn value_to_string_utf8<'rt>(
         cx: &mut Self::Context<'rt>,

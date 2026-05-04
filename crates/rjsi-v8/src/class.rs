@@ -1,8 +1,7 @@
 use std::pin::pin;
 
 use rjsi_core::{
-    Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope,
-    __cx,
+    __cx, Args, CallbackCx, ClassEngine, Context, Function, JsClass, JsError, JsResult, Object, Scope
 };
 
 use crate::engine::{V8Args, V8Context, V8Engine, cast_local, get_scope};

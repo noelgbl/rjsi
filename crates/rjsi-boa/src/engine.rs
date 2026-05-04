@@ -226,10 +226,7 @@ impl Engine for BoaEngine {
         JsValue::rational(v)
     }
 
-    fn make_string<'rt>(
-        _: &mut Self::Context<'rt>,
-        s: &str,
-    ) -> JsResult<Self::Value<'rt>> {
+    fn make_string<'rt>(_: &mut Self::Context<'rt>, s: &str) -> JsResult<Self::Value<'rt>> {
         Ok(JsValue::from(JsString::from(s)))
     }
 
@@ -292,10 +289,7 @@ impl Engine for BoaEngine {
         val.as_boolean()
     }
 
-    fn value_to_f64<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> JsResult<f64> {
+    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> JsResult<f64> {
         let n = val.to_number(cx.deref_mut());
         map_js(cx.deref_mut(), n)
     }

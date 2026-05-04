@@ -75,7 +75,10 @@ impl Parse for JsMethodsAttrs {
                 _ => {}
             }
         }
-        Ok(JsMethodsAttrs { name, no_constructor })
+        Ok(JsMethodsAttrs {
+            name,
+            no_constructor,
+        })
     }
 }
 
