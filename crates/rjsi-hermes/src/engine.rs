@@ -112,6 +112,8 @@ fn map_hermes_value<'rt>(res: rusty_hermes::Result<Value<'_>>) -> Result<Value<'
 }
 
 impl Engine for HermesEngine {
+    const ENGINE_NAME: &str = "Hermes";
+    
     type Runtime = crate::runtime::HermesRuntime;
     type Context<'rt> = HermesContext<'rt>;
     type Scope<'cx> = ();

@@ -91,6 +91,8 @@ fn host_fn_callback<'s, 'i>(
 }
 
 impl Engine for V8Engine {
+    const ENGINE_NAME: &str = "V8";
+    
     type Runtime = crate::runtime::V8Runtime;
     type Context<'rt> = V8Context<'rt>;
     type Scope<'cx> = ();

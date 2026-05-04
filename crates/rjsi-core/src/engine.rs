@@ -12,6 +12,7 @@ pub trait Engine: Sized + 'static {
     type Key<'cx>: 'cx;
     type PreparedKeyData: 'static;
     type RawArgs<'cx>: 'cx;
+    const ENGINE_NAME: &'static str;
 
     fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt>;
 

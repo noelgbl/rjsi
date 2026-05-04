@@ -90,6 +90,8 @@ impl MockEngine {
 }
 
 impl Engine for MockEngine {
+    const ENGINE_NAME: &str = "Mock";
+    
     type Runtime = MockRuntime;
     type Context<'rt> = MockContext<'rt>;
     type Scope<'cx> = MockScope<'cx>;

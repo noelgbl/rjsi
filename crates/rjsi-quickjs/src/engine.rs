@@ -41,6 +41,7 @@ impl Engine for QuickJsEngine {
     type Key<'cx> = Atom<'cx>;
     type PreparedKeyData = crate::runtime::QuickJsPreparedKeyData;
     type RawArgs<'cx> = QuickJsArgs<'cx>;
+    const ENGINE_NAME: &str = "QuickJS";
 
     fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
         unreachable!("Use Runtime::with_scope instead for QuickJS")

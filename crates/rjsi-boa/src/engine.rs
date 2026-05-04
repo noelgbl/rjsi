@@ -62,6 +62,8 @@ fn property_key<'cx>(
 }
 
 impl Engine for BoaEngine {
+    const ENGINE_NAME: &str = "Boa";
+    
     type Runtime = crate::runtime::BoaRuntime;
     type Context<'rt> = BoaContext<'rt>;
     type Scope<'cx> = ();

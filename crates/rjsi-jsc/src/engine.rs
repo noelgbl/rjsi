@@ -197,6 +197,8 @@ fn store_exception(cx: &mut JscContext<'_>, exc: rusty_jsc_sys::JSValueRef) {
 }
 
 impl Engine for JscEngine {
+    const ENGINE_NAME: &str = "JavaScriptCore";
+    
     type Runtime = crate::runtime::JscRuntime;
     type Context<'rt> = JscContext<'rt>;
     type Scope<'cx> = ();
