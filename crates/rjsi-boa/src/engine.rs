@@ -63,7 +63,7 @@ fn property_key<'cx>(
 
 impl Engine for BoaEngine {
     const ENGINE_NAME: &str = "Boa";
-    
+
     type Runtime = crate::runtime::BoaRuntime;
     type Context<'rt> = BoaContext<'rt>;
     type Scope<'cx> = ();
@@ -75,6 +75,7 @@ impl Engine for BoaEngine {
     type Key<'cx> = JsString;
     type PreparedKeyData = JsString;
     type RawArgs<'cx> = BoaArgs;
+    type PersistentValue = JsValue;
 
     fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
         let runtime_ptr = runtime as *mut _;
@@ -325,6 +326,20 @@ impl Engine for BoaEngine {
 
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> {
         f
+    }
+
+    fn persist_value<'rt>(
+        _cx: &mut Self::Context<'rt>,
+        val: Self::Value<'rt>,
+    ) -> Self::PersistentValue {
+        val
+    }
+
+    fn restore_value<'rt>(
+        _cx: &mut Self::Context<'rt>,
+        persisted: &Self::PersistentValue,
+    ) -> Result<Self::Value<'rt>> {
+        Ok(persisted.clone())
     }
 }
 

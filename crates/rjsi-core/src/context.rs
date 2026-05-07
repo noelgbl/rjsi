@@ -1,4 +1,4 @@
-use crate::{Engine, Object, Result, Value};
+use crate::{Engine, Object, PersistentValue, Result, Value};
 
 pub struct Context<'rt, E: Engine> {
     pub(crate) raw: E::Context<'rt>,
@@ -60,11 +60,18 @@ impl<'rt, E: Engine> Context<'rt, E> {
         E::make_function(&mut self.raw, name, func).map(crate::Function::new)
     }
 
-    /// Returns the pending JS exception value and clears it, or `None` if unavailable.
+    /// Returns the pending JS exception value and clears it, or `None` if
+    /// unavailable.
     ///
-    /// Call this after receiving [`crate::Error::Exception`] to inspect the thrown value.
+    /// Call this after receiving [`crate::Error::Exception`] to inspect the
+    /// thrown value.
     pub fn catch_exception(&mut self) -> Option<crate::Value<'rt, E>> {
         E::catch_exception(&mut self.raw).map(crate::Value::new)
+    }
+
+    /// Roots `value` until the returned [`PersistentValue`] is dropped.
+    pub fn persist_value(&mut self, value: Value<'rt, E>) -> PersistentValue<E> {
+        PersistentValue::persist(self, value)
     }
 }
 

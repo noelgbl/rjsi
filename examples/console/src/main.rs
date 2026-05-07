@@ -7,8 +7,9 @@ fn main() {
     runtime.with_scope(|cx| {
         console::init(cx).unwrap();
 
-        cx.eval(&format!("console.log('Hello from {}');", engine_name)).unwrap();
-        
+        cx.eval(&format!("console.log('Hello from {}');", engine_name))
+            .unwrap();
+
         cx.eval("console.log('%s %s', 'fmt', 'args', 'and', 'rest', 2, 0);")
             .unwrap();
     });

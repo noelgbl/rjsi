@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::{Context, Engine, Error, FromJs, PropertyKey, Result, ToJs, Value};
+use crate::{
+    Context, Engine, Error, FromJs, MicrotaskDrainPolicy, PropertyKey, Result, Runtime, ToJs, Value
+};
 
 pub struct MockEngine;
 
@@ -8,10 +10,31 @@ pub struct MockEngine;
 pub struct MockRuntime {
     pub atoms: Vec<String>,
     pub static_slots: Vec<Option<u32>>,
+    pub(crate) persistent_slots: Vec<Option<u32>>,
 }
 
 pub struct MockContext<'rt> {
-    _marker: PhantomData<&'rt ()>,
+    pub(crate) runtime: *mut MockRuntime,
+    _marker: PhantomData<&'rt mut ()>,
+}
+
+pub struct MockPersistentValue {
+    pub(crate) runtime: *mut MockRuntime,
+    pub(crate) slot: usize,
+}
+
+impl Drop for MockPersistentValue {
+    fn drop(&mut self) {
+        unsafe {
+            if self.runtime.is_null() {
+                return;
+            }
+            let rt = &mut *self.runtime;
+            if let Some(slot) = rt.persistent_slots.get_mut(self.slot) {
+                *slot = None;
+            }
+        }
+    }
 }
 
 macro_rules! phantom_val {
@@ -84,14 +107,32 @@ impl<'cx> MockRawArgs<'cx> {
 impl MockEngine {
     pub fn detached_cx() -> Context<'static, MockEngine> {
         Context::new(MockContext {
+            runtime: std::ptr::null_mut(),
             _marker: PhantomData,
         })
     }
 }
 
+impl Runtime<MockEngine> for MockRuntime {
+    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, MockEngine>) -> R) -> R {
+        let mut cx_raw = MockContext {
+            runtime: self as *mut _,
+            _marker: PhantomData,
+        };
+        let mut cx = Context::new(cx_raw);
+        f(&mut cx)
+    }
+
+    fn microtask_policy(&self) -> MicrotaskDrainPolicy {
+        MicrotaskDrainPolicy::Explicit
+    }
+
+    fn set_microtask_policy(&mut self, _policy: MicrotaskDrainPolicy) {}
+}
+
 impl Engine for MockEngine {
     const ENGINE_NAME: &str = "Mock";
-    
+
     type Runtime = MockRuntime;
     type Context<'rt> = MockContext<'rt>;
     type Scope<'cx> = MockScope<'cx>;
@@ -103,9 +144,11 @@ impl Engine for MockEngine {
     type Key<'cx> = MockKey<'cx>;
     type PreparedKeyData = ();
     type RawArgs<'cx> = MockRawArgs<'cx>;
+    type PersistentValue = MockPersistentValue;
 
-    fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+    fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
         MockContext {
+            runtime: runtime as *mut _,
             _marker: PhantomData,
         }
     }
@@ -263,6 +306,49 @@ impl Engine for MockEngine {
     }
     fn function_to_object<'rt>(_f: Self::Function<'rt>) -> Self::Object<'rt> {
         MockObject::new()
+    }
+
+    fn persist_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: Self::Value<'rt>,
+    ) -> Self::PersistentValue {
+        assert!(
+            !cx.runtime.is_null(),
+            "MockEngine::persist_value requires a MockRuntime-backed Context (use Runtime::with_scope)"
+        );
+        let rt = unsafe { &mut *cx.runtime };
+        let slot = if let Some(i) = rt.persistent_slots.iter().position(|s| s.is_none()) {
+            i
+        } else {
+            rt.persistent_slots.push(None);
+            rt.persistent_slots.len() - 1
+        };
+        rt.persistent_slots[slot] = Some(val.tag);
+        MockPersistentValue {
+            runtime: cx.runtime,
+            slot,
+        }
+    }
+
+    fn restore_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        persisted: &Self::PersistentValue,
+    ) -> Result<Self::Value<'rt>> {
+        assert!(
+            !cx.runtime.is_null(),
+            "MockEngine::restore_value requires a MockRuntime-backed Context (use Runtime::with_scope)"
+        );
+        let rt = unsafe { &*cx.runtime };
+        let tag = rt
+            .persistent_slots
+            .get(persisted.slot)
+            .copied()
+            .flatten()
+            .ok_or_else(|| Error::type_err("persistent slot empty"))?;
+        Ok(MockValue {
+            tag,
+            _p: PhantomData,
+        })
     }
 
     fn make_function<'rt, F>(

@@ -68,6 +68,19 @@ impl<'cx> JscKey<'cx> {
     }
 }
 
+pub struct JscPersistentValue {
+    pub(crate) ctx: rusty_jsc_sys::JSContextRef,
+    pub(crate) val: rusty_jsc_sys::JSValueRef,
+}
+
+impl Drop for JscPersistentValue {
+    fn drop(&mut self) {
+        unsafe {
+            rusty_jsc_sys::JSValueUnprotect(self.ctx, self.val);
+        }
+    }
+}
+
 pub struct JscArgs<'cx> {
     pub(crate) ctx: rusty_jsc_sys::JSContextRef,
     pub(crate) args: *const rusty_jsc_sys::JSValueRef,
@@ -162,8 +175,9 @@ unsafe extern "C" fn host_fn_callback(
             } else if !exception.is_null() {
                 let msg = ManagedJSString::new("JavaScript exception");
                 let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
-                *exception = rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
-                    as rusty_jsc_sys::JSValueRef;
+                *exception =
+                    rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
+                        as rusty_jsc_sys::JSValueRef;
             }
             rusty_jsc_sys::JSValueMakeUndefined(ctx)
         }
@@ -198,7 +212,7 @@ fn store_exception(cx: &mut JscContext<'_>, exc: rusty_jsc_sys::JSValueRef) {
 
 impl Engine for JscEngine {
     const ENGINE_NAME: &str = "JavaScriptCore";
-    
+
     type Runtime = crate::runtime::JscRuntime;
     type Context<'rt> = JscContext<'rt>;
     type Scope<'cx> = ();
@@ -210,6 +224,7 @@ impl Engine for JscEngine {
     type Key<'cx> = JscKey<'cx>;
     type PreparedKeyData = crate::runtime::JscPreparedKeyData;
     type RawArgs<'cx> = JscArgs<'cx>;
+    type PersistentValue = JscPersistentValue;
 
     fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
         unreachable!("Use Runtime::with_scope instead for JSC")
@@ -702,6 +717,27 @@ impl Engine for JscEngine {
 
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> {
         f
+    }
+
+    fn persist_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: Self::Value<'rt>,
+    ) -> Self::PersistentValue {
+        unsafe {
+            rusty_jsc_sys::JSValueProtect(cx.ctx, val.val);
+        }
+        JscPersistentValue {
+            ctx: cx.ctx,
+            val: val.val,
+        }
+    }
+
+    fn restore_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        persisted: &Self::PersistentValue,
+    ) -> Result<Self::Value<'rt>> {
+        let _ = cx;
+        Ok(JscValue::new(persisted.ctx, persisted.val))
     }
 
     fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {

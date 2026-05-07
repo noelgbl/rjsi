@@ -135,7 +135,7 @@ impl<'cx, E: Engine> FormatOptions<'cx, E> {
         let get_own_property_desc_fn = ctx
             .eval("Object.getOwnPropertyDescriptor")?
             .try_as_function()?;
-        
+
         Ok(Self {
             color,
             newline,
@@ -178,8 +178,7 @@ fn write_percent_format<'a, E: Engine>(
                     }
                     b'd' => {
                         let undefined = ctx.undefined();
-                        let value =
-                            options.number_function.call(ctx, undefined, &[next_val])?;
+                        let value = options.number_function.call(ctx, undefined, &[next_val])?;
                         options.color = false;
                         format_raw(result, ctx, value, options)?;
                         continue;
@@ -193,8 +192,7 @@ fn write_percent_format<'a, E: Engine>(
                     }
                     b'f' => {
                         let undefined = ctx.undefined();
-                        let value =
-                            options.parse_float.call(ctx, undefined, &[next_val])?;
+                        let value = options.parse_float.call(ctx, undefined, &[next_val])?;
                         options.color = false;
                         format_raw(result, ctx, value, options)?;
                         continue;

@@ -107,11 +107,7 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
         T: ToJs<'rt, E>,
         Err: ToJs<'rt, E>,
     {
-        self.pump(
-            cx,
-            |cx, val| val.to_js(cx),
-            |cx, err| err.to_js(cx),
-        )
+        self.pump(cx, |cx, val| val.to_js(cx), |cx, err| err.to_js(cx))
     }
 }
 

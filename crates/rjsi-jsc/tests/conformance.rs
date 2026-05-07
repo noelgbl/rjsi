@@ -51,6 +51,11 @@ fn prepared_key_works_inside_host_callback() {
 }
 
 #[test]
+fn persistent_survives_across_scopes() {
+    conformance::persistent_survives_across_scopes(&mut rt());
+}
+
+#[test]
 fn run_full_conformance_suite() {
     conformance::run_all(&mut rt());
 }

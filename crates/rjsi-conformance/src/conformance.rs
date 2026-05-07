@@ -1,4 +1,6 @@
-use rjsi_core::{Args, CallbackCx, Engine, Error, PreparedKey, Result, Runtime, Value};
+use rjsi_core::{
+    Args, CallbackCx, Engine, Error, PersistentValue, PreparedKey, Result, Runtime, Value
+};
 
 fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
@@ -24,6 +26,24 @@ fn conformance_greet<'cx, 'rt, E: Engine>(
     _args: Args<'rt, E>,
 ) -> Result<Value<'rt, E>> {
     cb.cx().string("hello")
+}
+
+pub fn persistent_survives_across_scopes<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    let persisted = runtime.with_scope(|cx| {
+        let obj = expect_js(cx.eval("({ tag: 42 })"), "eval object");
+        PersistentValue::persist(cx, obj)
+    });
+
+    runtime.with_scope(|cx| {
+        let val = expect_js(persisted.restore(cx), "restore persistent");
+        let obj = expect_js(val.try_as_object(), "as object");
+        let tag = expect_js(obj.get_typed::<f64>(cx, "tag"), "tag property");
+        assert_eq!(tag, 42.0);
+    });
 }
 
 pub fn eval_runs<E, R>(runtime: &mut R)
@@ -338,7 +358,10 @@ where
         let res = cx.eval("throw new Error('rjsi-test')");
         assert!(matches!(res, Err(Error::Exception)));
         let exc = cx.catch_exception();
-        assert!(exc.is_some(), "engine must expose the thrown value via catch_exception");
+        assert!(
+            exc.is_some(),
+            "engine must expose the thrown value via catch_exception"
+        );
         let exc = exc.unwrap();
         assert!(exc.is_object(), "thrown Error must be an object");
     });
@@ -514,6 +537,7 @@ where
     number_to_string_coercion(runtime);
     prepared_key_roundtrip_across_scopes(runtime);
     prepared_key_works_inside_host_callback(runtime);
+    persistent_survives_across_scopes(runtime);
 }
 
 pub fn promise_capabilities<E, R>(runtime: &mut R)

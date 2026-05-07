@@ -12,6 +12,7 @@ pub trait Engine: Sized + 'static {
     type Key<'cx>: 'cx;
     type PreparedKeyData: 'static;
     type RawArgs<'cx>: 'cx;
+    type PersistentValue: 'static;
     const ENGINE_NAME: &'static str;
 
     fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt>;
@@ -118,6 +119,16 @@ pub trait Engine: Sized + 'static {
     fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>>;
 
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx>;
+
+    fn persist_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: Self::Value<'rt>,
+    ) -> Self::PersistentValue;
+
+    fn restore_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        persisted: &Self::PersistentValue,
+    ) -> Result<Self::Value<'rt>>;
 
     fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
         let _ = cx;

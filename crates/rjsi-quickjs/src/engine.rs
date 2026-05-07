@@ -1,7 +1,6 @@
 use rjsi_core::{Engine, Error, PropertyKey, Result};
 use rquickjs::{
-    Atom, Coerced, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol,
-    Value,
+    Atom, Coerced, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol, Value
 };
 
 pub struct QuickJsEngine;
@@ -41,6 +40,7 @@ impl Engine for QuickJsEngine {
     type Key<'cx> = Atom<'cx>;
     type PreparedKeyData = crate::runtime::QuickJsPreparedKeyData;
     type RawArgs<'cx> = QuickJsArgs<'cx>;
+    type PersistentValue = rquickjs::Persistent<rquickjs::Value<'static>>;
     const ENGINE_NAME: &str = "QuickJS";
 
     fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
@@ -243,6 +243,23 @@ impl Engine for QuickJsEngine {
     }
     fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> {
         f.into_value().into_object().unwrap()
+    }
+
+    fn persist_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: Self::Value<'rt>,
+    ) -> Self::PersistentValue {
+        rquickjs::Persistent::save(&cx.qctx, val)
+    }
+
+    fn restore_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        persisted: &Self::PersistentValue,
+    ) -> Result<Self::Value<'rt>> {
+        persisted
+            .clone()
+            .restore(&cx.qctx)
+            .map_err(Error::from_host)
     }
 
     fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {

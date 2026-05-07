@@ -92,7 +92,7 @@ fn host_fn_callback<'s, 'i>(
 
 impl Engine for V8Engine {
     const ENGINE_NAME: &str = "V8";
-    
+
     type Runtime = crate::runtime::V8Runtime;
     type Context<'rt> = V8Context<'rt>;
     type Scope<'cx> = ();
@@ -104,6 +104,7 @@ impl Engine for V8Engine {
     type Key<'cx> = v8::Local<'cx, v8::Name>;
     type PreparedKeyData = v8::Global<v8::Name>;
     type RawArgs<'cx> = V8Args<'cx>;
+    type PersistentValue = v8::Global<v8::Value>;
 
     fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
         unreachable!("Use Runtime::with_scope instead for V8")
@@ -469,6 +470,23 @@ impl Engine for V8Engine {
         let scope = unsafe { get_scope(cx) };
         let local = v8::Local::new(&mut **scope, global);
         Some(unsafe { cast_local(local) })
+    }
+
+    fn persist_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        val: Self::Value<'rt>,
+    ) -> Self::PersistentValue {
+        let scope = unsafe { get_scope(cx) };
+        let isolate: &mut v8::Isolate = &mut **scope;
+        v8::Global::new(isolate, val)
+    }
+
+    fn restore_value<'rt>(
+        cx: &mut Self::Context<'rt>,
+        persisted: &Self::PersistentValue,
+    ) -> Result<Self::Value<'rt>> {
+        let scope = unsafe { get_scope(cx) };
+        Ok(unsafe { cast_local(v8::Local::new(&mut **scope, persisted)) })
     }
 }
 

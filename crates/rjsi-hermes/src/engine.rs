@@ -113,7 +113,7 @@ fn map_hermes_value<'rt>(res: rusty_hermes::Result<Value<'_>>) -> Result<Value<'
 
 impl Engine for HermesEngine {
     const ENGINE_NAME: &str = "Hermes";
-    
+
     type Runtime = crate::runtime::HermesRuntime;
     type Context<'rt> = HermesContext<'rt>;
     type Scope<'cx> = ();
@@ -125,6 +125,7 @@ impl Engine for HermesEngine {
     type Key<'cx> = PropNameId<'cx>;
     type PreparedKeyData = crate::runtime::HermesPreparedKeyData;
     type RawArgs<'cx> = HermesArgs<'cx>;
+    type PersistentValue = rusty_hermes::Value<'static>;
 
     fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
         let runtime_ptr = runtime as *mut _;
@@ -428,6 +429,21 @@ impl Engine for HermesEngine {
     fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> {
         let v = Value::from(f);
         v.into_object().expect("callable is object")
+    }
+
+    fn persist_value<'rt>(
+        _cx: &mut Self::Context<'rt>,
+        val: Self::Value<'rt>,
+    ) -> Self::PersistentValue {
+        unsafe { std::mem::transmute(val) }
+    }
+
+    fn restore_value<'rt>(
+        _cx: &mut Self::Context<'rt>,
+        persisted: &Self::PersistentValue,
+    ) -> Result<Self::Value<'rt>> {
+        let v = persisted.duplicate();
+        Ok(unsafe { std::mem::transmute(v) })
     }
 }
 
