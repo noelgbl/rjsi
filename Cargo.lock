@@ -654,6 +654,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-native-state"
+version = "0.1.0"
+dependencies = [
+ "rjsi",
+]
+
+[[package]]
 name = "fast-float2"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

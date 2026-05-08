@@ -25,6 +25,7 @@ members = [
     "examples/host-function",
     "examples/macros",
     "examples/classes",
+    "examples/native-state",
     "examples/console",
 ]
 
