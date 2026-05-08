@@ -7,14 +7,14 @@ pub trait JsClass<E: Engine>: Sized + 'static {
 
     fn define_prototype<'cx>(cx: &mut Context<'cx, E>, proto: &Object<'cx, E>) -> Result<()>
     where
-        E: ClassEngine;
+        E: ClassSupport;
 
     fn construct<'cx, 'rt>(cx: &mut CallbackCx<'cx, 'rt, E>, args: Args<'rt, E>) -> Result<Self>
     where
-        E: ClassEngine;
+        E: ClassSupport;
 }
 
-pub trait ClassEngine: Engine {
+pub trait ClassSupport: Engine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
     ) -> Result<Function<'rt, Self>>;
@@ -47,11 +47,11 @@ impl<'cx, C: 'static> InstanceRef<'cx, C> {
     }
 }
 
-pub trait ContextClassExt<'rt, E: Engine + ClassEngine> {
+pub trait ContextClassExt<'rt, E: Engine + ClassSupport> {
     fn register_class<C: JsClass<E>>(&mut self) -> Result<Function<'rt, E>>;
 }
 
-impl<'rt, E: Engine + ClassEngine> ContextClassExt<'rt, E> for Context<'rt, E> {
+impl<'rt, E: Engine + ClassSupport> ContextClassExt<'rt, E> for Context<'rt, E> {
     fn register_class<C: JsClass<E>>(&mut self) -> Result<Function<'rt, E>> {
         E::class_register::<C>(self)
     }

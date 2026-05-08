@@ -36,7 +36,7 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
                 _proto: &#core::Object<'cx, E>,
             ) -> #core::Result<()>
             where
-                E: #core::ClassEngine,
+                E: #core::ClassSupport,
             {
                 Ok(())
             }
@@ -46,7 +46,7 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
                 _args: #core::Args<'rt, E>,
             ) -> #core::Result<Self>
             where
-                E: #core::ClassEngine,
+                E: #core::ClassSupport,
             {
                 #constructor_body
             }
@@ -107,7 +107,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                         args: #core::Args<'rt, E>,
                     ) -> #core::Result<Self>
                     where
-                        E: #core::ClassEngine,
+                        E: #core::ClassSupport,
                     {
                         #( #arg_extractions )*
                         Ok(Self::#fn_name( #( #call_arg_idents ),* ))
@@ -127,7 +127,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let host_fn = instance_host_fn_ident(rust_name);
                 host_items.push(quote! {
                     #[inline]
-                    fn #host_fn<'cx, 'rt, E: #core::ClassEngine>(
+                    fn #host_fn<'cx, 'rt, E: #core::ClassSupport>(
                         cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
@@ -166,7 +166,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let host_fn = static_host_fn_ident(rust_name);
                 host_items.push(quote! {
                     #[inline]
-                    fn #host_fn<'cx, 'rt, E: #core::ClassEngine>(
+                    fn #host_fn<'cx, 'rt, E: #core::ClassSupport>(
                         cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
                         _this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
@@ -196,7 +196,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                     _args: #core::Args<'rt, E>,
                 ) -> #core::Result<Self>
                 where
-                    E: #core::ClassEngine,
+                    E: #core::ClassSupport,
                 {
                     Err(#core::Error::type_err("constructor is not exposed"))
                 }
@@ -208,7 +208,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                     _args: #core::Args<'rt, E>,
                 ) -> #core::Result<Self>
                 where
-                    E: #core::ClassEngine,
+                    E: #core::ClassSupport,
                 {
                     Err(#core::Error::type_err("constructor not implemented"))
                 }
@@ -237,7 +237,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
 
         #host_type
 
-        impl<E: #core::ClassEngine> #core::JsClass<E> for #self_ty {
+        impl<E: #core::ClassSupport> #core::JsClass<E> for #self_ty {
             const NAME: &'static str = #name_lit;
 
             fn define_prototype<'cx>(

@@ -6,7 +6,7 @@ use libhermes_sys::{
     HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
 use rjsi_core::{
-    __cx, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
+    __cx, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
 };
 use rusty_hermes::{Object as HermesObject, Runtime, Value};
 
@@ -102,7 +102,7 @@ fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> Result<T> {
     res.map_err(Error::from_host)
 }
 
-impl ClassEngine for HermesEngine {
+impl ClassSupport for HermesEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
     ) -> Result<Function<'rt, Self>> {

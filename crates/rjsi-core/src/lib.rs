@@ -19,7 +19,7 @@ mod value;
 
 pub use args::{Args, ArgsIter, RawHostFn, Rest};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
-pub use class::{ClassEngine, ContextClassExt, InstanceRef, JsClass};
+pub use class::{ClassSupport, ContextClassExt, InstanceRef, JsClass};
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;

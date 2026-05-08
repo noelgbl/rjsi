@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use rjsi_core::{
-    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
+    __cx, Args, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
 };
 use rusty_jsc_sys as jsc;
 
@@ -183,7 +183,7 @@ unsafe extern "C" fn ctor_finalize(object: jsc::JSObjectRef) {
     }
 }
 
-impl ClassEngine for JscEngine {
+impl ClassSupport for JscEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
     ) -> Result<Function<'rt, Self>> {

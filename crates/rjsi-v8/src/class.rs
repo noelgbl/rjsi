@@ -1,7 +1,7 @@
 use std::pin::pin;
 
 use rjsi_core::{
-    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
+    __cx, Args, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
 };
 
 use crate::engine::{V8Args, V8Context, V8Engine, cast_local, get_scope};
@@ -49,7 +49,7 @@ fn class_ctor_callback<C: JsClass<V8Engine>>(
     }
 }
 
-impl ClassEngine for V8Engine {
+impl ClassSupport for V8Engine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
     ) -> Result<Function<'rt, Self>> {

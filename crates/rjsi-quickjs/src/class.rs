@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::ffi::CString;
 
 use rjsi_core::{
-    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
+    __cx, Args, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
 };
 use rquickjs::qjs;
 
@@ -99,7 +99,7 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
     Ok(unsafe { rquickjs::Value::from_raw(ctx, js_val) })
 }
 
-impl ClassEngine for QuickJsEngine {
+impl ClassSupport for QuickJsEngine {
     fn class_register<'rt, C: JsClass<Self>>(
         cx: &mut Context<'rt, Self>,
     ) -> Result<Function<'rt, Self>> {
