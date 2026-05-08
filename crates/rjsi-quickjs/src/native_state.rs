@@ -3,7 +3,7 @@ use std::ffi::CString;
 use std::mem;
 
 use rjsi_core::{
-    __cx, Context, ErasedNativeState, Error, NativeState, NativeStateEngine, Object, Result
+    __cx, Context, ErasedNativeState, Error, NativeState, NativeStateSupport, Object, Result
 };
 use rquickjs::{Value as QValue, qjs};
 
@@ -53,7 +53,7 @@ unsafe extern "C" fn native_state_finalizer(_rt: *mut qjs::JSRuntime, val: qjs::
     }
 }
 
-impl NativeStateEngine for QuickJsEngine {
+impl NativeStateSupport for QuickJsEngine {
     fn object_create_with_state<'cx, S: NativeState>(
         cx: &mut Context<'cx, Self>,
         state: S,

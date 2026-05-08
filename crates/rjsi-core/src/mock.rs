@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use crate::{
-    Context, Engine, ErasedNativeState, Error, FromJs, MicrotaskDrainPolicy, NativeState, NativeStateEngine, Object, PropertyKey, Result, Runtime, ToJs, Value
+    Context, Engine, ErasedNativeState, Error, FromJs, MicrotaskDrainPolicy, NativeState, NativeStateSupport, Object, PropertyKey, Result, Runtime, ToJs, Value
 };
 
 pub struct MockEngine;
@@ -406,7 +406,7 @@ impl Engine for MockEngine {
     }
 }
 
-impl NativeStateEngine for MockEngine {
+impl NativeStateSupport for MockEngine {
     fn object_create_with_state<'cx, S: NativeState>(
         cx: &mut Context<'cx, Self>,
         state: S,

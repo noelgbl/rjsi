@@ -29,7 +29,7 @@ pub struct ErasedNativeState {
 
 pub trait NativeState: Any + 'static {}
 
-pub trait NativeStateEngine: Engine {
+pub trait NativeStateSupport: Engine {
     fn object_create_with_state<'cx, S: NativeState>(
         cx: &mut Context<'cx, Self>,
         state: S,
@@ -46,14 +46,14 @@ pub trait NativeStateEngine: Engine {
     ) -> Option<&'cx mut S>;
 }
 
-pub trait ContextNativeStateExt<'rt, E: NativeStateEngine> {
-    fn create_with_state<S: NativeState>(&mut self, state: S) -> Result<Object<'rt, E>>;
+pub trait ContextNativeStateExt<'rt, E: NativeStateSupport> {
+    fn with_state<S: NativeState>(&mut self, state: S) -> Result<Object<'rt, E>>;
     fn get_state<S: NativeState>(&mut self, obj: &Object<'rt, E>) -> Option<&'rt S>;
     fn get_state_mut<S: NativeState>(&mut self, obj: &mut Object<'rt, E>) -> Option<&'rt mut S>;
 }
 
-impl<'rt, E: NativeStateEngine> ContextNativeStateExt<'rt, E> for Context<'rt, E> {
-    fn create_with_state<S: NativeState>(&mut self, state: S) -> Result<Object<'rt, E>> {
+impl<'rt, E: NativeStateSupport> ContextNativeStateExt<'rt, E> for Context<'rt, E> {
+    fn with_state<S: NativeState>(&mut self, state: S) -> Result<Object<'rt, E>> {
         E::object_create_with_state(self, state)
     }
 

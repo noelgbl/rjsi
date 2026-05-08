@@ -2,7 +2,7 @@ use std::mem;
 use std::sync::OnceLock;
 
 use rjsi_core::{
-    __cx, Context, ErasedNativeState, Error, NativeState, NativeStateEngine, Object, Result
+    __cx, Context, ErasedNativeState, Error, NativeState, NativeStateSupport, Object, Result
 };
 use rusty_jsc_sys as jsc;
 
@@ -33,7 +33,7 @@ unsafe extern "C" fn native_state_finalize(object: jsc::JSObjectRef) {
     }
 }
 
-impl NativeStateEngine for JscEngine {
+impl NativeStateSupport for JscEngine {
     fn object_create_with_state<'cx, S: NativeState>(
         cx: &mut Context<'cx, Self>,
         state: S,

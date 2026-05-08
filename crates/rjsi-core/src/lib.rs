@@ -27,7 +27,7 @@ pub use error::{Error, Result};
 pub use function::Function;
 pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use native_state::{
-    ContextNativeStateExt, ErasedNativeState, NativeState, NativeStateEngine, TaggedNativeState, tagged_native_state_type_id
+    ContextNativeStateExt, ErasedNativeState, NativeState, NativeStateSupport, TaggedNativeState, tagged_native_state_type_id
 };
 pub use object::Object;
 pub use persistent::PersistentValue;

@@ -1,12 +1,12 @@
 use std::any::TypeId;
 
 use rjsi_core::{
-    __cx, Context, Error, NativeState, NativeStateEngine, Object, Result, TaggedNativeState, tagged_native_state_type_id
+    __cx, Context, Error, NativeState, NativeStateSupport, Object, Result, TaggedNativeState, tagged_native_state_type_id
 };
 
 use crate::engine::{V8Engine, cast_local, get_scope};
 
-impl NativeStateEngine for V8Engine {
+impl NativeStateSupport for V8Engine {
     fn object_create_with_state<'cx, S: NativeState>(
         cx: &mut Context<'cx, Self>,
         state: S,

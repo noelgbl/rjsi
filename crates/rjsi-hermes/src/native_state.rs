@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use std::mem;
 
 use rjsi_core::{
-    __cx, Context, NativeState, NativeStateEngine, Object, Result, TaggedNativeState, tagged_native_state_type_id
+    __cx, Context, NativeState, NativeStateSupport, Object, Result, TaggedNativeState, tagged_native_state_type_id
 };
 use rusty_hermes::Object as HermesObject;
 
@@ -17,7 +17,7 @@ unsafe extern "C" fn tagged_native_state_finalizer<S>(data: *mut c_void) {
     }
 }
 
-impl NativeStateEngine for HermesEngine {
+impl NativeStateSupport for HermesEngine {
     fn object_create_with_state<'cx, S: NativeState>(
         cx: &mut Context<'cx, Self>,
         state: S,

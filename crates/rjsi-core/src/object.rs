@@ -1,4 +1,4 @@
-use crate::{Context, Engine, IntoKey, Result, Value};
+use crate::{Context, Engine, IntoKey, NativeState, NativeStateSupport, Result, Value};
 
 #[repr(transparent)]
 pub struct Object<'cx, E: Engine> {
@@ -66,5 +66,26 @@ impl<'cx, E: Engine> Object<'cx, E> {
 
     pub fn into_value(self) -> Value<'cx, E> {
         Value::new(E::object_to_value(self.raw))
+    }
+}
+
+impl<'cx, E: NativeStateSupport> Object<'cx, E> {
+    pub fn with_state<S: NativeState>(
+        &mut self,
+        cx: &mut Context<'cx, E>,
+        state: S,
+    ) -> Result<Object<'cx, E>> {
+        E::object_create_with_state(cx, state)
+    }
+
+    pub fn native_state<S: NativeState>(&self, cx: &mut Context<'cx, E>) -> Option<&'cx S> {
+        E::object_get_state(cx, self)
+    }
+
+    pub fn native_state_mut<S: NativeState>(
+        &mut self,
+        cx: &mut Context<'cx, E>,
+    ) -> Option<&'cx mut S> {
+        E::object_get_state_mut(cx, self)
     }
 }

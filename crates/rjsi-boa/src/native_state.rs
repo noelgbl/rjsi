@@ -2,11 +2,13 @@ use std::mem;
 use std::ops::DerefMut;
 
 use boa_engine::object::ObjectInitializer;
-use rjsi_core::{__cx, Context, ErasedNativeState, NativeState, NativeStateEngine, Object, Result};
+use rjsi_core::{
+    __cx, Context, ErasedNativeState, NativeState, NativeStateSupport, Object, Result
+};
 
 use crate::engine::BoaEngine;
 
-impl NativeStateEngine for BoaEngine {
+impl NativeStateSupport for BoaEngine {
     fn object_create_with_state<'cx, S: NativeState>(
         cx: &mut Context<'cx, Self>,
         state: S,
