@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    Context, Engine, Error, FromJs, MicrotaskDrainPolicy, PropertyKey, Result, Runtime, ToJs, Value
+    Context, Engine, Error, FromJs, MicrotaskDrainPolicy, PropertyKey, Result, Runtime, ToJs, Value,
 };
 
 pub struct MockEngine;

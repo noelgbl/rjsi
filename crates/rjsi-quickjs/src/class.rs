@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::ffi::CString;
 
 use rjsi_core::{
-    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope
+    __cx, Args, CallbackCx, ClassEngine, Context, Error, Function, JsClass, Object, Result, Scope,
 };
 use rquickjs::qjs;
 

@@ -1,5 +1,5 @@
 use rjsi_core::{
-    Args, CallbackCx, Engine, Error, PersistentValue, PreparedKey, Result, Runtime, Value
+    Args, CallbackCx, Engine, Error, PersistentValue, PreparedKey, Result, Runtime, Value,
 };
 
 fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {

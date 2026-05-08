@@ -6,7 +6,10 @@ use std::ops::{Deref, DerefMut};
 use std::ptr::read;
 
 use libhermes_sys::{
-    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__EvaluateJavaScript, hermes__Runtime__GetAndClearError, hermes__Runtime__GetAndClearErrorMessage, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
+    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release,
+    hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__EvaluateJavaScript,
+    hermes__Runtime__GetAndClearError, hermes__Runtime__GetAndClearErrorMessage,
+    hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage,
 };
 use rjsi_core::{Engine, Error, PropertyKey, RawHostFn, Result};
 use rusty_hermes::{Function, JsString, Object, PropNameId, Runtime, Symbol, Value};

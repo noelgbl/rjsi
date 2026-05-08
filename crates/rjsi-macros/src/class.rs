@@ -1,7 +1,7 @@
 mod attrs;
 
 use attrs::{
-    JsMethodsAttrs, MethodKind, classify_method, js_method_name, strip_js_attrs_from_impl
+    JsMethodsAttrs, MethodKind, classify_method, js_method_name, strip_js_attrs_from_impl,
 };
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;

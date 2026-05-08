@@ -6,7 +6,7 @@ use boa_engine::object::{FunctionObjectBuilder, JsObject, ObjectInitializer};
 use boa_engine::property::PropertyKey as BoaPropertyKey;
 use boa_engine::script::Script;
 use boa_engine::{
-    Context as BoaCx, JsResult as BoaJsResult, JsString, JsSymbol, JsValue, NativeFunction, Source
+    Context as BoaCx, JsResult as BoaJsResult, JsString, JsSymbol, JsValue, NativeFunction, Source,
 };
 use rjsi_core::{Engine, Error, PropertyKey, Result};
 
