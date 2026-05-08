@@ -10,6 +10,7 @@ pub struct BoaRuntime {
     prepared_keys: HashMap<u64, JsString>,
     pub(crate) context: BoaCx,
     microtask_policy: MicrotaskDrainPolicy,
+    pub(crate) native_states: HashMap<boa_engine::object::JsObject, rjsi_core::ErasedNativeState>,
 }
 
 impl BoaRuntime {
@@ -18,6 +19,7 @@ impl BoaRuntime {
             prepared_keys: HashMap::new(),
             context: BoaCx::default(),
             microtask_policy: MicrotaskDrainPolicy::Explicit,
+            native_states: HashMap::new(),
         }
     }
 

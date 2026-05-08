@@ -9,7 +9,7 @@ pub use rjsi_hermes as hermes;
 pub use rjsi_jsc as jsc;
 #[cfg(feature = "macros")]
 pub use rjsi_macros::{
-    FromJs, IntoJs, JsClass, js_constructor, js_get, js_methods, js_set, js_skip, js_static,
+    FromJs, IntoJs, JsClass, NativeState, js_constructor, js_get, js_methods, js_set, js_skip, js_static
 };
 #[cfg(feature = "quickjs")]
 pub use rjsi_quickjs as quickjs;

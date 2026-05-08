@@ -51,6 +51,16 @@ fn prepared_key_works_inside_host_callback() {
 }
 
 #[test]
+fn native_state_roundtrip() {
+    conformance::native_state_roundtrip(&mut rt());
+}
+
+#[test]
+fn native_state_persistent_across_scopes() {
+    conformance::native_state_persistent_across_scopes(&mut rt());
+}
+
+#[test]
 fn persistent_survives_across_scopes() {
     conformance::persistent_survives_across_scopes(&mut rt());
 }

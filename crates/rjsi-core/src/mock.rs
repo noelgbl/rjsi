@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::mem;
 
 use crate::{
-    Context, Engine, Error, FromJs, MicrotaskDrainPolicy, PropertyKey, Result, Runtime, ToJs, Value,
+    Context, Engine, ErasedNativeState, Error, FromJs, MicrotaskDrainPolicy, NativeState, NativeStateEngine, Object, PropertyKey, Result, Runtime, ToJs, Value
 };
 
 pub struct MockEngine;
@@ -11,6 +13,18 @@ pub struct MockRuntime {
     pub atoms: Vec<String>,
     pub static_slots: Vec<Option<u32>>,
     pub(crate) persistent_slots: Vec<Option<u32>>,
+    pub(crate) next_object_id: u32,
+    pub(crate) native_states: HashMap<u32, ErasedNativeState>,
+}
+
+impl MockRuntime {
+    pub(crate) fn alloc_object_id(&mut self) -> u32 {
+        self.next_object_id = self.next_object_id.wrapping_add(1);
+        if self.next_object_id == 0 {
+            self.next_object_id = 1;
+        }
+        self.next_object_id
+    }
 }
 
 pub struct MockContext<'rt> {
@@ -53,7 +67,20 @@ macro_rules! phantom_val {
 }
 
 phantom_val!(MockScope);
-phantom_val!(MockObject);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MockObject<'cx> {
+    pub(crate) id: u32,
+    _p: PhantomData<&'cx ()>,
+}
+
+impl<'cx> MockObject<'cx> {
+    pub fn new() -> Self {
+        Self {
+            id: 0,
+            _p: PhantomData,
+        }
+    }
+}
 phantom_val!(MockFunction);
 phantom_val!(MockString);
 phantom_val!(MockSymbol);
@@ -169,12 +196,28 @@ impl Engine for MockEngine {
         Ok(MockValue::UNDEFINED)
     }
 
-    fn global_object<'rt>(_cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
-        MockObject::new()
+    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
+        if cx.runtime.is_null() {
+            return MockObject::new();
+        }
+        let rt = unsafe { &mut *cx.runtime };
+        let id = rt.alloc_object_id();
+        MockObject {
+            id,
+            _p: PhantomData,
+        }
     }
 
-    fn object_new<'rt>(_cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
-        Ok(MockObject::new())
+    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
+        if cx.runtime.is_null() {
+            return Ok(MockObject::new());
+        }
+        let rt = unsafe { &mut *cx.runtime };
+        let id = rt.alloc_object_id();
+        Ok(MockObject {
+            id,
+            _p: PhantomData,
+        })
     }
 
     fn object_get<'rt>(
@@ -360,6 +403,62 @@ impl Engine for MockEngine {
         F: crate::args::RawHostFn<Self> + 'static,
     {
         todo!()
+    }
+}
+
+impl NativeStateEngine for MockEngine {
+    fn object_create_with_state<'cx, S: NativeState>(
+        cx: &mut Context<'cx, Self>,
+        state: S,
+    ) -> Result<Object<'cx, Self>> {
+        let mcx = crate::__cx::context_mut(cx);
+        if mcx.runtime.is_null() {
+            return Err(Error::type_err(
+                "MockEngine::object_create_with_state requires MockRuntime-backed Context",
+            ));
+        }
+        let rt = unsafe { &mut *mcx.runtime };
+        let id = rt.alloc_object_id();
+        rt.native_states.insert(
+            id,
+            ErasedNativeState {
+                inner: Box::new(state),
+            },
+        );
+        Ok(Object::new(MockObject {
+            id,
+            _p: PhantomData,
+        }))
+    }
+
+    fn object_get_state<'cx, S: NativeState>(
+        cx: &mut Context<'cx, Self>,
+        obj: &Object<'cx, Self>,
+    ) -> Option<&'cx S> {
+        let mcx = crate::__cx::context_mut(cx);
+        if mcx.runtime.is_null() {
+            return None;
+        }
+        let rt = unsafe { &*mcx.runtime };
+        let id = obj.as_raw().id;
+        let slot = rt.native_states.get(&id)?;
+        let r = slot.inner.downcast_ref::<S>()?;
+        Some(unsafe { mem::transmute::<&S, &'cx S>(r) })
+    }
+
+    fn object_get_state_mut<'cx, S: NativeState>(
+        cx: &mut Context<'cx, Self>,
+        obj: &mut Object<'cx, Self>,
+    ) -> Option<&'cx mut S> {
+        let mcx = crate::__cx::context_mut(cx);
+        if mcx.runtime.is_null() {
+            return None;
+        }
+        let rt = unsafe { &mut *mcx.runtime };
+        let id = obj.as_raw().id;
+        let slot = rt.native_states.get_mut(&id)?;
+        let r = slot.inner.downcast_mut::<S>()?;
+        Some(unsafe { mem::transmute::<&mut S, &'cx mut S>(r) })
     }
 }
 

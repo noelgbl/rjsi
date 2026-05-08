@@ -24,6 +24,18 @@ pub(crate) fn core_path() -> TokenStream2 {
     }
 }
 
+#[proc_macro_derive(NativeState)]
+pub fn derive_native_state(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let core = core_path();
+    quote! {
+        impl #impl_generics #core::NativeState for #name #ty_generics #where_clause {}
+    }
+    .into()
+}
+
 #[proc_macro_derive(JsClass, attributes(js_class))]
 pub fn derive_js_class(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

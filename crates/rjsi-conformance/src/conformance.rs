@@ -1,5 +1,5 @@
 use rjsi_core::{
-    Args, CallbackCx, Engine, Error, PersistentValue, PreparedKey, Result, Runtime, Value,
+    Args, CallbackCx, ContextNativeStateExt, Engine, Error, NativeState, NativeStateEngine, PersistentValue, PreparedKey, Result, Runtime, Value
 };
 
 fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {
@@ -502,6 +502,72 @@ where
         let got = global.get(cx, &key).unwrap();
         let n = expect_js(got.to_f64(cx), "prepared key host callback");
         assert_eq!(n, 7.0);
+    });
+}
+
+struct NativeStateTestPayload(i32);
+
+impl NativeState for NativeStateTestPayload {}
+
+pub fn native_state_roundtrip<E, R>(runtime: &mut R)
+where
+    E: Engine + NativeStateEngine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let mut obj = cx
+            .create_with_state(NativeStateTestPayload(7))
+            .expect("create_with_state");
+        assert_eq!(
+            cx.get_state::<NativeStateTestPayload>(&obj)
+                .expect("get_state")
+                .0,
+            7
+        );
+        cx.get_state_mut::<NativeStateTestPayload>(&mut obj)
+            .expect("get_state_mut")
+            .0 = 42;
+        assert_eq!(
+            cx.get_state::<NativeStateTestPayload>(&obj)
+                .expect("get_state after mut")
+                .0,
+            42
+        );
+    });
+}
+
+/// Native payload survives [`PersistentValue`] round-trip across separate
+/// [`Runtime::with_scope`] calls.
+pub fn native_state_persistent_across_scopes<E, R>(runtime: &mut R)
+where
+    E: Engine + NativeStateEngine,
+    R: Runtime<E>,
+{
+    let persisted = runtime.with_scope(|cx| {
+        let obj = cx
+            .create_with_state(NativeStateTestPayload(99))
+            .expect("create_with_state");
+        PersistentValue::persist(cx, obj.into_value())
+    });
+
+    runtime.with_scope(|cx| {
+        let val = expect_js(persisted.restore(cx), "restore persistent");
+        let mut obj = expect_js(val.try_as_object(), "as object");
+        assert_eq!(
+            cx.get_state::<NativeStateTestPayload>(&obj)
+                .expect("get_state after restore")
+                .0,
+            99
+        );
+        cx.get_state_mut::<NativeStateTestPayload>(&mut obj)
+            .expect("get_state_mut after restore")
+            .0 = 100;
+        assert_eq!(
+            cx.get_state::<NativeStateTestPayload>(&obj)
+                .expect("get_state after mut across scopes")
+                .0,
+            100
+        );
     });
 }
 

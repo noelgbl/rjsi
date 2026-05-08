@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
 
@@ -7,6 +8,8 @@ pub struct V8Runtime {
     isolate: v8::OwnedIsolate,
     context: v8::Global<v8::Context>,
     microtask_policy: MicrotaskDrainPolicy,
+    /// internal field 0 holds native state
+    pub(crate) native_state_template: Mutex<Option<v8::Global<v8::ObjectTemplate>>>,
 }
 
 impl V8Runtime {
@@ -32,6 +35,7 @@ impl V8Runtime {
             isolate,
             context,
             microtask_policy: MicrotaskDrainPolicy::Explicit,
+            native_state_template: Mutex::new(None),
         }
     }
 

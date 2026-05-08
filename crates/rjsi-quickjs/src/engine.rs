@@ -1,7 +1,6 @@
 use rjsi_core::{Engine, Error, PropertyKey, Result};
 use rquickjs::{
-    Atom, Coerced, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol,
-    Value,
+    Atom, Coerced, Ctx, Error as QError, Function, Object, String as QString, Symbol as QSymbol, Value
 };
 
 pub struct QuickJsEngine;
