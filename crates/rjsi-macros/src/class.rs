@@ -41,8 +41,8 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
                 Ok(())
             }
 
-            fn construct<'cx, 'rt>(
-                _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+            fn construct<'rt>(
+                _cx: &mut #core::Context<'rt, E>,
                 _args: #core::Args<'rt, E>,
             ) -> #core::Result<Self>
             where
@@ -102,8 +102,8 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let fn_name = &f.sig.ident;
 
                 ctor_tokens = Some(quote! {
-                    fn construct<'cx, 'rt>(
-                        cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+                    fn construct<'rt>(
+                        cx: &mut #core::Context<'rt, E>,
                         args: #core::Args<'rt, E>,
                     ) -> #core::Result<Self>
                     where
@@ -127,8 +127,8 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let host_fn = instance_host_fn_ident(rust_name);
                 host_items.push(quote! {
                     #[inline]
-                    fn #host_fn<'cx, 'rt, E: #core::ClassSupport>(
-                        cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+                    fn #host_fn<'rt, E: #core::ClassSupport>(
+                        cx: &mut #core::Context<'rt, E>,
                         this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
                     ) -> #core::Result<#core::Value<'rt, E>> {
@@ -138,7 +138,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                                 .ok_or_else(|| #core::Error::type_err("expected object"))?
                         );
                         let ptr = unsafe {
-                            E::class_get_instance_ptr::<#self_ty>(cb_cx.cx(), &__this_obj)
+                            E::class_get_instance_ptr::<#self_ty>(cx, &__this_obj)
                         }
                         .ok_or_else(|| #core::Error::type_err(
                             concat!("not an instance of ", stringify!(#self_ty))
@@ -166,8 +166,8 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let host_fn = static_host_fn_ident(rust_name);
                 host_items.push(quote! {
                     #[inline]
-                    fn #host_fn<'cx, 'rt, E: #core::ClassSupport>(
-                        cb_cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+                    fn #host_fn<'rt, E: #core::ClassSupport>(
+                        cx: &mut #core::Context<'rt, E>,
                         _this: #core::Value<'rt, E>,
                         args: #core::Args<'rt, E>,
                     ) -> #core::Result<#core::Value<'rt, E>> {
@@ -191,8 +191,8 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
     let construct_body = ctor_tokens.unwrap_or_else(|| {
         if opts.no_constructor {
             quote! {
-                fn construct<'cx, 'rt>(
-                    _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+                fn construct<'rt>(
+                    _cx: &mut #core::Context<'rt, E>,
                     _args: #core::Args<'rt, E>,
                 ) -> #core::Result<Self>
                 where
@@ -203,8 +203,8 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
             }
         } else {
             quote! {
-                fn construct<'cx, 'rt>(
-                    _cx: &mut #core::CallbackCx<'cx, 'rt, E>,
+                fn construct<'rt>(
+                    _cx: &mut #core::Context<'rt, E>,
                     _args: #core::Args<'rt, E>,
                 ) -> #core::Result<Self>
                 where
@@ -266,7 +266,7 @@ fn constructor_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec
         let idx_lit = syn::Index::from(idx);
         result.push(quote! {
             let #arg_ident: #ty = #core::FromJs::from_js(
-                cx.cx(),
+                cx,
                 args.get(#idx_lit)
                     .ok_or_else(|| #core::Error::type_err(
                         concat!("missing argument ", stringify!(#idx_lit))
@@ -290,7 +290,7 @@ fn method_arg_extractions(core: &TokenStream2, sig: &syn::Signature) -> Vec<Toke
                 let idx_lit = syn::Index::from(idx);
                 result.push(quote! {
                     let #arg_ident: #ty = #core::FromJs::from_js(
-                        cb_cx.cx(),
+                        cx,
                         args.get(#idx_lit)
                             .ok_or_else(|| #core::Error::type_err(
                                 concat!("missing argument ", stringify!(#idx_lit))
@@ -344,20 +344,20 @@ fn method_return_expr(
         ReturnType::Default => quote! {
             #self_ref
             instance.#rust_name( #( #call_arg_idents ),* );
-            Ok(cb_cx.cx().undefined())
+            Ok(cx.undefined())
         },
         ReturnType::Type(_, ty) => {
             if is_result_type(ty) {
                 quote! {
                     #self_ref
                     instance.#rust_name( #( #call_arg_idents ),* )
-                        .and_then(|__v| #core::ToJs::to_js(__v, cb_cx.cx()))
+                        .and_then(|__v| #core::ToJs::to_js(__v, cx))
                 }
             } else {
                 quote! {
                     #self_ref
                     let __result: #ty = instance.#rust_name( #( #call_arg_idents ),* );
-                    #core::ToJs::to_js(__result, cb_cx.cx())
+                    #core::ToJs::to_js(__result, cx)
                 }
             }
         }
@@ -373,11 +373,11 @@ fn static_return_expr(
     match &sig.output {
         ReturnType::Default => quote! {
             Self::#rust_name( #( #call_arg_idents ),* );
-            Ok(cb_cx.cx().undefined())
+            Ok(cx.undefined())
         },
         ReturnType::Type(_, ty) => quote! {
             let __result: #ty = Self::#rust_name( #( #call_arg_idents ),* );
-            #core::ToJs::to_js(__result, cb_cx.cx())
+            #core::ToJs::to_js(__result, cx)
         },
     }
 }

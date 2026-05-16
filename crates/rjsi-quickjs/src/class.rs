@@ -3,9 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CString;
 
-use rjsi_core::{
-    __cx, Args, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
-};
+use rjsi_core::{__cx, Args, ClassSupport, Context, Error, Function, JsClass, Object, Result};
 use rquickjs::qjs;
 
 use crate::engine::{QuickJsArgs, QuickJsContext, QuickJsEngine};
@@ -67,11 +65,9 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
         qctx: ctx.clone(),
         runtime,
     });
-    let scope_obj = Scope::new(&mut context);
-    let mut callback_cx = CallbackCx::new(scope_obj);
     let rjsi_args = Args::new(QuickJsArgs { argv: args.0 });
 
-    let instance = C::construct(&mut callback_cx, rjsi_args).map_err(|e| {
+    let instance = C::construct(&mut context, rjsi_args).map_err(|e| {
         if matches!(&e, Error::Exception) {
             rquickjs::Error::Exception
         } else {

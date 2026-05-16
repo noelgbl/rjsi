@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{Args, CallbackCx, Context, Engine, Function, Object, Result};
+use crate::{Args, Context, Engine, Function, Object, Result};
 
 pub trait JsClass<E: Engine>: Sized + 'static {
     const NAME: &'static str;
@@ -9,7 +9,7 @@ pub trait JsClass<E: Engine>: Sized + 'static {
     where
         E: ClassSupport;
 
-    fn construct<'cx, 'rt>(cx: &mut CallbackCx<'cx, 'rt, E>, args: Args<'rt, E>) -> Result<Self>
+    fn construct<'rt>(cx: &mut Context<'rt, E>, args: Args<'rt, E>) -> Result<Self>
     where
         E: ClassSupport;
 }

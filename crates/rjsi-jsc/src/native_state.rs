@@ -63,9 +63,8 @@ impl NativeStateSupport for JscEngine {
         let ctx = jsc_cx.ctx;
 
         let class = get_native_state_class::<S>();
-        let matches = unsafe {
-            jsc::JSValueIsObjectOfClass(ctx, obj.as_raw().val as jsc::JSValueRef, class)
-        };
+        let matches =
+            unsafe { jsc::JSValueIsObjectOfClass(ctx, obj.as_raw().val as jsc::JSValueRef, class) };
         if !matches {
             return None;
         }
@@ -86,9 +85,8 @@ impl NativeStateSupport for JscEngine {
         let ctx = jsc_cx.ctx;
 
         let class = get_native_state_class::<S>();
-        let matches = unsafe {
-            jsc::JSValueIsObjectOfClass(ctx, obj.as_raw().val as jsc::JSValueRef, class)
-        };
+        let matches =
+            unsafe { jsc::JSValueIsObjectOfClass(ctx, obj.as_raw().val as jsc::JSValueRef, class) };
         if !matches {
             return None;
         }

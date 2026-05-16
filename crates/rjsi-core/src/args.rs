@@ -1,6 +1,6 @@
 use core::iter::FusedIterator;
 
-use crate::{CallbackCx, Engine, Result, Value};
+use crate::{Context, Engine, Result, Value};
 
 #[repr(transparent)]
 pub struct Args<'cx, E: Engine> {
@@ -149,9 +149,9 @@ impl<'b, 'a, 'cx, E: Engine> IntoIterator for &'b Rest<'a, 'cx, E> {
 }
 
 pub trait RawHostFn<E: Engine> {
-    fn call<'cx, 'rt>(
+    fn call<'rt>(
         &mut self,
-        cx: &mut CallbackCx<'cx, 'rt, E>,
+        cx: &mut Context<'rt, E>,
         this: Value<'rt, E>,
         args: Args<'rt, E>,
     ) -> Result<Value<'rt, E>>;
@@ -159,15 +159,11 @@ pub trait RawHostFn<E: Engine> {
 
 impl<E: Engine, F> RawHostFn<E> for F
 where
-    F: for<'cx, 'rt> FnMut(
-        &mut CallbackCx<'cx, 'rt, E>,
-        Value<'rt, E>,
-        Args<'rt, E>,
-    ) -> Result<Value<'rt, E>>,
+    F: for<'rt> FnMut(&mut Context<'rt, E>, Value<'rt, E>, Args<'rt, E>) -> Result<Value<'rt, E>>,
 {
-    fn call<'cx, 'rt>(
+    fn call<'rt>(
         &mut self,
-        cx: &mut CallbackCx<'cx, 'rt, E>,
+        cx: &mut Context<'rt, E>,
         this: Value<'rt, E>,
         args: Args<'rt, E>,
     ) -> Result<Value<'rt, E>> {

@@ -60,11 +60,35 @@ impl<'rt, E: Engine> Context<'rt, E> {
         E::make_function(&mut self.raw, name, func).map(crate::Function::new)
     }
 
-    /// Returns the pending JS exception value and clears it, or `None` if
-    /// unavailable.
-    ///
-    /// Call this after receiving [`crate::Error::Exception`] to inspect the
-    /// thrown value.
+    pub fn typed_function<F, Marker: 'static>(
+        &mut self,
+        name: &str,
+        func: F,
+    ) -> Result<crate::Function<'rt, E>>
+    where
+        F: crate::host_fn::HostFn<E, Marker>,
+    {
+        self.function(
+            name,
+            crate::host_fn::HostFnAdapter(func, std::marker::PhantomData),
+        )
+    }
+
+    pub fn typed_function_cx<F, Marker: 'static>(
+        &mut self,
+        name: &str,
+        func: F,
+    ) -> Result<crate::Function<'rt, E>>
+    where
+        F: crate::host_fn::HostFnWithCx<E, Marker>,
+        crate::host_fn::HostFnWithCxAdapter<F, Marker>: crate::args::RawHostFn<E>,
+    {
+        self.function(
+            name,
+            crate::host_fn::HostFnWithCxAdapter(func, std::marker::PhantomData),
+        )
+    }
+    
     pub fn catch_exception(&mut self) -> Option<crate::Value<'rt, E>> {
         E::catch_exception(&mut self.raw).map(crate::Value::new)
     }

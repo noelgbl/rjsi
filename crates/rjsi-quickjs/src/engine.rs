@@ -31,7 +31,6 @@ pub(crate) fn map_err<'rt, T>(_cx: &QuickJsContext<'rt>, res: rquickjs::Result<T
 impl Engine for QuickJsEngine {
     type Runtime = crate::runtime::QuickJsRuntime;
     type Context<'rt> = QuickJsContext<'rt>;
-    type Scope<'cx> = ();
     type Value<'cx> = Value<'cx>;
     type Object<'cx> = Object<'cx>;
     type Function<'cx> = Function<'cx>;
@@ -286,15 +285,12 @@ impl Engine for QuickJsEngine {
                 qctx: ctx.clone(),
                 runtime,
             });
-            let scope = rjsi_core::Scope::new(&mut context);
-            let mut callback_cx = rjsi_core::CallbackCx::new(scope);
-
             let this_core = rjsi_core::Value::new(this.0);
             let args_core = rjsi_core::Args::new(QuickJsArgs { argv: args.0 });
 
             match func_cell
                 .borrow_mut()
-                .call(&mut callback_cx, this_core, args_core)
+                .call(&mut context, this_core, args_core)
             {
                 Ok(v) => Ok(v.into_raw()),
                 Err(rjsi_core::Error::Exception) => Err(rquickjs::Error::Exception),

@@ -1,17 +1,16 @@
 use rjsi_core::{
-    Args, CallbackCx, ContextNativeStateExt, Engine, Error, NativeState, NativeStateSupport, PersistentValue, PreparedKey, Result, Runtime, Value
+    Args, Context, ContextNativeStateExt, Engine, Error, NativeState, NativeStateSupport, PersistentValue, PreparedKey, Result, Runtime, Value
 };
 
 fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
 }
 
-fn conformance_sum_args<'cx, 'rt, E: Engine>(
-    cb: &mut CallbackCx<'cx, 'rt, E>,
+fn conformance_sum_args<'rt, E: Engine>(
+    cx: &mut Context<'rt, E>,
     _this: Value<'rt, E>,
     args: Args<'rt, E>,
 ) -> Result<Value<'rt, E>> {
-    let cx = cb.cx();
     let mut acc = 0.0f64;
     for i in 0..args.len() {
         let v = args.get(i).ok_or_else(|| Error::type_err("missing arg"))?;
@@ -20,12 +19,12 @@ fn conformance_sum_args<'cx, 'rt, E: Engine>(
     Ok(cx.number(acc))
 }
 
-fn conformance_greet<'cx, 'rt, E: Engine>(
-    cb: &mut CallbackCx<'cx, 'rt, E>,
+fn conformance_greet<'rt, E: Engine>(
+    cx: &mut Context<'rt, E>,
     _this: Value<'rt, E>,
     _args: Args<'rt, E>,
 ) -> Result<Value<'rt, E>> {
-    cb.cx().string("hello")
+    cx.string("hello")
 }
 
 pub fn persistent_survives_across_scopes<E, R>(runtime: &mut R)
@@ -471,13 +470,12 @@ where
     }
 
     impl<E: Engine> rjsi_core::RawHostFn<E> for InstallPrepared<E> {
-        fn call<'cx, 'rt>(
+        fn call<'rt>(
             &mut self,
-            cb: &mut CallbackCx<'cx, 'rt, E>,
+            cx: &mut Context<'rt, E>,
             _this: Value<'rt, E>,
             _args: Args<'rt, E>,
         ) -> Result<Value<'rt, E>> {
-            let cx = cb.cx();
             let global = cx.globals();
             let value = cx.number(7.0);
             global.set(cx, &self.key, value)?;
@@ -571,6 +569,46 @@ where
     });
 }
 
+pub fn typed_function_adds_integers<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let add = expect_js(
+            cx.typed_function("typedAdd", |a: i32, b: i32| a + b),
+            "typed add",
+        );
+        cx.globals().set(cx, "typedAdd", add.into_value()).unwrap();
+        let v = cx.eval("typedAdd(10, 32)").unwrap();
+        assert_eq!(expect_js(v.to_f64(cx), "typed add result"), 42.0);
+    });
+}
+
+pub fn typed_function_cx_builds_string<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let greet = expect_js(
+            cx.typed_function_cx(
+                "typedGreet",
+                |_cx: &mut rjsi_core::Context<E>, name: String| format!("hello {name}"),
+            ),
+            "typed greet",
+        );
+        cx.globals()
+            .set(cx, "typedGreet", greet.into_value())
+            .unwrap();
+        let v = cx.eval(r#"typedGreet("world")"#).unwrap();
+        assert_eq!(
+            expect_js(v.to_string(cx), "typed greet result"),
+            "hello world"
+        );
+    });
+}
+
 pub fn run_all<E, R>(runtime: &mut R)
 where
     E: Engine,
@@ -604,6 +642,8 @@ where
     prepared_key_roundtrip_across_scopes(runtime);
     prepared_key_works_inside_host_callback(runtime);
     persistent_survives_across_scopes(runtime);
+    typed_function_adds_integers(runtime);
+    typed_function_cx_builds_string(runtime);
 }
 
 pub fn promise_capabilities<E, R>(runtime: &mut R)

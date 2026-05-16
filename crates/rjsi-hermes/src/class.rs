@@ -5,9 +5,7 @@ use std::mem;
 use libhermes_sys::{
     HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
-use rjsi_core::{
-    __cx, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
-};
+use rjsi_core::{__cx, ClassSupport, Context, Error, Function, JsClass, Object, Result};
 use rusty_hermes::{Object as HermesObject, Runtime, Value};
 
 use crate::engine::{
@@ -64,10 +62,8 @@ unsafe extern "C" fn class_ctor_trampoline<C: JsClass<HermesEngine> + 'static>(
                 runtime: data.runtime,
             };
             let mut rjsi_cx = Context::new(hc);
-            let scope = Scope::new(&mut rjsi_cx);
-            let mut callback_cx = CallbackCx::new(scope);
             let args_core = rjsi_core::Args::new(HermesArgs { argv });
-            C::construct(&mut callback_cx, args_core)
+            C::construct(&mut rjsi_cx, args_core)
         };
 
         let rt_mut = &mut *rt_stable;

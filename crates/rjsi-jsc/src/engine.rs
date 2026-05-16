@@ -144,9 +144,6 @@ unsafe extern "C" fn host_fn_callback(
     };
 
     let mut rjsi_cx = rjsi_core::Context::new(cx_raw);
-    let scope_obj = rjsi_core::Scope::new(&mut rjsi_cx);
-    let mut callback_cx = rjsi_core::CallbackCx::new(scope_obj);
-
     let this_val = if this_object.is_null() {
         rusty_jsc_sys::JSValueMakeUndefined(ctx)
     } else {
@@ -161,12 +158,12 @@ unsafe extern "C" fn host_fn_callback(
         _phantom: std::marker::PhantomData,
     });
 
-    let result = func_ref.call(&mut callback_cx, this_core, rjsi_args);
+    let result = func_ref.call(&mut rjsi_cx, this_core, rjsi_args);
 
     match result {
         Ok(val) => val.into_raw().val,
         Err(rjsi_core::Error::Exception) => {
-            let jsc_cx = rjsi_core::__cx::context_mut(callback_cx.cx());
+            let jsc_cx = rjsi_core::__cx::context_mut(&mut rjsi_cx);
             if let Some(exc_val) = jsc_cx.pending_exception.take() {
                 if !exception.is_null() {
                     *exception = exc_val;
@@ -215,7 +212,6 @@ impl Engine for JscEngine {
 
     type Runtime = crate::runtime::JscRuntime;
     type Context<'rt> = JscContext<'rt>;
-    type Scope<'cx> = ();
     type Value<'cx> = JscValue<'cx>;
     type Object<'cx> = JscObject<'cx>;
     type Function<'cx> = JscObject<'cx>;

@@ -66,7 +66,6 @@ macro_rules! phantom_val {
     };
 }
 
-phantom_val!(MockScope);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MockObject<'cx> {
     pub(crate) id: u32,
@@ -162,7 +161,6 @@ impl Engine for MockEngine {
 
     type Runtime = MockRuntime;
     type Context<'rt> = MockContext<'rt>;
-    type Scope<'cx> = MockScope<'cx>;
     type Value<'cx> = MockValue<'cx>;
     type Object<'cx> = MockObject<'cx>;
     type Function<'cx> = MockFunction<'cx>;

@@ -44,6 +44,12 @@ impl<'cx, E: Engine> ToJs<'cx, E> for &str {
     }
 }
 
+impl<'cx, E: Engine, T: ToJs<'cx, E>> ToJs<'cx, E> for crate::Result<T> {
+    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+        self?.to_js(cx)
+    }
+}
+
 impl<'cx, E: Engine> FromJs<'cx, E> for bool {
     fn from_js(_cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
         value

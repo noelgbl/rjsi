@@ -56,9 +56,6 @@ fn host_fn_callback<'s, 'i>(
     };
 
     let mut rjsi_cx = rjsi_core::Context::new(cx_raw);
-    let scope_obj = rjsi_core::Scope::new(&mut rjsi_cx);
-    let mut callback_cx = rjsi_core::CallbackCx::new(scope_obj);
-
     let this_val = args.this();
     let this_core = rjsi_core::Value::new(unsafe { cast_local(this_val.into()) });
 
@@ -67,12 +64,12 @@ fn host_fn_callback<'s, 'i>(
         _phantom: std::marker::PhantomData,
     });
 
-    let result = func_ref.call(&mut callback_cx, this_core, rjsi_args);
+    let result = func_ref.call(&mut rjsi_cx, this_core, rjsi_args);
 
     match result {
         Ok(val) => rv.set(val.into_raw()),
         Err(rjsi_core::Error::Exception) => {
-            let v8cx = rjsi_core::__cx::context_mut(callback_cx.cx());
+            let v8cx = rjsi_core::__cx::context_mut(&mut rjsi_cx);
             if let Some(global) = v8cx.pending_exception.take() {
                 let local = v8::Local::new(&mut context_scope, global);
                 context_scope.throw_exception(local);
@@ -95,7 +92,6 @@ impl Engine for V8Engine {
 
     type Runtime = crate::runtime::V8Runtime;
     type Context<'rt> = V8Context<'rt>;
-    type Scope<'cx> = ();
     type Value<'cx> = v8::Local<'cx, v8::Value>;
     type Object<'cx> = v8::Local<'cx, v8::Object>;
     type Function<'cx> = v8::Local<'cx, v8::Function>;

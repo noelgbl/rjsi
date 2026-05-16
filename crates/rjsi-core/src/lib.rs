@@ -7,12 +7,12 @@ mod convert;
 mod engine;
 mod error;
 mod function;
+pub mod host_fn;
 mod keys;
 mod native_state;
 mod object;
 mod persistent;
 mod runtime;
-mod scope;
 mod string;
 mod symbol;
 mod value;
@@ -25,6 +25,7 @@ pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
 pub use error::{Error, Result};
 pub use function::Function;
+pub use host_fn::{HostFn, HostFnAdapter, HostFnWithCx, HostFnWithCxAdapter, WithCx};
 pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use native_state::{
     ContextNativeStateExt, ErasedNativeState, NativeState, NativeStateSupport, TaggedNativeState, tagged_native_state_type_id
@@ -32,9 +33,6 @@ pub use native_state::{
 pub use object::Object;
 pub use persistent::PersistentValue;
 pub use runtime::{MicrotaskDrainPolicy, Runtime};
-pub use scope::{
-    CallbackCx, CallbackScope, CanEscape, CanScheduleMicrotask, CanThrow, EscapableScope, HandleScope, ModuleScope, Scope, ScopeKind, TryCatch, TryCatchScope
-};
 pub use string::JsString;
 pub use symbol::Symbol;
 pub use value::Value;

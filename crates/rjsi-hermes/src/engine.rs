@@ -116,7 +116,6 @@ impl Engine for HermesEngine {
 
     type Runtime = crate::runtime::HermesRuntime;
     type Context<'rt> = HermesContext<'rt>;
-    type Scope<'cx> = ();
     type Value<'cx> = Value<'cx>;
     type Object<'cx> = Object<'cx>;
     type Function<'cx> = Function<'cx>;
@@ -483,14 +482,10 @@ unsafe extern "C" fn host_trampoline(
         }
 
         let mut rjsi_cx = rjsi_core::Context::new(hc);
-        let scope = rjsi_core::Scope::new(&mut rjsi_cx);
-        let mut callback_cx = rjsi_core::CallbackCx::new(scope);
         let this_core = rjsi_core::Value::new(this_v);
         let args_core = rjsi_core::Args::new(HermesArgs { argv });
 
-        let res = cell
-            .borrow_mut()
-            .call(&mut callback_cx, this_core, args_core);
+        let res = cell.borrow_mut().call(&mut rjsi_cx, this_core, args_core);
 
         match res {
             Ok(v) => v.into_raw().into_raw(),

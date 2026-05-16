@@ -3,7 +3,6 @@ use crate::{PropertyKey, Result};
 pub trait Engine: Sized + 'static {
     type Runtime;
     type Context<'rt>: 'rt;
-    type Scope<'cx>: 'cx;
     type Value<'cx>: 'cx;
     type Object<'cx>: 'cx;
     type Function<'cx>: 'cx;

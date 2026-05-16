@@ -1,8 +1,6 @@
 use std::pin::pin;
 
-use rjsi_core::{
-    __cx, Args, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
-};
+use rjsi_core::{__cx, Args, ClassSupport, Context, Error, Function, JsClass, Object, Result};
 
 use crate::engine::{V8Args, V8Context, V8Engine, cast_local, get_scope};
 
@@ -21,15 +19,12 @@ fn class_ctor_callback<C: JsClass<V8Engine>>(
         _phantom: std::marker::PhantomData,
     };
     let mut rjsi_cx = Context::new(cx_raw);
-    let scope_wrap = Scope::new(&mut rjsi_cx);
-    let mut callback_cx = CallbackCx::new(scope_wrap);
-
     let rjsi_args = Args::new(V8Args {
         args: &args as *const _ as *mut std::ffi::c_void,
         _phantom: std::marker::PhantomData,
     });
 
-    match C::construct(&mut callback_cx, rjsi_args) {
+    match C::construct(&mut rjsi_cx, rjsi_args) {
         Ok(instance) => {
             let raw = Box::into_raw(Box::new(instance));
             let ext = v8::External::new(&mut context_scope, raw as *mut std::ffi::c_void);

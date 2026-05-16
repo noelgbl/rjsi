@@ -66,7 +66,6 @@ impl Engine for BoaEngine {
 
     type Runtime = crate::runtime::BoaRuntime;
     type Context<'rt> = BoaContext<'rt>;
-    type Scope<'cx> = ();
     type Value<'cx> = JsValue;
     type Object<'cx> = JsObject;
     type Function<'cx> = JsObject;
@@ -251,16 +250,13 @@ impl Engine for BoaEngine {
                     runtime: std::ptr::null_mut(),
                 };
                 let mut rjsi_cx = rjsi_core::Context::new(wrapper);
-                let scope = rjsi_core::Scope::new(&mut rjsi_cx);
-                let mut callback_cx = rjsi_core::CallbackCx::new(scope);
-
                 let this_core = rjsi_core::Value::new(this.clone());
                 let argv: Vec<JsValue> = args.to_vec();
                 let args_core = rjsi_core::Args::new(BoaArgs { argv });
 
                 let res = func_cell
                     .borrow_mut()
-                    .call(&mut callback_cx, this_core, args_core);
+                    .call(&mut rjsi_cx, this_core, args_core);
 
                 match res {
                     Ok(v) => Ok(v.into_raw()),

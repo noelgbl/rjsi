@@ -3,9 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use rjsi_core::{
-    __cx, Args, CallbackCx, ClassSupport, Context, Error, Function, JsClass, Object, Result, Scope
-};
+use rjsi_core::{__cx, Args, ClassSupport, Context, Error, Function, JsClass, Object, Result};
 use rusty_jsc_sys as jsc;
 
 use crate::engine::{JscArgs, JscContext, JscEngine, JscObject, ManagedJSString};
@@ -96,9 +94,6 @@ impl<C: JsClass<JscEngine>> RawCtor for ConcreteCtor<C> {
             _phantom: std::marker::PhantomData,
         };
         let mut rjsi_cx = Context::new(cx_raw);
-        let scope_obj = Scope::new(&mut rjsi_cx);
-        let mut callback_cx = CallbackCx::new(scope_obj);
-
         let rjsi_args = Args::new(JscArgs {
             ctx,
             args: arguments,
@@ -106,7 +101,7 @@ impl<C: JsClass<JscEngine>> RawCtor for ConcreteCtor<C> {
             _phantom: std::marker::PhantomData,
         });
 
-        match C::construct(&mut callback_cx, rjsi_args) {
+        match C::construct(&mut rjsi_cx, rjsi_args) {
             Ok(instance) => {
                 let raw = Box::into_raw(Box::new(instance)) as *mut std::ffi::c_void;
                 let obj = unsafe { jsc::JSObjectMake(ctx, self.instance_class, raw) };

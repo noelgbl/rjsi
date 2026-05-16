@@ -14,9 +14,7 @@ thread_local! {
 }
 
 fn native_state_class_id_for<S: 'static>() -> qjs::JSClassID {
-    NATIVE_STATE_CLASS_IDS.with(|map| {
-        *map.borrow().get(&TypeId::of::<S>()).unwrap_or(&0)
-    })
+    NATIVE_STATE_CLASS_IDS.with(|map| *map.borrow().get(&TypeId::of::<S>()).unwrap_or(&0))
 }
 
 fn ensure_native_state_class<S: NativeState>(rt: *mut qjs::JSRuntime) -> qjs::JSClassID {
@@ -95,7 +93,7 @@ impl NativeStateSupport for QuickJsEngine {
         if class_id == 0 {
             return None;
         }
-        
+
         let ptr = unsafe { qjs::JS_GetOpaque(obj.as_raw().as_raw(), class_id) };
         if ptr.is_null() {
             return None;
