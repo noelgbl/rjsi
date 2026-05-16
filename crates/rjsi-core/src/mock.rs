@@ -141,7 +141,7 @@ impl MockEngine {
 
 impl Runtime<MockEngine> for MockRuntime {
     fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, MockEngine>) -> R) -> R {
-        let mut cx_raw = MockContext {
+        let cx_raw = MockContext {
             runtime: self as *mut _,
             _marker: PhantomData,
         };
