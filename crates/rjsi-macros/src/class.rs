@@ -134,7 +134,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                     ) -> #core::Result<#core::Value<'rt, E>> {
                         let _ = args.len();
                         let __this_obj = #core::Object::new(
-                            E::value_to_object(this.into_raw())
+                            E::value_as_object(this.into_raw())
                                 .ok_or_else(|| #core::Error::type_err("expected object"))?
                         );
                         let ptr = unsafe {

@@ -630,7 +630,7 @@ impl Engine for JscEngine {
         Ok(JscObject::new(cx.ctx, obj))
     }
 
-    fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
+    fn value_as_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
         if unsafe {
             rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeBoolean
         } {
@@ -638,6 +638,11 @@ impl Engine for JscEngine {
         } else {
             None
         }
+    }
+
+    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+        let _ = cx;
+        unsafe { rusty_jsc_sys::JSValueToBoolean(val.ctx, val.val) }
     }
 
     fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
@@ -651,7 +656,7 @@ impl Engine for JscEngine {
         }
     }
 
-    fn value_to_string_utf8<'rt>(
+    fn value_to_string<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
     ) -> Result<String> {
@@ -683,7 +688,7 @@ impl Engine for JscEngine {
         JscValue::new(obj.ctx, obj.val as _)
     }
 
-    fn value_to_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
+    fn value_as_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
         if unsafe {
             rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeObject
         } {
@@ -700,7 +705,7 @@ impl Engine for JscEngine {
         JscValue::new(f.ctx, f.val as _)
     }
 
-    fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
+    fn value_as_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
         if unsafe { rusty_jsc_sys::JSObjectIsFunction(val.ctx, val.val as _) } {
             Some(JscObject::new(
                 val.ctx,

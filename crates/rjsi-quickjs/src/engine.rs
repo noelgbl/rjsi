@@ -211,8 +211,13 @@ impl Engine for QuickJsEngine {
         map_err(cx, res)
     }
 
-    fn value_to_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
+    fn value_as_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
         val.as_bool()
+    }
+
+    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+        let res: rquickjs::Result<Coerced<bool>> = val.clone().get();
+        map_err(cx, res.map(|c| *c)).unwrap_or(false)
     }
 
     fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
@@ -220,7 +225,7 @@ impl Engine for QuickJsEngine {
         map_err(cx, res)
     }
 
-    fn value_to_string_utf8<'rt>(
+    fn value_to_string<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
     ) -> Result<std::string::String> {
@@ -231,13 +236,13 @@ impl Engine for QuickJsEngine {
     fn object_to_value<'rt>(obj: Self::Object<'rt>) -> Self::Value<'rt> {
         obj.into_value()
     }
-    fn value_to_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
+    fn value_as_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
         val.into_object()
     }
     fn function_to_value<'rt>(f: Self::Function<'rt>) -> Self::Value<'rt> {
         f.into_value()
     }
-    fn value_to_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
+    fn value_as_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
         val.into_function()
     }
     fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> {

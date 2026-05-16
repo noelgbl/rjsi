@@ -148,7 +148,7 @@ where
         assert_eq!(s, "conformance");
 
         let b = cx.boolean(false);
-        assert_eq!(b.to_bool(), Some(false));
+        assert_eq!(b.as_bool(), Some(false));
     });
 }
 
@@ -194,9 +194,9 @@ where
 {
     runtime.with_scope(|cx| {
         let t = cx.boolean(true);
-        assert_eq!(t.to_bool(), Some(true));
+        assert_eq!(t.as_bool(), Some(true));
         let back = cx.eval("true").unwrap();
-        assert_eq!(back.to_bool(), Some(true));
+        assert_eq!(back.as_bool(), Some(true));
     });
 }
 

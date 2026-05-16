@@ -284,8 +284,13 @@ impl Engine for BoaEngine {
         Ok(js_fn.into())
     }
 
-    fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
+    fn value_as_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
         val.as_boolean()
+    }
+
+    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+        let _ = cx;
+        val.to_boolean()
     }
 
     fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
@@ -293,7 +298,7 @@ impl Engine for BoaEngine {
         map_js(cx.deref_mut(), n)
     }
 
-    fn value_to_string_utf8<'rt>(
+    fn value_to_string<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
     ) -> Result<String> {
@@ -306,7 +311,7 @@ impl Engine for BoaEngine {
         obj.into()
     }
 
-    fn value_to_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
+    fn value_as_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
         val.as_object().map(|o| o.clone())
     }
 
@@ -314,7 +319,7 @@ impl Engine for BoaEngine {
         f.into()
     }
 
-    fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
+    fn value_as_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
         val.as_object()
             .filter(|o| o.is_callable())
             .map(|o| o.clone())

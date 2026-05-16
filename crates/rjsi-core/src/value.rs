@@ -63,8 +63,28 @@ impl<'cx, E: Engine> Value<'cx, E> {
         E::value_is_bigint(&self.raw)
     }
 
-    pub fn to_bool(&self) -> Option<bool> {
-        E::value_to_bool(&self.raw)
+    pub fn as_bool(&self) -> Option<bool> {
+        E::value_as_bool(&self.raw)
+    }
+
+    pub fn as_i32(&self, cx: &mut Context<'cx, E>) -> Option<i32> {
+        E::value_as_f64(&mut cx.raw, &self.raw).map(|n| n as i32)
+    }
+
+    pub fn as_f64(&self, cx: &mut Context<'cx, E>) -> Option<f64> {
+        E::value_as_f64(&mut cx.raw, &self.raw)
+    }
+
+    pub fn as_string(&self, cx: &mut Context<'cx, E>) -> Option<String> {
+        E::value_as_string(&mut cx.raw, &self.raw)
+    }
+
+    pub fn to_bool(&self, cx: &mut Context<'cx, E>) -> bool {
+        E::value_to_bool(&mut cx.raw, &self.raw)
+    }
+
+    pub fn to_i32(&self, cx: &mut Context<'cx, E>) -> Result<i32> {
+        E::value_to_f64(&mut cx.raw, &self.raw).map(|n| n as i32)
     }
 
     pub fn to_f64(&self, cx: &mut Context<'cx, E>) -> Result<f64> {
@@ -72,15 +92,35 @@ impl<'cx, E: Engine> Value<'cx, E> {
     }
 
     pub fn to_string(&self, cx: &mut Context<'cx, E>) -> Result<String> {
-        E::value_to_string_utf8(&mut cx.raw, &self.raw)
+        E::value_to_string(&mut cx.raw, &self.raw)
+    }
+
+    pub fn try_as_bool(&self) -> Result<bool> {
+        self.as_bool()
+            .ok_or_else(|| Error::type_err("expected boolean"))
+    }
+
+    pub fn try_as_i32(&self, cx: &mut Context<'cx, E>) -> Result<i32> {
+        self.as_i32(cx)
+            .ok_or_else(|| Error::type_err("expected number"))
+    }
+
+    pub fn try_as_f64(&self, cx: &mut Context<'cx, E>) -> Result<f64> {
+        self.as_f64(cx)
+            .ok_or_else(|| Error::type_err("expected number"))
+    }
+
+    pub fn try_as_string(&self, cx: &mut Context<'cx, E>) -> Result<String> {
+        self.as_string(cx)
+            .ok_or_else(|| Error::type_err("expected string"))
     }
 
     pub fn as_object(self) -> Option<Object<'cx, E>> {
-        E::value_to_object(self.raw).map(Object::new)
+        E::value_as_object(self.raw).map(Object::new)
     }
 
     pub fn as_function(self) -> Option<Function<'cx, E>> {
-        E::value_to_function(self.raw).map(Function::new)
+        E::value_as_function(self.raw).map(Function::new)
     }
 
     pub fn try_as_object(self) -> Result<Object<'cx, E>> {

@@ -411,12 +411,17 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
+    fn value_as_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
         if val.is_boolean() {
             Some(val.is_true())
         } else {
             None
         }
+    }
+
+    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+        let scope = unsafe { get_scope(cx) };
+        val.boolean_value(&**scope)
     }
 
     fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
@@ -428,7 +433,7 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_string_utf8<'rt>(
+    fn value_to_string<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
     ) -> Result<std::string::String> {
@@ -445,7 +450,7 @@ impl Engine for V8Engine {
         obj.into()
     }
 
-    fn value_to_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
+    fn value_as_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
         val.try_into().ok()
     }
 
@@ -453,7 +458,7 @@ impl Engine for V8Engine {
         f.into()
     }
 
-    fn value_to_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
+    fn value_as_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
         val.try_into().ok()
     }
 

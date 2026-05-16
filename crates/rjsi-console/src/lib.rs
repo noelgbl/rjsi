@@ -55,7 +55,7 @@ fn log_assert<'rt, E: Engine>(
     _this: Value<'rt, E>,
     args: Args<'rt, E>,
 ) -> Result<Value<'rt, E>> {
-    let expression = args.get(0).and_then(|v| v.to_bool()).unwrap_or(true);
+    let expression = args.get(0).and_then(|v| v.as_bool()).unwrap_or(true);
 
     if expression {
         write_log(stderr(), cx, args)?;

@@ -310,11 +310,20 @@ impl Engine for MockEngine {
         Ok(MockValue::UNDEFINED)
     }
 
-    fn value_to_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
+    fn value_as_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
         match val.tag {
             2 => Some(false),
             3 => Some(true),
             _ => None,
+        }
+    }
+
+    fn value_to_bool<'rt>(_cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+        match val.tag {
+            0 | 1 | 2 => false,
+            3 => true,
+            4 => false,
+            _ => true,
         }
     }
 
@@ -326,7 +335,7 @@ impl Engine for MockEngine {
         }
     }
 
-    fn value_to_string_utf8<'rt>(
+    fn value_to_string<'rt>(
         _cx: &mut Self::Context<'rt>,
         _val: &Self::Value<'rt>,
     ) -> Result<String> {
@@ -336,13 +345,13 @@ impl Engine for MockEngine {
     fn object_to_value<'rt>(_obj: Self::Object<'rt>) -> Self::Value<'rt> {
         MockValue::UNDEFINED
     }
-    fn value_to_object<'rt>(_val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
+    fn value_as_object<'rt>(_val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
         None
     }
     fn function_to_value<'rt>(_f: Self::Function<'rt>) -> Self::Value<'rt> {
         MockValue::UNDEFINED
     }
-    fn value_to_function<'rt>(_val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
+    fn value_as_function<'rt>(_val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
         None
     }
     fn function_to_object<'rt>(_f: Self::Function<'rt>) -> Self::Object<'rt> {

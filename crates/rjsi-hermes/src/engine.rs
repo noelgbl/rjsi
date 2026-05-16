@@ -390,8 +390,32 @@ impl Engine for HermesEngine {
         Ok(unsafe { function_from_raw_parts(func_pv, rt_ptr) })
     }
 
-    fn value_to_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
+    fn value_as_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
         val.as_bool()
+    }
+
+    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+        let _ = cx;
+        // Hermes exposes no native Boolean() coercion, best effort here
+        if val.is_null() || val.is_undefined() {
+            return false;
+        }
+        if let Some(b) = val.as_bool() {
+            return b;
+        }
+        if let Some(n) = val.as_number() {
+            return n != 0.0 && !n.is_nan();
+        }
+        if val.is_string() {
+            return val
+                .duplicate()
+                .to_js_string()
+                .ok()
+                .and_then(|s| map_hermes(s.to_rust_string()).ok())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false);
+        }
+        true
     }
 
     fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
@@ -400,7 +424,7 @@ impl Engine for HermesEngine {
             .ok_or_else(|| Error::type_err("expected number"))
     }
 
-    fn value_to_string_utf8<'rt>(
+    fn value_to_string<'rt>(
         cx: &mut Self::Context<'rt>,
         val: &Self::Value<'rt>,
     ) -> Result<String> {
@@ -413,7 +437,7 @@ impl Engine for HermesEngine {
         Value::from(obj)
     }
 
-    fn value_to_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
+    fn value_as_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
         val.into_object().ok()
     }
 
@@ -421,7 +445,7 @@ impl Engine for HermesEngine {
         Value::from(f)
     }
 
-    fn value_to_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
+    fn value_as_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
         val.into_function().ok()
     }
 
