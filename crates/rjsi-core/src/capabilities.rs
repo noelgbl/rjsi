@@ -1,4 +1,19 @@
-use crate::{Context, Engine, Result};
+use crate::{Context, Engine, Object, Result};
+
+/// The execution state of a promise.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum PromiseState {
+    /// The promise has not yet completed.
+    Pending,
+    /// The promise completed succefully.
+    Resolved,
+    /// The promise completed with an error.
+    Rejected,
+}
+
+/// A JavaScript promise.
+#[repr(transparent)]
+pub struct Promise<'js, E: Engine>(pub(crate) Object<'js, E>);
 
 /// Engines that expose native Promise primitives.
 pub trait Promises: Engine {
@@ -23,6 +38,9 @@ pub trait Promises: Engine {
         resolver: Self::PromiseResolver<'rt>,
         reason: Self::Value<'rt>,
     ) -> Result<()>;
+
+    /* fn promise_state<'rt>(cx: &mut Context<'rt, Self>, promise: &Self::Object<'rt>) -> PromiseState;
+    fn promise_result<'rt>(cx: &mut Context<'rt, Self>, promise: &Self::Object<'rt>) -> Option<Result<Self::Value<'rt>>>; */
 }
 
 /// Engines that allow manual manipulation of the microtask queue.

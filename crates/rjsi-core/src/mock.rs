@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::mem;
 
 use crate::{
-    Context, Engine, ErasedNativeState, Error, FromJs, MicrotaskDrainPolicy, NativeState, NativeStateSupport, Object, PropertyKey, Result, Runtime, ToJs, Value
+    Context, Engine, ErasedNativeState, Error, MicrotaskDrainPolicy, NativeState, NativeStateSupport, Object, PropertyKey, Result, Runtime
 };
 
 pub struct MockEngine;
@@ -466,21 +466,5 @@ impl NativeStateSupport for MockEngine {
         let slot = rt.native_states.get_mut(&id)?;
         let r = slot.inner.downcast_mut::<S>()?;
         Some(unsafe { mem::transmute::<&mut S, &'cx mut S>(r) })
-    }
-}
-
-impl<'cx> ToJs<'cx, MockEngine> for u32 {
-    fn to_js(self, _cx: &mut Context<'cx, MockEngine>) -> Result<Value<'cx, MockEngine>> {
-        Ok(Value::new(MockValue::number(self)))
-    }
-}
-
-impl<'cx> FromJs<'cx, MockEngine> for u32 {
-    fn from_js(_cx: &mut Context<'cx, MockEngine>, value: Value<'cx, MockEngine>) -> Result<Self> {
-        if value.is_number() && (value.to_f64(_cx)? as u32) < 100 {
-            Ok(value.to_f64(_cx)? as u32)
-        } else {
-            Err(Error::type_err("mock range"))
-        }
     }
 }
