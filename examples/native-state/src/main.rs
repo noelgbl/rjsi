@@ -1,6 +1,6 @@
 //! Attach Rust data to a JS object and call from JavaScript into Rust that
 //! mutates it.
-use rjsi::{Context, ContextNativeStateExt, DefaultRuntime, NativeState, Runtime};
+use rjsi::{ContextNativeStateExt, DefaultRuntime, NativeState, Runtime};
 
 struct Counter {
     value: i32,
@@ -8,10 +8,7 @@ struct Counter {
 
 impl NativeState for Counter {}
 
-fn increment<'rt, E: rjsi::Engine>(
-    counter: &mut Counter,
-    increment: i32,
-) -> f64 {
+fn increment(counter: &mut Counter, increment: i32) -> f64 {
     counter.value += increment;
     counter.value as f64
 }
