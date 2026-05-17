@@ -1,5 +1,6 @@
-use crate::Result;
 use std::collections::HashMap;
+
+use crate::Result;
 
 pub trait Resolver: 'static {
     fn resolve(&mut self, base: Option<&str>, name: &str) -> Result<String>;

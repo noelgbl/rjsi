@@ -33,19 +33,13 @@ fn ensure_state_slot(isolate: &mut v8::Isolate) {
     }
 }
 
-fn with_state<R>(
-    isolate: &v8::Isolate,
-    f: impl FnOnce(&mut ModuleState) -> R,
-) -> Option<R> {
+fn with_state<R>(isolate: &v8::Isolate, f: impl FnOnce(&mut ModuleState) -> R) -> Option<R> {
     let slot = isolate.get_slot::<ModuleStateSlot>()?;
     let mut guard = slot.0.lock().ok()?;
     Some(f(&mut guard))
 }
 
-fn make_script_origin<'s>(
-    scope: &v8::PinScope<'s, '_>,
-    name: &str,
-) -> v8::ScriptOrigin<'s> {
+fn make_script_origin<'s>(scope: &v8::PinScope<'s, '_>, name: &str) -> v8::ScriptOrigin<'s> {
     let resource_name = v8::String::new(scope, name).unwrap();
     v8::ScriptOrigin::new(
         scope,
@@ -76,8 +70,7 @@ fn compile_graph<'s>(
         let already = with_state(&**scope, |s| s.by_name.contains_key(&name)).unwrap_or(false);
         if already {
             if name == root_name && root_local.is_none() {
-                let global = with_state(&**scope, |s| s.by_name.get(&name).cloned())
-                    .flatten();
+                let global = with_state(&**scope, |s| s.by_name.get(&name).cloned()).flatten();
                 if let Some(g) = global {
                     root_local = Some(v8::Local::new(scope, &g));
                 }
@@ -121,16 +114,14 @@ fn compile_graph<'s>(
 
             let resolved = with_state(isolate_ref, |s| {
                 let host = s.host.as_mut().ok_or_else(|| {
-                    Error::type_err(
-                        "no module host installed; call install_module_host first",
-                    )
+                    Error::type_err("no module host installed; call install_module_host first")
                 })?;
                 host.resolver.resolve(Some(&name), &specifier)
             })
             .unwrap_or_else(|| Err(Error::type_err("module state missing")))?;
 
-            let known = with_state(isolate_ref, |s| s.by_name.contains_key(&resolved))
-                .unwrap_or(false);
+            let known =
+                with_state(isolate_ref, |s| s.by_name.contains_key(&resolved)).unwrap_or(false);
             if known {
                 continue;
             }
@@ -309,10 +300,7 @@ fn dynamic_import_callback<'s, 'i>(
 }
 
 impl rjsi_core::capabilities::Modules for V8Engine {
-    fn install_module_host(
-        runtime: &mut Self::Runtime,
-        host: ModuleHost,
-    ) -> Result<()> {
+    fn install_module_host(runtime: &mut Self::Runtime, host: ModuleHost) -> Result<()> {
         runtime.with_isolate_mut(|isolate| {
             ensure_state_slot(isolate);
             with_state(&*isolate, |s| {
@@ -324,10 +312,7 @@ impl rjsi_core::capabilities::Modules for V8Engine {
         Ok(())
     }
 
-    fn set_import_meta_hook(
-        runtime: &mut Self::Runtime,
-        hook: ImportMetaHook,
-    ) -> Result<()> {
+    fn set_import_meta_hook(runtime: &mut Self::Runtime, hook: ImportMetaHook) -> Result<()> {
         runtime.with_isolate_mut(|isolate| {
             ensure_state_slot(isolate);
             with_state(&*isolate, |s| {
@@ -415,7 +400,6 @@ impl rjsi_core::capabilities::Modules for V8Engine {
         let obj: v8::Local<'_, v8::Object> = promise.into();
         Ok(unsafe { cast_local(obj) })
     }
-
 }
 
 impl rjsi_core::RuntimeModulesExt<V8Engine> for crate::runtime::V8Runtime {

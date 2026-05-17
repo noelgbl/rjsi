@@ -1,4 +1,6 @@
-use rjsi_core::module::{ImportMetaHook, Loader as RjsiLoader, ModuleHost, Resolver as RjsiResolver};
+use rjsi_core::module::{
+    ImportMetaHook, Loader as RjsiLoader, ModuleHost, Resolver as RjsiResolver
+};
 use rjsi_core::{Context, Error, Result};
 use rquickjs::loader::{Loader as QLoader, Resolver as QResolver};
 use rquickjs::module::{Declared, Module as QModule};
@@ -30,7 +32,11 @@ struct LoaderAdapter {
 }
 
 impl QLoader for LoaderAdapter {
-    fn load<'js>(&mut self, ctx: &Ctx<'js>, name: &str) -> rquickjs::Result<QModule<'js, Declared>> {
+    fn load<'js>(
+        &mut self,
+        ctx: &Ctx<'js>,
+        name: &str,
+    ) -> rquickjs::Result<QModule<'js, Declared>> {
         let src = self
             .inner
             .load(name)
@@ -40,10 +46,7 @@ impl QLoader for LoaderAdapter {
 }
 
 impl rjsi_core::capabilities::Modules for QuickJsEngine {
-    fn install_module_host(
-        runtime: &mut Self::Runtime,
-        host: ModuleHost,
-    ) -> Result<()> {
+    fn install_module_host(runtime: &mut Self::Runtime, host: ModuleHost) -> Result<()> {
         runtime.rt.set_loader(
             ResolverAdapter {
                 inner: host.resolver,
@@ -54,17 +57,11 @@ impl rjsi_core::capabilities::Modules for QuickJsEngine {
     }
 
     /// TODO: How does this work in QJS?
-    fn set_import_meta_hook(
-        _runtime: &mut Self::Runtime,
-        _hook: ImportMetaHook,
-    ) -> Result<()> {
+    fn set_import_meta_hook(_runtime: &mut Self::Runtime, _hook: ImportMetaHook) -> Result<()> {
         Err(Error::from_js(
             "import.meta hook",
             "QuickJS",
-            Some(
-                "QuickJS does support import.meta rn"
-                    .to_string(),
-            ),
+            Some("QuickJS does support import.meta rn".to_string()),
         ))
     }
 
