@@ -31,31 +31,21 @@ fn main() {
     runtime.with_scope(|cx| {
         let obj = cx.with_state(Counter { value: 0 }).unwrap();
 
-        let increment = cx.function("increment", increment).unwrap();
+        let increment = cx.raw_function("increment", increment).unwrap();
         obj.set(cx, "increment", increment.into_value()).unwrap();
 
         cx.globals()
             .set(cx, "counterObj", obj.into_value())
             .unwrap();
 
-        cx.eval(
-            r#"
-            globalThis.counterObj.increment();
-        "#,
-        )
-        .unwrap();
+        cx.eval("globalThis.counterObj.increment();").unwrap();
 
         let holder_val = cx.globals().get(cx, "counterObj").unwrap();
         let holder_obj = holder_val.try_as_object().unwrap();
 
         assert_eq!(holder_obj.native_state::<Counter>(cx).unwrap().value, 1);
 
-        cx.eval(
-            r#"
-            globalThis.counterObj.increment();
-        "#,
-        )
-        .unwrap();
+        cx.eval("globalThis.counterObj.increment();").unwrap();
 
         assert_eq!(holder_obj.native_state::<Counter>(cx).unwrap().value, 2);
 

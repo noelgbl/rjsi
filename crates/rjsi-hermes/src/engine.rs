@@ -424,10 +424,7 @@ impl Engine for HermesEngine {
             .ok_or_else(|| Error::type_err("expected number"))
     }
 
-    fn value_to_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> Result<String> {
+    fn value_to_string<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<String> {
         let _ = cx;
         let js = map_hermes(val.duplicate().to_js_string())?;
         map_hermes(js.to_rust_string())

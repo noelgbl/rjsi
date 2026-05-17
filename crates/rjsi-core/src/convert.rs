@@ -184,7 +184,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for () {
 
 impl<'cx, E: Engine> FromJs<'cx, E> for u64 {
     fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
-        value            .as_f64(cx)
+        value
+            .as_f64(cx)
             .map(|n| n as u64)
             .ok_or_else(|| Error::type_err("expected number"))
     }
@@ -275,6 +276,13 @@ impl<'cx, E: Engine> FromJs<'cx, E> for String {
         value
             .as_string(cx)
             .ok_or_else(|| Error::type_err("expected string"))
+    }
+}
+
+impl<'cx, E: Engine> FromJs<'cx, E> for Value<'cx, E> {
+    #[inline]
+    fn from_js(_cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+        Ok(value)
     }
 }
 

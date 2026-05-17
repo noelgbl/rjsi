@@ -1,17 +1,7 @@
-use rjsi::{Args, Context, DefaultRuntime, Engine, Result, Runtime, Value};
+use rjsi::{DefaultRuntime, Runtime};
 
-fn add<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
-    let a_val = args.get(0).unwrap();
-    let b_val = args.get(1).unwrap();
-
-    let a = a_val.to_f64(cx)? as i32;
-    let b = b_val.to_f64(cx)? as i32;
-
-    Ok(cx.integer(a + b))
+fn add(a: f64, b: f64) -> f64 {
+    a + b
 }
 
 fn main() {

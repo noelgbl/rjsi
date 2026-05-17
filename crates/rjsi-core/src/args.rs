@@ -36,9 +36,9 @@ impl<'cx, E: Engine> Args<'cx, E> {
         }
     }
 
-    pub fn rest_from(&self, start: usize) -> Rest<'_, 'cx, E> {
+    pub fn rest_from(&self, start: usize) -> ArgSlice<'_, 'cx, E> {
         let end = E::raw_args_len(&self.raw);
-        Rest {
+        ArgSlice {
             raw: &self.raw,
             start: start.min(end),
             end,
@@ -97,13 +97,13 @@ impl<'a, 'cx, E: Engine> IntoIterator for &'a Args<'cx, E> {
     }
 }
 
-pub struct Rest<'a, 'cx, E: Engine> {
+pub struct ArgSlice<'a, 'cx, E: Engine> {
     raw: &'a E::RawArgs<'cx>,
     start: usize,
     end: usize,
 }
 
-impl<'a, 'cx, E: Engine> Rest<'a, 'cx, E> {
+impl<'a, 'cx, E: Engine> ArgSlice<'a, 'cx, E> {
     pub fn len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
@@ -126,7 +126,7 @@ impl<'a, 'cx, E: Engine> Rest<'a, 'cx, E> {
     }
 }
 
-impl<'a, 'cx, E: Engine> IntoIterator for Rest<'a, 'cx, E> {
+impl<'a, 'cx, E: Engine> IntoIterator for ArgSlice<'a, 'cx, E> {
     type Item = E::Value<'cx>;
     type IntoIter = ArgsIter<'a, 'cx, E>;
 
@@ -139,7 +139,7 @@ impl<'a, 'cx, E: Engine> IntoIterator for Rest<'a, 'cx, E> {
     }
 }
 
-impl<'b, 'a, 'cx, E: Engine> IntoIterator for &'b Rest<'a, 'cx, E> {
+impl<'b, 'a, 'cx, E: Engine> IntoIterator for &'b ArgSlice<'a, 'cx, E> {
     type Item = E::Value<'cx>;
     type IntoIter = ArgsIter<'b, 'cx, E>;
 

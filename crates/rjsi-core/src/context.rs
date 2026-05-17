@@ -53,14 +53,7 @@ impl<'rt, E: Engine> Context<'rt, E> {
         E::make_string(&mut self.raw, s).map(Value::new)
     }
 
-    pub fn function<F>(&mut self, name: &str, func: F) -> Result<crate::Function<'rt, E>>
-    where
-        F: crate::args::RawHostFn<E> + 'static,
-    {
-        E::make_function(&mut self.raw, name, func).map(crate::Function::new)
-    }
-
-    pub fn typed_function<F, Marker: 'static>(
+    pub fn function<F, Marker: 'static>(
         &mut self,
         name: &str,
         func: F,
@@ -68,27 +61,21 @@ impl<'rt, E: Engine> Context<'rt, E> {
     where
         F: crate::host_fn::HostFn<E, Marker>,
     {
-        self.function(
+        E::make_function(
+            &mut self.raw,
             name,
             crate::host_fn::HostFnAdapter(func, std::marker::PhantomData),
         )
+        .map(crate::Function::new)
     }
 
-    pub fn typed_function_cx<F, Marker: 'static>(
-        &mut self,
-        name: &str,
-        func: F,
-    ) -> Result<crate::Function<'rt, E>>
+    pub fn raw_function<F>(&mut self, name: &str, func: F) -> Result<crate::Function<'rt, E>>
     where
-        F: crate::host_fn::HostFnWithCx<E, Marker>,
-        crate::host_fn::HostFnWithCxAdapter<F, Marker>: crate::args::RawHostFn<E>,
+        F: crate::args::RawHostFn<E> + 'static,
     {
-        self.function(
-            name,
-            crate::host_fn::HostFnWithCxAdapter(func, std::marker::PhantomData),
-        )
+        E::make_function(&mut self.raw, name, func).map(crate::Function::new)
     }
-    
+
     pub fn catch_exception(&mut self) -> Option<crate::Value<'rt, E>> {
         E::catch_exception(&mut self.raw).map(crate::Value::new)
     }

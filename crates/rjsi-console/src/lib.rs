@@ -109,21 +109,21 @@ pub fn init<'cx, E: Engine>(ctx: &mut Context<'cx, E>) -> Result<()> {
 
     let console = ctx.new_object()?;
 
-    let assert = ctx.function("assert", log_assert)?.into_value();
+    let assert = ctx.raw_function("assert", log_assert)?.into_value();
     console.set(ctx, "assert", assert)?;
-    let clear = ctx.function("clear", clear)?.into_value();
+    let clear = ctx.raw_function("clear", clear)?.into_value();
     console.set(ctx, "clear", clear)?;
-    let debug = ctx.function("debug", log_debug)?.into_value();
+    let debug = ctx.raw_function("debug", log_debug)?.into_value();
     console.set(ctx, "debug", debug)?;
-    let error = ctx.function("error", log_error)?.into_value();
+    let error = ctx.raw_function("error", log_error)?.into_value();
     console.set(ctx, "error", error)?;
-    let info = ctx.function("info", log)?.into_value();
+    let info = ctx.raw_function("info", log)?.into_value();
     console.set(ctx, "info", info)?;
-    let log = ctx.function("log", log)?.into_value();
+    let log = ctx.raw_function("log", log)?.into_value();
     console.set(ctx, "log", log)?;
-    let trace = ctx.function("trace", log_trace)?.into_value();
+    let trace = ctx.raw_function("trace", log_trace)?.into_value();
     console.set(ctx, "trace", trace)?;
-    let warn = ctx.function("warn", log_warn)?.into_value();
+    let warn = ctx.raw_function("warn", log_warn)?.into_value();
     console.set(ctx, "warn", warn)?;
 
     globals.set(ctx, "console", console.into_value())?;

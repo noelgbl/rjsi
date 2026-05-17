@@ -103,21 +103,22 @@ pub trait Engine: Sized + 'static {
     fn value_as_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool>;
 
     fn value_as_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Option<f64> {
-        Self::value_is_number(val).then(|| Self::value_to_f64(cx, val).ok()).flatten()
+        Self::value_is_number(val)
+            .then(|| Self::value_to_f64(cx, val).ok())
+            .flatten()
     }
 
     fn value_as_string<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Option<String> {
-        Self::value_is_string(val).then(|| Self::value_to_string(cx, val).ok()).flatten()
+        Self::value_is_string(val)
+            .then(|| Self::value_to_string(cx, val).ok())
+            .flatten()
     }
 
     fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool;
 
     fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64>;
 
-    fn value_to_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> Result<String>;
+    fn value_to_string<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<String>;
 
     fn object_to_value<'cx>(obj: Self::Object<'cx>) -> Self::Value<'cx>;
 

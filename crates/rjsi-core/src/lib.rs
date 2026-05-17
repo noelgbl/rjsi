@@ -17,7 +17,7 @@ mod string;
 mod symbol;
 mod value;
 
-pub use args::{Args, ArgsIter, RawHostFn, Rest};
+pub use args::{ArgSlice, Args, ArgsIter, RawHostFn};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
 pub use class::{ClassSupport, ContextClassExt, InstanceRef, JsClass};
 pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
@@ -25,7 +25,7 @@ pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
 pub use error::{Error, Result};
 pub use function::Function;
-pub use host_fn::{HostFn, HostFnAdapter, HostFnWithCx, HostFnWithCxAdapter, WithCx};
+pub use host_fn::{CallSite, FromCallSite, HostFn, HostFnAdapter, Opt, Rest, This, WithCx};
 pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use native_state::{
     ContextNativeStateExt, ErasedNativeState, NativeState, NativeStateSupport, TaggedNativeState, tagged_native_state_type_id

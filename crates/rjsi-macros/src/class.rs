@@ -150,7 +150,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
 
                 method_registrations.push(quote! {
                     {
-                        let __f = cx.function(#js_name_lit, #host_ident::#host_fn)?;
+                        let __f = cx.raw_function(#js_name_lit, #host_ident::#host_fn)?;
                         proto.set(cx, #js_name_lit, __f.into_value())?;
                     }
                 });
@@ -178,7 +178,7 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
 
                 method_registrations.push(quote! {
                     {
-                        let __f = cx.function(#js_name_lit, #host_ident::#host_fn)?;
+                        let __f = cx.raw_function(#js_name_lit, #host_ident::#host_fn)?;
                         proto.set(cx, #js_name_lit, __f.into_value())?;
                     }
                 });

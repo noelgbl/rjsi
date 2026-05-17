@@ -298,10 +298,7 @@ impl Engine for BoaEngine {
         map_js(cx.deref_mut(), n)
     }
 
-    fn value_to_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> Result<String> {
+    fn value_to_string<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<String> {
         let s = val.to_string(cx.deref_mut());
         let s = map_js(cx.deref_mut(), s)?;
         Ok(s.to_std_string_lossy())

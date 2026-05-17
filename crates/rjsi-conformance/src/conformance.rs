@@ -283,7 +283,7 @@ where
     R: Runtime<E>,
 {
     runtime.with_scope(|cx| {
-        let sum = expect_js(cx.function("sumArgs", conformance_sum_args), "host fn");
+        let sum = expect_js(cx.raw_function("sumArgs", conformance_sum_args), "host fn");
         let global = cx.globals();
         global.set(cx, "sumArgs", sum.into_value()).unwrap();
         let v = cx.eval("sumArgs(1, 2, 3, 4)").unwrap();
@@ -297,7 +297,7 @@ where
     R: Runtime<E>,
 {
     runtime.with_scope(|cx| {
-        let greet = expect_js(cx.function("greet", conformance_greet), "host greet");
+        let greet = expect_js(cx.raw_function("greet", conformance_greet), "host greet");
         cx.globals().set(cx, "greet", greet.into_value()).unwrap();
         let v = cx.eval("greet()").unwrap();
         assert_eq!(expect_js(v.to_string(cx), "greet result"), "hello");
@@ -487,7 +487,7 @@ where
 
     runtime.with_scope(move |cx| {
         let install = expect_js(
-            cx.function("installPrepared", InstallPrepared { key: key.clone() }),
+            cx.raw_function("installPrepared", InstallPrepared { key: key.clone() }),
             "prepared host function",
         );
 
@@ -575,10 +575,7 @@ where
     R: Runtime<E>,
 {
     runtime.with_scope(|cx| {
-        let add = expect_js(
-            cx.typed_function("typedAdd", |a: i32, b: i32| a + b),
-            "typed add",
-        );
+        let add = expect_js(cx.function("typedAdd", |a: i32, b: i32| a + b), "typed add");
         cx.globals().set(cx, "typedAdd", add.into_value()).unwrap();
         let v = cx.eval("typedAdd(10, 32)").unwrap();
         assert_eq!(expect_js(v.to_f64(cx), "typed add result"), 42.0);
@@ -592,7 +589,7 @@ where
 {
     runtime.with_scope(|cx| {
         let greet = expect_js(
-            cx.typed_function_cx(
+            cx.function(
                 "typedGreet",
                 |_cx: &mut rjsi_core::Context<E>, name: String| format!("hello {name}"),
             ),

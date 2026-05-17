@@ -656,10 +656,7 @@ impl Engine for JscEngine {
         }
     }
 
-    fn value_to_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
-    ) -> Result<String> {
+    fn value_to_string<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<String> {
         let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
         let js_str_ref =
             unsafe { rusty_jsc_sys::JSValueToStringCopy(cx.ctx, val.val, &mut exception) };
