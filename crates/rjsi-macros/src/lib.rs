@@ -171,7 +171,7 @@ fn expand_into_js(input: &DeriveInput) -> TokenStream2 {
 fn expand_from_js(input: &DeriveInput) -> TokenStream2 {
     let path = runtime_path();
     let ident = &input.ident;
-    match &input.data {
+    let from_js_impl = match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => {
                 let readers = fields.named.iter().map(|field| {
@@ -229,6 +229,29 @@ fn expand_from_js(input: &DeriveInput) -> TokenStream2 {
                 }
             },
         },
-        _ => quote!(compile_error!("FromJs can only be derived for structs")),
+        _ => return quote!(compile_error!("FromJs can only be derived for structs")),
+    };
+
+    let from_param_impl = quote! {
+        impl<'cx, E> #path::FromParam<'cx, E> for #ident
+        where
+            E: #path::Engine,
+        {
+            fn param_requirement() -> #path::ParamRequirement {
+                #path::ParamRequirement::single()
+            }
+
+            fn from_param<'a>(
+                params: &mut #path::ParamsAccessor<'a, 'cx, E>,
+            ) -> #path::Result<Self> {
+                let value = params.arg();
+                <Self as #path::FromJs<'cx, E>>::from_js(params.ctx(), value)
+            }
+        }
+    };
+
+    quote! {
+        #from_js_impl
+        #from_param_impl
     }
 }
