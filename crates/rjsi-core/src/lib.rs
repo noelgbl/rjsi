@@ -6,8 +6,7 @@ mod context;
 mod convert;
 mod engine;
 mod error;
-mod function;
-pub mod host_fn;
+pub mod function;
 mod keys;
 mod native_state;
 mod object;
@@ -24,8 +23,9 @@ pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
 pub use error::{Error, Result};
-pub use function::Function;
-pub use host_fn::{CallSite, FromCallSite, HostFn, HostFnAdapter, Opt, Rest, This, WithCx};
+pub use function::{
+    Exhaustive, Flat, FromParam, FromParams, Func, Function, IntoJsFunc, MutFn, OnceFn, Opt, ParamRequirement, Params, ParamsAccessor, Rest, This, ThisState, ThisStateMut, WithCx
+};
 pub use keys::{IntoKey, PreparedKey, PropertyKey};
 pub use native_state::{
     ContextNativeStateExt, ErasedNativeState, NativeState, NativeStateSupport, TaggedNativeState, tagged_native_state_type_id

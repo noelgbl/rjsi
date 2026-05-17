@@ -1,8 +1,6 @@
 //! Attach Rust data to a JS object and call from JavaScript into Rust that
 //! mutates it.
-use rjsi::{
-    Args, Context, ContextNativeStateExt, DefaultRuntime, Engine, Error, NativeState, NativeStateSupport, Result, Runtime, Value
-};
+use rjsi::{Context, ContextNativeStateExt, DefaultRuntime, NativeState, Runtime};
 
 struct Counter {
     value: i32,
@@ -10,19 +8,13 @@ struct Counter {
 
 impl NativeState for Counter {}
 
-fn increment<'rt, E: Engine + NativeStateSupport>(
+fn increment<'rt, E: rjsi::Engine>(
     cx: &mut Context<'rt, E>,
-    this: Value<'rt, E>,
-    _args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
-    let mut obj = this.try_as_object()?;
-
-    let c = obj
-        .native_state_mut::<Counter>(cx)
-        .ok_or_else(|| Error::type_err("increment: expected Counter native state"))?;
-    c.value += 1;
-
-    Ok(cx.number(f64::from(c.value)))
+    counter: &mut Counter,
+    increment: i32,
+) -> f64 {
+    counter.value += increment;
+    counter.value as f64
 }
 
 fn main() {
@@ -31,23 +23,23 @@ fn main() {
     runtime.with_scope(|cx| {
         let obj = cx.with_state(Counter { value: 0 }).unwrap();
 
-        let increment = cx.raw_function("increment", increment).unwrap();
+        let increment = cx.function("increment", increment).unwrap();
         obj.set(cx, "increment", increment.into_value()).unwrap();
 
         cx.globals()
             .set(cx, "counterObj", obj.into_value())
             .unwrap();
 
-        cx.eval("globalThis.counterObj.increment();").unwrap();
+        cx.eval("globalThis.counterObj.increment(5);").unwrap();
 
         let holder_val = cx.globals().get(cx, "counterObj").unwrap();
         let holder_obj = holder_val.try_as_object().unwrap();
 
-        assert_eq!(holder_obj.native_state::<Counter>(cx).unwrap().value, 1);
+        assert_eq!(holder_obj.native_state::<Counter>(cx).unwrap().value, 5);
 
-        cx.eval("globalThis.counterObj.increment();").unwrap();
+        cx.eval("globalThis.counterObj.increment(10);").unwrap();
 
-        assert_eq!(holder_obj.native_state::<Counter>(cx).unwrap().value, 2);
+        assert_eq!(holder_obj.native_state::<Counter>(cx).unwrap().value, 15);
 
         println!(
             "Native counter after 2 increments from JS: {}",

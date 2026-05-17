@@ -53,20 +53,13 @@ impl<'rt, E: Engine> Context<'rt, E> {
         E::make_string(&mut self.raw, s).map(Value::new)
     }
 
-    pub fn function<F, Marker: 'static>(
-        &mut self,
-        name: &str,
-        func: F,
-    ) -> Result<crate::Function<'rt, E>>
+    pub fn function<F, P>(&mut self, name: &str, func: F) -> Result<crate::Function<'rt, E>>
     where
-        F: crate::host_fn::HostFn<E, Marker>,
+        F: crate::function::IntoJsFunc<E, P>,
+        P: 'static,
     {
-        E::make_function(
-            &mut self.raw,
-            name,
-            crate::host_fn::HostFnAdapter(func, std::marker::PhantomData),
-        )
-        .map(crate::Function::new)
+        let adapter = crate::function::IntoJsFuncAdapter::<F, P>::new::<E>(func);
+        E::make_function(&mut self.raw, name, adapter).map(crate::Function::new)
     }
 
     pub fn raw_function<F>(&mut self, name: &str, func: F) -> Result<crate::Function<'rt, E>>
