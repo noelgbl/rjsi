@@ -8,7 +8,6 @@ pub struct V8Runtime {
     isolate: v8::OwnedIsolate,
     context: v8::Global<v8::Context>,
     microtask_policy: MicrotaskDrainPolicy,
-    /// internal field 0 holds native state
     pub(crate) native_state_template: Mutex<Option<v8::Global<v8::ObjectTemplate>>>,
 }
 
@@ -37,6 +36,10 @@ impl V8Runtime {
             microtask_policy: MicrotaskDrainPolicy::Explicit,
             native_state_template: Mutex::new(None),
         }
+    }
+
+    pub fn with_isolate_mut<R>(&mut self, f: impl FnOnce(&mut v8::Isolate) -> R) -> R {
+        f(&mut self.isolate)
     }
 
     pub fn prepare_key(&mut self, name: impl Into<String>) -> PreparedKey<crate::engine::V8Engine> {

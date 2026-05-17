@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
 anyhow.workspace = true
-rquickjs = { version = "0.11.0", features = ["properties"] }
+rquickjs = { version = "0.11.0", features = ["properties", "loader"] }
 smallvec.workspace = true
 
 [dev-dependencies]

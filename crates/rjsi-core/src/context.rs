@@ -1,3 +1,5 @@
+use crate::capabilities::Promise;
+use crate::module::{Loader, ModuleHost, Resolver};
 use crate::{Engine, Object, PersistentValue, Result, Value};
 
 pub struct Context<'rt, E: Engine> {
@@ -135,6 +137,40 @@ where
     fn drain_microtasks(&mut self) {
         E::drain_microtasks(self)
     }
+}
+
+pub trait ContextModulesExt<'rt, E: Engine + crate::capabilities::Modules> {
+    fn module_evaluate(&mut self, name: &str, src: &str) -> Result<Promise<'rt, E>>;
+
+    fn module_import(&mut self, specifier: &str) -> Result<Promise<'rt, E>>;
+}
+
+impl<'rt, E> ContextModulesExt<'rt, E> for Context<'rt, E>
+where
+    E: Engine + crate::capabilities::Modules,
+{
+    fn module_evaluate(&mut self, name: &str, src: &str) -> Result<Promise<'rt, E>> {
+        let raw = E::module_evaluate(self, name, src)?;
+        Ok(Promise::new(Object::new(raw)))
+    }
+
+    fn module_import(&mut self, specifier: &str) -> Result<Promise<'rt, E>> {
+        let raw = E::module_import(self, specifier)?;
+        Ok(Promise::new(Object::new(raw)))
+    }
+}
+
+pub trait RuntimeModulesExt<E: Engine + crate::capabilities::Modules> {
+    fn install_module_host<R, L>(&mut self, resolver: R, loader: L) -> Result<()>
+    where
+        R: Resolver,
+        L: Loader;
+
+    fn install_module_host_boxed(&mut self, host: ModuleHost) -> Result<()>;
+
+    fn set_import_meta_hook<F>(&mut self, hook: F) -> Result<()>
+    where
+        F: FnMut(&str) -> std::collections::HashMap<String, String> + 'static;
 }
 
 #[doc(hidden)]

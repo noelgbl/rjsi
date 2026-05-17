@@ -8,6 +8,7 @@ mod engine;
 mod error;
 pub mod function;
 mod keys;
+pub mod module;
 mod native_state;
 mod object;
 mod persistent;
@@ -19,7 +20,9 @@ mod value;
 pub use args::{ArgSlice, Args, ArgsIter, RawHostFn};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
 pub use class::{ClassSupport, ContextClassExt, InstanceRef, JsClass};
-pub use context::{__cx, Context, ContextMicrotaskExt, ContextPromiseExt};
+pub use context::{
+    __cx, Context, ContextMicrotaskExt, ContextModulesExt, ContextPromiseExt, RuntimeModulesExt
+};
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
 pub use error::{Error, Result};

@@ -15,6 +15,20 @@ pub enum PromiseState {
 #[repr(transparent)]
 pub struct Promise<'js, E: Engine>(pub(crate) Object<'js, E>);
 
+impl<'js, E: Engine> Promise<'js, E> {
+    pub fn new(obj: Object<'js, E>) -> Self {
+        Self(obj)
+    }
+
+    pub fn into_object(self) -> Object<'js, E> {
+        self.0
+    }
+
+    pub fn as_object(&self) -> &Object<'js, E> {
+        &self.0
+    }
+}
+
 /// Engines that expose native Promise primitives.
 pub trait Promises: Engine {
     /// The handle used to resolve or reject a promise.
@@ -50,4 +64,27 @@ pub trait Microtasks: Engine {
 
     /// Drains the microtask queue synchronously.
     fn drain_microtasks<'rt>(cx: &mut Context<'rt, Self>);
+}
+
+pub trait Modules: Engine + Promises {
+    fn install_module_host(
+        runtime: &mut Self::Runtime,
+        host: crate::module::ModuleHost,
+    ) -> Result<()>;
+
+    fn set_import_meta_hook(
+        runtime: &mut Self::Runtime,
+        hook: crate::module::ImportMetaHook,
+    ) -> Result<()>;
+
+    fn module_evaluate<'rt>(
+        cx: &mut Context<'rt, Self>,
+        name: &str,
+        src: &str,
+    ) -> Result<Self::Object<'rt>>;
+
+    fn module_import<'rt>(
+        cx: &mut Context<'rt, Self>,
+        specifier: &str,
+    ) -> Result<Self::Object<'rt>>;
 }
