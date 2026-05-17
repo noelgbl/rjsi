@@ -9,7 +9,6 @@ struct Counter {
 impl NativeState for Counter {}
 
 fn increment<'rt, E: rjsi::Engine>(
-    cx: &mut Context<'rt, E>,
     counter: &mut Counter,
     increment: i32,
 ) -> f64 {
