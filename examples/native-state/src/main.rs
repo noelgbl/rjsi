@@ -1,5 +1,5 @@
 //! Attach Rust data to a JS object and call from JavaScript into Rust that
-//! mutates it.
+//! mutates it. The Rust data will be managed by the JS engine.
 use rjsi::{ContextNativeStateExt, DefaultRuntime, NativeState, Runtime};
 
 struct Counter {
