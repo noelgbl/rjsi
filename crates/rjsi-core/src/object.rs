@@ -5,6 +5,15 @@ pub struct Object<'cx, E: Engine> {
     pub(crate) raw: E::Object<'cx>,
 }
 
+impl<'cx, E: Engine> Clone for Object<'cx, E>
+where
+    E::Object<'cx>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { raw: self.raw.clone() }
+    }
+}
+
 impl<'cx, E: Engine> Object<'cx, E> {
     pub fn new(raw: E::Object<'cx>) -> Self {
         Self { raw }

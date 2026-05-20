@@ -5,6 +5,15 @@ pub struct Symbol<'cx, E: Engine> {
     pub(crate) raw: E::Symbol<'cx>,
 }
 
+impl<'cx, E: Engine> Clone for Symbol<'cx, E>
+where
+    E::Symbol<'cx>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { raw: self.raw.clone() }
+    }
+}
+
 impl<'cx, E: Engine> Symbol<'cx, E> {
     pub fn new(raw: E::Symbol<'cx>) -> Self {
         Self { raw }

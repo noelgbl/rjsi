@@ -6,6 +6,15 @@ pub struct Value<'cx, E: Engine> {
     pub(crate) raw: E::Value<'cx>,
 }
 
+impl<'cx, E: Engine> Clone for Value<'cx, E>
+where
+    E::Value<'cx>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { raw: self.raw.clone() }
+    }
+}
+
 impl<'cx, E: Engine> Value<'cx, E> {
     pub fn new(raw: E::Value<'cx>) -> Self {
         Self { raw }

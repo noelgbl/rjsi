@@ -5,6 +5,15 @@ pub struct JsString<'cx, E: Engine> {
     pub(crate) raw: E::String<'cx>,
 }
 
+impl<'cx, E: Engine> Clone for JsString<'cx, E>
+where
+    E::String<'cx>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { raw: self.raw.clone() }
+    }
+}
+
 impl<'cx, E: Engine> JsString<'cx, E> {
     pub fn new(raw: E::String<'cx>) -> Self {
         Self { raw }

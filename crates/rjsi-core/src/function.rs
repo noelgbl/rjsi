@@ -25,6 +25,15 @@ pub struct Function<'cx, E: Engine> {
     pub(crate) raw: E::Function<'cx>,
 }
 
+impl<'cx, E: Engine> Clone for Function<'cx, E>
+where
+    E::Function<'cx>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self { raw: self.raw.clone() }
+    }
+}
+
 impl<'cx, E: Engine> Function<'cx, E> {
     pub fn new(raw: E::Function<'cx>) -> Self {
         Self { raw }
