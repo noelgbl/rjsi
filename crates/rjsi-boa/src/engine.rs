@@ -342,46 +342,101 @@ impl Engine for BoaEngine {
 }
 
 impl rjsi_core::capabilities::Promises for BoaEngine {
-    type PromiseResolver<'cx> = boa_engine::builtins::promise::ResolvingFunctions;
-
     fn promise_new<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+    ) -> Result<(Self::Object<'rt>, Self::Object<'rt>)> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
         let (promise, resolvers) = boa_engine::object::builtins::JsPromise::new_pending(boa_cx);
-        Ok((
-            boa_engine::JsValue::from(promise)
-                .as_object()
-                .unwrap()
-                .clone(),
-            resolvers,
-        ))
+        let promise_obj = boa_engine::JsValue::from(promise)
+            .as_object()
+            .unwrap()
+            .clone();
+        let resolver_obj = boa_engine::JsObject::with_null_proto();
+        resolver_obj
+            .set(
+                boa_engine::JsString::from("resolve"),
+                boa_engine::JsValue::from(resolvers.resolve),
+                false,
+                boa_cx,
+            )
+            .map_err(|_| Error::type_err("failed to install resolve"))?;
+        resolver_obj
+            .set(
+                boa_engine::JsString::from("reject"),
+                boa_engine::JsValue::from(resolvers.reject),
+                false,
+                boa_cx,
+            )
+            .map_err(|_| Error::type_err("failed to install reject"))?;
+        Ok((promise_obj, resolver_obj))
     }
 
     fn promise_resolve<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         value: Self::Value<'rt>,
     ) -> Result<()> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
-        let res = resolver
-            .resolve
-            .call(&boa_engine::JsValue::undefined(), &[value], boa_cx);
+        let resolve_val = resolver
+            .get(boa_engine::JsString::from("resolve"), boa_cx)
+            .map_err(|_| Error::type_err("resolver missing `resolve`"))?;
+        let resolve = resolve_val
+            .as_object()
+            .ok_or_else(|| Error::type_err("`resolve` is not a function"))?
+            .clone();
+        let res = resolve.call(&boa_engine::JsValue::undefined(), &[value], boa_cx);
         map_js(boa_cx, res)?;
         Ok(())
     }
 
     fn promise_reject<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         reason: Self::Value<'rt>,
     ) -> Result<()> {
         let boa_cx = rjsi_core::__cx::context_mut(cx);
-        let res = resolver
-            .reject
-            .call(&boa_engine::JsValue::undefined(), &[reason], boa_cx);
+        let reject_val = resolver
+            .get(boa_engine::JsString::from("reject"), boa_cx)
+            .map_err(|_| Error::type_err("resolver missing `reject`"))?;
+        let reject = reject_val
+            .as_object()
+            .ok_or_else(|| Error::type_err("`reject` is not a function"))?
+            .clone();
+        let res = reject.call(&boa_engine::JsValue::undefined(), &[reason], boa_cx);
         map_js(boa_cx, res)?;
         Ok(())
+    }
+
+    fn promise_state<'rt>(
+        _cx: &mut rjsi_core::Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<rjsi_core::capabilities::PromiseState> {
+        let js_promise = boa_engine::object::builtins::JsPromise::from_object(promise.clone())
+            .map_err(|_| Error::type_err("promise_state: object is not a Promise"))?;
+        Ok(match js_promise.state() {
+            boa_engine::builtins::promise::PromiseState::Pending => {
+                rjsi_core::capabilities::PromiseState::Pending
+            }
+            boa_engine::builtins::promise::PromiseState::Fulfilled(_) => {
+                rjsi_core::capabilities::PromiseState::Resolved
+            }
+            boa_engine::builtins::promise::PromiseState::Rejected(_) => {
+                rjsi_core::capabilities::PromiseState::Rejected
+            }
+        })
+    }
+
+    fn promise_result<'rt>(
+        _cx: &mut rjsi_core::Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<Option<std::result::Result<Self::Value<'rt>, Self::Value<'rt>>>> {
+        let js_promise = boa_engine::object::builtins::JsPromise::from_object(promise.clone())
+            .map_err(|_| Error::type_err("promise_result: object is not a Promise"))?;
+        Ok(match js_promise.state() {
+            boa_engine::builtins::promise::PromiseState::Pending => None,
+            boa_engine::builtins::promise::PromiseState::Fulfilled(value) => Some(Ok(value)),
+            boa_engine::builtins::promise::PromiseState::Rejected(reason) => Some(Err(reason)),
+        })
     }
 }
 

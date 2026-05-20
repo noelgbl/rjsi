@@ -82,42 +82,68 @@ impl<'rt, E: Engine> Context<'rt, E> {
 }
 
 pub trait ContextPromiseExt<'rt, E: Engine + crate::capabilities::Promises> {
-    fn promise_new(&mut self) -> Result<(crate::Object<'rt, E>, E::PromiseResolver<'rt>)>;
+    fn promise_new(&mut self) -> Result<(crate::Object<'rt, E>, crate::Object<'rt, E>)>;
     fn promise_resolve(
         &mut self,
-        resolver: E::PromiseResolver<'rt>,
+        resolver: crate::Object<'rt, E>,
         value: crate::Value<'rt, E>,
     ) -> Result<()>;
     fn promise_reject(
         &mut self,
-        resolver: E::PromiseResolver<'rt>,
+        resolver: crate::Object<'rt, E>,
         reason: crate::Value<'rt, E>,
     ) -> Result<()>;
+    fn promise_state(
+        &mut self,
+        promise: &crate::Object<'rt, E>,
+    ) -> Result<crate::capabilities::PromiseState>;
+    fn promise_result(
+        &mut self,
+        promise: &crate::Object<'rt, E>,
+    ) -> Result<Option<std::result::Result<crate::Value<'rt, E>, crate::Value<'rt, E>>>>;
 }
 
 impl<'rt, E> ContextPromiseExt<'rt, E> for Context<'rt, E>
 where
     E: Engine + crate::capabilities::Promises,
 {
-    fn promise_new(&mut self) -> Result<(crate::Object<'rt, E>, E::PromiseResolver<'rt>)> {
-        let (obj, resolver) = E::promise_new(self)?;
-        Ok((crate::Object::new(obj), resolver))
+    fn promise_new(&mut self) -> Result<(crate::Object<'rt, E>, crate::Object<'rt, E>)> {
+        let (promise, resolver) = E::promise_new(self)?;
+        Ok((crate::Object::new(promise), crate::Object::new(resolver)))
     }
 
     fn promise_resolve(
         &mut self,
-        resolver: E::PromiseResolver<'rt>,
+        resolver: crate::Object<'rt, E>,
         value: crate::Value<'rt, E>,
     ) -> Result<()> {
-        E::promise_resolve(self, resolver, value.into_raw())
+        E::promise_resolve(self, resolver.into_raw(), value.into_raw())
     }
 
     fn promise_reject(
         &mut self,
-        resolver: E::PromiseResolver<'rt>,
+        resolver: crate::Object<'rt, E>,
         reason: crate::Value<'rt, E>,
     ) -> Result<()> {
-        E::promise_reject(self, resolver, reason.into_raw())
+        E::promise_reject(self, resolver.into_raw(), reason.into_raw())
+    }
+
+    fn promise_state(
+        &mut self,
+        promise: &crate::Object<'rt, E>,
+    ) -> Result<crate::capabilities::PromiseState> {
+        E::promise_state(self, promise.as_raw())
+    }
+
+    fn promise_result(
+        &mut self,
+        promise: &crate::Object<'rt, E>,
+    ) -> Result<Option<std::result::Result<crate::Value<'rt, E>, crate::Value<'rt, E>>>> {
+        let raw = E::promise_result(self, promise.as_raw())?;
+        Ok(raw.map(|r| match r {
+            Ok(v) => Ok(crate::Value::new(v)),
+            Err(e) => Err(crate::Value::new(e)),
+        }))
     }
 }
 

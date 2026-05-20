@@ -501,18 +501,19 @@ impl Engine for V8Engine {
 }
 
 impl rjsi_core::capabilities::Promises for V8Engine {
-    type PromiseResolver<'cx> = v8::Local<'cx, v8::PromiseResolver>;
-
     fn promise_new<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+    ) -> Result<(Self::Object<'rt>, Self::Object<'rt>)> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(resolver) = v8::PromiseResolver::new(scope) {
             let promise = resolver.get_promise(scope);
-            Ok((unsafe { cast_local(promise.into()) }, unsafe {
-                cast_local(resolver)
-            }))
+            let promise_obj: v8::Local<v8::Object> = promise.into();
+            let resolver_obj: v8::Local<v8::Object> = resolver.into();
+            Ok((
+                unsafe { cast_local(promise_obj) },
+                unsafe { cast_local(resolver_obj) },
+            ))
         } else {
             Err(Error::type_err("failed to create promise"))
         }
@@ -520,11 +521,13 @@ impl rjsi_core::capabilities::Promises for V8Engine {
 
     fn promise_resolve<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         value: Self::Value<'rt>,
     ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
+        let resolver: v8::Local<v8::PromiseResolver> =
+            unsafe { std::mem::transmute::<v8::Local<v8::Object>, v8::Local<v8::PromiseResolver>>(resolver) };
         if let Some(true) = resolver.resolve(scope, value) {
             Ok(())
         } else {
@@ -534,15 +537,52 @@ impl rjsi_core::capabilities::Promises for V8Engine {
 
     fn promise_reject<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         reason: Self::Value<'rt>,
     ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
+        let resolver: v8::Local<v8::PromiseResolver> =
+            unsafe { std::mem::transmute::<v8::Local<v8::Object>, v8::Local<v8::PromiseResolver>>(resolver) };
         if let Some(true) = resolver.reject(scope, reason) {
             Ok(())
         } else {
             Err(Error::type_err("failed to reject promise"))
+        }
+    }
+
+    fn promise_state<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<rjsi_core::capabilities::PromiseState> {
+        let _ = cx;
+        let promise: v8::Local<v8::Promise> = v8::Local::<v8::Promise>::try_from(*promise)
+            .map_err(|_| Error::type_err("promise_state: object is not a Promise"))?;
+        Ok(match promise.state() {
+            v8::PromiseState::Pending => rjsi_core::capabilities::PromiseState::Pending,
+            v8::PromiseState::Fulfilled => rjsi_core::capabilities::PromiseState::Resolved,
+            v8::PromiseState::Rejected => rjsi_core::capabilities::PromiseState::Rejected,
+        })
+    }
+
+    fn promise_result<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<Option<std::result::Result<Self::Value<'rt>, Self::Value<'rt>>>> {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        let promise: v8::Local<v8::Promise> = v8::Local::<v8::Promise>::try_from(*promise)
+            .map_err(|_| Error::type_err("promise_result: object is not a Promise"))?;
+        match promise.state() {
+            v8::PromiseState::Pending => Ok(None),
+            v8::PromiseState::Fulfilled => {
+                let value = promise.result(scope);
+                Ok(Some(Ok(unsafe { cast_local(value) })))
+            }
+            v8::PromiseState::Rejected => {
+                let value = promise.result(scope);
+                Ok(Some(Err(unsafe { cast_local(value) })))
+            }
         }
     }
 }

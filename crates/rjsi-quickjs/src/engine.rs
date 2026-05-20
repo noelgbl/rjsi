@@ -324,32 +324,31 @@ impl Engine for QuickJsEngine {
     }
 }
 
-pub struct QuickJsPromiseResolver<'cx> {
-    pub resolve: rquickjs::Function<'cx>,
-    pub reject: rquickjs::Function<'cx>,
-}
-
 impl rjsi_core::capabilities::Promises for QuickJsEngine {
-    type PromiseResolver<'cx> = QuickJsPromiseResolver<'cx>;
-
     fn promise_new<'rt>(
         cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)> {
+    ) -> Result<(Self::Object<'rt>, Self::Object<'rt>)> {
         let qctx = &rjsi_core::__cx::context_mut(cx).qctx;
         let (promise, resolve, reject) = qctx.promise().map_err(|e| Error::Host(Box::new(e)))?;
-        Ok((
-            promise.into_value().into_object().unwrap(),
-            QuickJsPromiseResolver { resolve, reject },
-        ))
+        let resolver_obj = rquickjs::Object::new(qctx.clone()).map_err(|e| Error::Host(Box::new(e)))?;
+        resolver_obj
+            .set("resolve", resolve)
+            .map_err(|e| Error::Host(Box::new(e)))?;
+        resolver_obj
+            .set("reject", reject)
+            .map_err(|e| Error::Host(Box::new(e)))?;
+        Ok((promise.into_value().into_object().unwrap(), resolver_obj))
     }
 
     fn promise_resolve<'rt>(
         _cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         value: Self::Value<'rt>,
     ) -> Result<()> {
-        resolver
-            .resolve
+        let resolve: rquickjs::Function = resolver
+            .get("resolve")
+            .map_err(|e| Error::Host(Box::new(e)))?;
+        resolve
             .call::<_, ()>((value,))
             .map_err(|e| Error::Host(Box::new(e)))?;
         Ok(())
@@ -357,14 +356,70 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
 
     fn promise_reject<'rt>(
         _cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         reason: Self::Value<'rt>,
     ) -> Result<()> {
-        resolver
-            .reject
+        let reject: rquickjs::Function = resolver
+            .get("reject")
+            .map_err(|e| Error::Host(Box::new(e)))?;
+        reject
             .call::<_, ()>((reason,))
             .map_err(|e| Error::Host(Box::new(e)))?;
         Ok(())
+    }
+
+    fn promise_state<'rt>(
+        _cx: &mut rjsi_core::Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<rjsi_core::capabilities::PromiseState> {
+        let p: rquickjs::Promise = promise
+            .clone()
+            .into_value()
+            .into_promise()
+            .ok_or_else(|| Error::type_err("promise_state: object is not a Promise"))?;
+        Ok(match p.state() {
+            rquickjs::promise::PromiseState::Pending => {
+                rjsi_core::capabilities::PromiseState::Pending
+            }
+            rquickjs::promise::PromiseState::Resolved => {
+                rjsi_core::capabilities::PromiseState::Resolved
+            }
+            rquickjs::promise::PromiseState::Rejected => {
+                rjsi_core::capabilities::PromiseState::Rejected
+            }
+        })
+    }
+
+    fn promise_result<'rt>(
+        _cx: &mut rjsi_core::Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<Option<std::result::Result<Self::Value<'rt>, Self::Value<'rt>>>> {
+        let p: rquickjs::Promise = promise
+            .clone()
+            .into_value()
+            .into_promise()
+            .ok_or_else(|| Error::type_err("promise_result: object is not a Promise"))?;
+        match p.state() {
+            rquickjs::promise::PromiseState::Pending => Ok(None),
+            rquickjs::promise::PromiseState::Resolved => {
+                let value: rquickjs::Value = p
+                    .result()
+                    .ok_or_else(|| Error::type_err("promise resolved without a value"))?
+                    .map_err(|e| Error::Host(Box::new(e)))?;
+                Ok(Some(Ok(value)))
+            }
+            rquickjs::promise::PromiseState::Rejected => {
+                let value: rquickjs::Value = p
+                    .result()
+                    .ok_or_else(|| Error::type_err("promise rejected without a value"))?
+                    .unwrap_or_else(|_| {
+                        let qctx = p.ctx().clone();
+                        let caught = qctx.catch();
+                        caught
+                    });
+                Ok(Some(Err(value)))
+            }
+        }
     }
 }
 

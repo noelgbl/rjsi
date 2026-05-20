@@ -4,7 +4,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use crate::capabilities::{Microtasks, Promises};
 use crate::context::{ContextMicrotaskExt, ContextPromiseExt};
 use crate::convert::ToJs;
-use crate::{Context, Engine, Object, Result as RjsiResult};
+use crate::{Context, Engine, Object, PersistentValue, Result as RjsiResult};
 
 pub type PromiseId = u64;
 
@@ -43,13 +43,13 @@ impl<T, Err> JsSender<T, Err> {
     }
 }
 
-pub struct JsChannel<'rt, E: Engine + Promises, T, Err> {
+pub struct JsChannel<E: Engine + Promises, T, Err> {
     rx: Receiver<SettleMsg<T, Err>>,
     next_id: PromiseId,
-    resolvers: HashMap<PromiseId, E::PromiseResolver<'rt>>,
+    resolvers: HashMap<PromiseId, PersistentValue<E>>,
 }
 
-impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
+impl<E: Engine + Promises, T, Err> JsChannel<E, T, Err> {
     pub fn new() -> (JsSender<T, Err>, Self) {
         let (tx, rx) = mpsc::channel();
         (
@@ -62,18 +62,19 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
         )
     }
 
-    pub fn create_promise(
+    pub fn create_promise<'rt>(
         &mut self,
         cx: &mut Context<'rt, E>,
     ) -> RjsiResult<(PromiseId, Object<'rt, E>)> {
         let (promise, resolver) = cx.promise_new()?;
         let id = self.next_id;
         self.next_id += 1;
-        self.resolvers.insert(id, resolver);
+        self.resolvers
+            .insert(id, cx.persist_value(resolver.into_value()));
         Ok((id, promise))
     }
 
-    pub fn pump<F, G>(
+    pub fn pump<'rt, F, G>(
         &mut self,
         cx: &mut Context<'rt, E>,
         mut map_resolve: F,
@@ -87,14 +88,16 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
             match msg {
                 SettleMsg::Resolve(id, val) => {
                     if let Some(resolver) = self.resolvers.remove(&id) {
+                        let resolver_obj = resolver.restore(cx)?.try_as_object()?;
                         let js_val = map_resolve(cx, val)?;
-                        cx.promise_resolve(resolver, js_val)?;
+                        cx.promise_resolve(resolver_obj, js_val)?;
                     }
                 }
                 SettleMsg::Reject(id, err) => {
                     if let Some(resolver) = self.resolvers.remove(&id) {
+                        let resolver_obj = resolver.restore(cx)?.try_as_object()?;
                         let js_err = map_reject(cx, err)?;
-                        cx.promise_reject(resolver, js_err)?;
+                        cx.promise_reject(resolver_obj, js_err)?;
                     }
                 }
             }
@@ -102,7 +105,23 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
         Ok(())
     }
 
-    pub fn pump_to_js(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
+    pub fn settle<'rt>(
+        &mut self,
+        cx: &mut Context<'rt, E>,
+        id: PromiseId,
+        outcome: std::result::Result<crate::Value<'rt, E>, crate::Value<'rt, E>>,
+    ) -> RjsiResult<()> {
+        if let Some(resolver) = self.resolvers.remove(&id) {
+            let resolver_obj = resolver.restore(cx)?.try_as_object()?;
+            match outcome {
+                Ok(value) => cx.promise_resolve(resolver_obj, value)?,
+                Err(reason) => cx.promise_reject(resolver_obj, reason)?,
+            }
+        }
+        Ok(())
+    }
+
+    pub fn pump_to_js<'rt>(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
     where
         T: ToJs<'rt, E>,
         Err: ToJs<'rt, E>,
@@ -111,8 +130,8 @@ impl<'rt, E: Engine + Promises, T, Err> JsChannel<'rt, E, T, Err> {
     }
 }
 
-impl<'rt, E: Engine + Promises + Microtasks, T, Err> JsChannel<'rt, E, T, Err> {
-    pub fn pump_and_drain_to_js(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
+impl<E: Engine + Promises + Microtasks, T, Err> JsChannel<E, T, Err> {
+    pub fn pump_and_drain_to_js<'rt>(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
     where
         T: ToJs<'rt, E>,
         Err: ToJs<'rt, E>,

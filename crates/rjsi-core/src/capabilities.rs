@@ -29,32 +29,32 @@ impl<'js, E: Engine> Promise<'js, E> {
     }
 }
 
-/// Engines that expose native Promise primitives.
 pub trait Promises: Engine {
-    /// The handle used to resolve or reject a promise.
-    type PromiseResolver<'cx>: 'cx;
-
-    /// Creates a new native Promise.
     fn promise_new<'rt>(
         cx: &mut Context<'rt, Self>,
-    ) -> Result<(Self::Object<'rt>, Self::PromiseResolver<'rt>)>;
+    ) -> Result<(Self::Object<'rt>, Self::Object<'rt>)>;
 
-    /// Resolves a promise.
     fn promise_resolve<'rt>(
         cx: &mut Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         value: Self::Value<'rt>,
     ) -> Result<()>;
 
-    /// Rejects a promise.
     fn promise_reject<'rt>(
         cx: &mut Context<'rt, Self>,
-        resolver: Self::PromiseResolver<'rt>,
+        resolver: Self::Object<'rt>,
         reason: Self::Value<'rt>,
     ) -> Result<()>;
 
-    /* fn promise_state<'rt>(cx: &mut Context<'rt, Self>, promise: &Self::Object<'rt>) -> PromiseState;
-    fn promise_result<'rt>(cx: &mut Context<'rt, Self>, promise: &Self::Object<'rt>) -> Option<Result<Self::Value<'rt>>>; */
+    fn promise_state<'rt>(
+        cx: &mut Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<PromiseState>;
+
+    fn promise_result<'rt>(
+        cx: &mut Context<'rt, Self>,
+        promise: &Self::Object<'rt>,
+    ) -> Result<Option<std::result::Result<Self::Value<'rt>, Self::Value<'rt>>>>;
 }
 
 /// Engines that allow manual manipulation of the microtask queue.
