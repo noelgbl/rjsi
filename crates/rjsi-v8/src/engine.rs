@@ -9,6 +9,10 @@ pub struct V8Context<'rt> {
     pub(crate) _phantom: std::marker::PhantomData<&'rt mut ()>,
 }
 
+pub(crate) struct V8RuntimePtrSlot(pub *mut crate::runtime::V8Runtime);
+unsafe impl Send for V8RuntimePtrSlot {}
+unsafe impl Sync for V8RuntimePtrSlot {}
+
 pub struct V8Args<'cx> {
     pub(crate) args: *mut std::ffi::c_void,
     pub(crate) _phantom: std::marker::PhantomData<&'cx ()>,
@@ -45,12 +49,17 @@ fn host_fn_callback<'s, 'i>(
     type HostFnTrait = dyn rjsi_core::RawHostFn<V8Engine>;
     let func_ref = unsafe { &mut *(func_ptr as *mut Box<HostFnTrait>) };
 
+    let runtime_ptr = scope
+        .get_slot::<V8RuntimePtrSlot>()
+        .map(|s| s.0)
+        .unwrap_or(std::ptr::null_mut());
+
     let context = scope.get_current_context();
     let mut context_scope = v8::ContextScope::new(scope, context);
 
     let cx_raw = V8Context {
         scope: &mut context_scope as *mut _ as *mut std::ffi::c_void,
-        runtime: std::ptr::null_mut(),
+        runtime: runtime_ptr,
         pending_exception: None,
         _phantom: std::marker::PhantomData,
     };

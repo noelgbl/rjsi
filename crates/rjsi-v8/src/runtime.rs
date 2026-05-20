@@ -85,6 +85,8 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
         let scope1_pin = std::pin::pin!(scope1);
         let mut handle_scope = scope1_pin.init();
 
+        handle_scope.set_slot(crate::engine::V8RuntimePtrSlot(runtime_ptr));
+
         let ctx = v8::Local::new(&mut handle_scope, &self.context);
         let mut context_scope = v8::ContextScope::new(&mut handle_scope, ctx);
 
