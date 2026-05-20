@@ -1,13 +1,13 @@
 use rjsi_core::module::{
     ImportMetaHook, Loader as RjsiLoader, ModuleHost, Resolver as RjsiResolver
 };
-use rjsi_core::{Context, Error, Result};
+use rjsi_core::{Context, Result};
 use rquickjs::loader::{Loader as QLoader, Resolver as QResolver};
 use rquickjs::module::{Declared, Module as QModule};
 use rquickjs::{Ctx, Error as QError};
 
 use crate::engine::{QuickJsEngine, map_err};
-use crate::runtime::QuickJsRuntime;
+use crate::runtime::{ImportMetaHookCell, QuickJsRuntime};
 
 struct ResolverAdapter {
     inner: Box<dyn RjsiResolver>,
@@ -29,6 +29,7 @@ impl QResolver for ResolverAdapter {
 
 struct LoaderAdapter {
     inner: Box<dyn RjsiLoader>,
+    meta_hook: ImportMetaHookCell,
 }
 
 impl QLoader for LoaderAdapter {
@@ -41,8 +42,25 @@ impl QLoader for LoaderAdapter {
             .inner
             .load(name)
             .map_err(|e| QError::new_loading_message(name, e.to_string()))?;
-        QModule::declare(ctx.clone(), name, src)
+        let module = QModule::declare(ctx.clone(), name, src)?;
+        populate_import_meta(&module, name, &self.meta_hook)?;
+        Ok(module)
     }
+}
+
+fn populate_import_meta<'js>(
+    module: &QModule<'js, Declared>,
+    name: &str,
+    hook: &ImportMetaHookCell,
+) -> rquickjs::Result<()> {
+    let props = hook.borrow_mut().as_mut().map(|h| h(name));
+    if let Some(props) = props {
+        let meta = module.meta()?;
+        for (k, v) in props {
+            meta.set(k, v)?;
+        }
+    }
+    Ok(())
 }
 
 impl rjsi_core::capabilities::Modules for QuickJsEngine {
@@ -51,18 +69,17 @@ impl rjsi_core::capabilities::Modules for QuickJsEngine {
             ResolverAdapter {
                 inner: host.resolver,
             },
-            LoaderAdapter { inner: host.loader },
+            LoaderAdapter {
+                inner: host.loader,
+                meta_hook: runtime.import_meta_hook.clone(),
+            },
         );
         Ok(())
     }
 
-    /// TODO: How does this work in QJS?
-    fn set_import_meta_hook(_runtime: &mut Self::Runtime, _hook: ImportMetaHook) -> Result<()> {
-        Err(Error::from_js(
-            "import.meta hook",
-            "QuickJS",
-            Some("QuickJS does support import.meta rn".to_string()),
-        ))
+    fn set_import_meta_hook(runtime: &mut Self::Runtime, hook: ImportMetaHook) -> Result<()> {
+        *runtime.import_meta_hook.borrow_mut() = Some(hook);
+        Ok(())
     }
 
     fn module_evaluate<'rt>(
@@ -72,8 +89,16 @@ impl rjsi_core::capabilities::Modules for QuickJsEngine {
     ) -> Result<Self::Object<'rt>> {
         let qjs_cx = rjsi_core::__cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
-        let res = QModule::evaluate(qctx, name.as_bytes().to_vec(), src.as_bytes().to_vec());
-        let promise = map_err(qjs_cx, res)?;
+        let hook = unsafe { (*qjs_cx.runtime).import_meta_hook.clone() };
+
+        let module = map_err(
+            qjs_cx,
+            QModule::declare(qctx, name.as_bytes().to_vec(), src.as_bytes().to_vec()),
+        )?;
+        map_err(qjs_cx, populate_import_meta(&module, name, &hook))?;
+
+        let res = module.eval();
+        let (_evaluated, promise) = map_err(qjs_cx, res)?;
         Ok(promise.into_value().into_object().unwrap())
     }
 

@@ -1,5 +1,8 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
+use rjsi_core::module::ImportMetaHook;
 use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result as RjsiResult, Runtime};
 use rquickjs::{Atom, Context as QContext, Ctx, Runtime as QRuntime};
 
@@ -9,11 +12,14 @@ pub struct QuickJsPreparedKeyData {
     atom: Atom<'static>,
 }
 
+pub(crate) type ImportMetaHookCell = Rc<RefCell<Option<ImportMetaHook>>>;
+
 pub struct QuickJsRuntime {
     prepared_keys: HashMap<u64, QuickJsPreparedKeyData>,
     #[allow(dead_code)]
     pub(crate) rt: QRuntime,
     pub(crate) ctx: QContext,
+    pub(crate) import_meta_hook: ImportMetaHookCell,
     microtask_policy: MicrotaskDrainPolicy,
 }
 
@@ -25,6 +31,7 @@ impl QuickJsRuntime {
             prepared_keys: HashMap::new(),
             rt,
             ctx,
+            import_meta_hook: Rc::new(RefCell::new(None)),
             microtask_policy: MicrotaskDrainPolicy::Explicit,
         }
     }
