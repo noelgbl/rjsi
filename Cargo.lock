@@ -1035,6 +1035,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ceaf4c6c48465bead8cb6a0b7c4ee0c86ecbb31239032b9c66ab9a08d2f3ee1"
 
 [[package]]
+name = "javascriptcore"
+version = "0.1.0"
+dependencies = [
+ "javascriptcore-sys",
+ "thiserror",
+]
+
+[[package]]
+name = "javascriptcore-sys"
+version = "0.1.0"
+dependencies = [
+ "pkg-config",
+]
+
+[[package]]
 name = "jiff-tzdb"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1704,6 +1719,7 @@ dependencies = [
  "rjsi-core",
  "rjsi-macros",
  "rquickjs",
+ "rquickjs-sys",
  "smallvec",
 ]
 

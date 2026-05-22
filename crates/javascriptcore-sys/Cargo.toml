@@ -1,0 +1,17 @@
+[package]
+name = "javascriptcore-sys"
+version.workspace = true
+edition = "2021"
+authors = ["Bruce Mitchener <bruce.mitchener@gmail.com>"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "Raw bindings to the JavaScriptCore framework."
+keywords = ["javascript", "jsc", "scripting"]
+documentation = "https://docs.rs/javascriptcore-sys"
+homepage = "https://github.com/endoli/javascriptcore.rs"
+repository = "https://github.com/endoli/javascriptcore.rs"
+categories = ["external-ffi-bindings"]
+build = "build.rs"
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+pkg-config = "0.3.9"

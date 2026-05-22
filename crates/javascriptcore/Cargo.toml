@@ -1,0 +1,8 @@
+[package]
+name = "javascriptcore"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+javascriptcore-sys = { path = "../javascriptcore-sys" }
+thiserror.workspace = true

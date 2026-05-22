@@ -7,6 +7,8 @@ repository = "https://github.com/noelgbl/rjsi"
 [workspace]
 resolver = "3"
 members = [
+    "crates/javascriptcore",
+    "crates/javascriptcore-sys",
     "crates/rjsi",
     "crates/rjsi-core",
     "crates/rjsi-logging",
