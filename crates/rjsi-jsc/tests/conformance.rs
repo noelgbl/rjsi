@@ -74,3 +74,8 @@ fn run_full_conformance_suite() {
 fn exception_value_is_accessible() {
     conformance::exception_value_is_accessible(&mut rt());
 }
+
+#[test]
+fn buffers_conformance() {
+    conformance::buffer_capabilities_runs_all(&mut rt());
+}

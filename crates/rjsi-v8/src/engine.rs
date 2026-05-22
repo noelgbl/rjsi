@@ -510,10 +510,9 @@ impl rjsi_core::capabilities::Promises for V8Engine {
             let promise = resolver.get_promise(scope);
             let promise_obj: v8::Local<v8::Object> = promise.into();
             let resolver_obj: v8::Local<v8::Object> = resolver.into();
-            Ok((
-                unsafe { cast_local(promise_obj) },
-                unsafe { cast_local(resolver_obj) },
-            ))
+            Ok((unsafe { cast_local(promise_obj) }, unsafe {
+                cast_local(resolver_obj)
+            }))
         } else {
             Err(Error::type_err("failed to create promise"))
         }
@@ -526,8 +525,9 @@ impl rjsi_core::capabilities::Promises for V8Engine {
     ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
-        let resolver: v8::Local<v8::PromiseResolver> =
-            unsafe { std::mem::transmute::<v8::Local<v8::Object>, v8::Local<v8::PromiseResolver>>(resolver) };
+        let resolver: v8::Local<v8::PromiseResolver> = unsafe {
+            std::mem::transmute::<v8::Local<v8::Object>, v8::Local<v8::PromiseResolver>>(resolver)
+        };
         if let Some(true) = resolver.resolve(scope, value) {
             Ok(())
         } else {
@@ -542,8 +542,9 @@ impl rjsi_core::capabilities::Promises for V8Engine {
     ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
-        let resolver: v8::Local<v8::PromiseResolver> =
-            unsafe { std::mem::transmute::<v8::Local<v8::Object>, v8::Local<v8::PromiseResolver>>(resolver) };
+        let resolver: v8::Local<v8::PromiseResolver> = unsafe {
+            std::mem::transmute::<v8::Local<v8::Object>, v8::Local<v8::PromiseResolver>>(resolver)
+        };
         if let Some(true) = resolver.reject(scope, reason) {
             Ok(())
         } else {
@@ -600,5 +601,208 @@ impl rjsi_core::capabilities::Microtasks for V8Engine {
         let scope = unsafe { get_scope(v8_cx) };
         let isolate: &mut v8::Isolate = &mut **scope;
         isolate.perform_microtask_checkpoint();
+    }
+}
+
+unsafe extern "C" fn v8_buffer_deleter(
+    _data: *mut std::ffi::c_void,
+    _byte_length: usize,
+    deleter_data: *mut std::ffi::c_void,
+) {
+    if !deleter_data.is_null() {
+        drop(unsafe { Box::from_raw(deleter_data as *mut rjsi_core::capabilities::BufferOwner) });
+    }
+}
+
+fn v8_typed_array_kind(
+    val: &v8::Local<'_, v8::Value>,
+) -> Option<rjsi_core::capabilities::TypedArrayKind> {
+    use rjsi_core::capabilities::TypedArrayKind;
+    if val.is_int8_array() {
+        Some(TypedArrayKind::Int8)
+    } else if val.is_uint8_clamped_array() {
+        Some(TypedArrayKind::Uint8Clamped)
+    } else if val.is_uint8_array() {
+        Some(TypedArrayKind::Uint8)
+    } else if val.is_int16_array() {
+        Some(TypedArrayKind::Int16)
+    } else if val.is_uint16_array() {
+        Some(TypedArrayKind::Uint16)
+    } else if val.is_int32_array() {
+        Some(TypedArrayKind::Int32)
+    } else if val.is_uint32_array() {
+        Some(TypedArrayKind::Uint32)
+    } else if val.is_float32_array() {
+        Some(TypedArrayKind::Float32)
+    } else if val.is_float64_array() {
+        Some(TypedArrayKind::Float64)
+    } else if val.is_big_int64_array() {
+        Some(TypedArrayKind::BigInt64)
+    } else if val.is_big_uint64_array() {
+        Some(TypedArrayKind::BigUint64)
+    } else {
+        None
+    }
+}
+
+impl rjsi_core::capabilities::Buffers for V8Engine {
+    fn value_is_array_buffer<'cx>(val: &Self::Value<'cx>) -> bool {
+        val.is_array_buffer()
+    }
+
+    fn value_typed_array_kind<'cx>(
+        val: &Self::Value<'cx>,
+    ) -> Option<rjsi_core::capabilities::TypedArrayKind> {
+        v8_typed_array_kind(val)
+    }
+
+    unsafe fn array_buffer_adopt<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        ptr: *mut u8,
+        len: usize,
+        owner: rjsi_core::capabilities::BufferOwner,
+    ) -> Result<Self::Object<'rt>> {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        let owner_ptr = Box::into_raw(Box::new(owner)) as *mut std::ffi::c_void;
+        let backing_store = unsafe {
+            v8::ArrayBuffer::new_backing_store_from_ptr(
+                ptr as *mut std::ffi::c_void,
+                len,
+                v8_buffer_deleter,
+                owner_ptr,
+            )
+        };
+        let shared = backing_store.make_shared();
+        let ab = v8::ArrayBuffer::with_backing_store(scope, &shared);
+        let obj: v8::Local<v8::Object> = ab.into();
+        Ok(unsafe { cast_local(obj) })
+    }
+
+    fn array_buffer_alloc<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        len: usize,
+    ) -> Result<Self::Object<'rt>> {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        let ab = v8::ArrayBuffer::new(scope, len);
+        let obj: v8::Local<v8::Object> = ab.into();
+        Ok(unsafe { cast_local(obj) })
+    }
+
+    fn typed_array_new<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        kind: rjsi_core::capabilities::TypedArrayKind,
+        buffer: Self::Object<'rt>,
+        byte_offset: usize,
+        length: usize,
+    ) -> Result<Self::Object<'rt>> {
+        use rjsi_core::capabilities::TypedArrayKind;
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        let ab: v8::Local<v8::ArrayBuffer> = v8::Local::<v8::ArrayBuffer>::try_from(buffer)
+            .map_err(|_| Error::type_err("typed_array_new: not an ArrayBuffer"))?;
+        macro_rules! make {
+            ($ty:ident) => {{
+                let ta = v8::$ty::new(scope, ab, byte_offset, length)
+                    .ok_or_else(|| Error::type_err("typed_array_new: construction failed"))?;
+                let obj: v8::Local<v8::Object> = ta.into();
+                Ok(unsafe { cast_local(obj) })
+            }};
+        }
+        match kind {
+            TypedArrayKind::Int8 => make!(Int8Array),
+            TypedArrayKind::Uint8 => make!(Uint8Array),
+            TypedArrayKind::Uint8Clamped => make!(Uint8ClampedArray),
+            TypedArrayKind::Int16 => make!(Int16Array),
+            TypedArrayKind::Uint16 => make!(Uint16Array),
+            TypedArrayKind::Int32 => make!(Int32Array),
+            TypedArrayKind::Uint32 => make!(Uint32Array),
+            TypedArrayKind::Float32 => make!(Float32Array),
+            TypedArrayKind::Float64 => make!(Float64Array),
+            TypedArrayKind::BigInt64 => make!(BigInt64Array),
+            TypedArrayKind::BigUint64 => make!(BigUint64Array),
+        }
+    }
+
+    fn array_buffer_byte_length<'cx>(
+        _cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+    ) -> Result<usize> {
+        let ab: v8::Local<v8::ArrayBuffer> = v8::Local::<v8::ArrayBuffer>::try_from(*obj)
+            .map_err(|_| Error::type_err("array_buffer_byte_length: not an ArrayBuffer"))?;
+        Ok(ab.byte_length())
+    }
+
+    fn typed_array_info<'cx>(
+        _cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+    ) -> Result<rjsi_core::capabilities::TypedArrayInfo> {
+        let val: v8::Local<v8::Value> = (*obj).into();
+        let kind = v8_typed_array_kind(&val)
+            .ok_or_else(|| Error::type_err("typed_array_info: not a TypedArray"))?;
+        let view: v8::Local<v8::ArrayBufferView> = v8::Local::<v8::ArrayBufferView>::try_from(*obj)
+            .map_err(|_| Error::type_err("typed_array_info: not an ArrayBufferView"))?;
+        let byte_offset = view.byte_offset();
+        let byte_length = view.byte_length();
+        let length = byte_length / kind.element_size();
+        Ok(rjsi_core::capabilities::TypedArrayInfo {
+            kind,
+            byte_offset,
+            byte_length,
+            length,
+        })
+    }
+
+    fn typed_array_buffer<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        obj: &Self::Object<'rt>,
+    ) -> Result<Self::Object<'rt>> {
+        let v8_cx = rjsi_core::__cx::context_mut(cx);
+        let scope = unsafe { get_scope(v8_cx) };
+        let view: v8::Local<v8::ArrayBufferView> = v8::Local::<v8::ArrayBufferView>::try_from(*obj)
+            .map_err(|_| Error::type_err("typed_array_buffer: not an ArrayBufferView"))?;
+        let ab = view
+            .buffer(scope)
+            .ok_or_else(|| Error::type_err("typed_array_buffer: view has no buffer"))?;
+        let obj: v8::Local<v8::Object> = ab.into();
+        Ok(unsafe { cast_local(obj) })
+    }
+
+    fn array_buffer_copy_to<'cx>(
+        _cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+        dst: &mut [u8],
+    ) -> Result<()> {
+        let ab: v8::Local<v8::ArrayBuffer> = v8::Local::<v8::ArrayBuffer>::try_from(*obj)
+            .map_err(|_| Error::type_err("array_buffer_copy_to: not an ArrayBuffer"))?;
+        let len = ab.byte_length();
+        if dst.len() != len {
+            return Err(Error::type_err("array_buffer_copy_to: dst length mismatch"));
+        }
+        if len == 0 {
+            return Ok(());
+        }
+        let src_ptr = ab
+            .data()
+            .ok_or_else(|| Error::type_err("array_buffer_copy_to: null data pointer"))?;
+        unsafe {
+            std::ptr::copy_nonoverlapping(src_ptr.as_ptr() as *const u8, dst.as_mut_ptr(), len);
+        }
+        Ok(())
+    }
+
+    fn typed_array_copy_to<'cx>(
+        _cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+        dst: &mut [u8],
+    ) -> Result<()> {
+        let view: v8::Local<v8::ArrayBufferView> = v8::Local::<v8::ArrayBufferView>::try_from(*obj)
+            .map_err(|_| Error::type_err("typed_array_copy_to: not an ArrayBufferView"))?;
+        let written = view.copy_contents(dst);
+        if written != dst.len() {
+            return Err(Error::type_err("typed_array_copy_to: dst length mismatch"));
+        }
+        Ok(())
     }
 }

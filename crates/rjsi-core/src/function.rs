@@ -30,7 +30,9 @@ where
     E::Function<'cx>: Clone,
 {
     fn clone(&self) -> Self {
-        Self { raw: self.raw.clone() }
+        Self {
+            raw: self.raw.clone(),
+        }
     }
 }
 

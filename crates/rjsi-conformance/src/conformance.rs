@@ -1,5 +1,6 @@
+use rjsi_core::capabilities::{Buffers, Float32Array, TypedArrayKind, Uint8Array};
 use rjsi_core::{
-    Args, Context, ContextNativeStateExt, Engine, Error, NativeState, NativeStateSupport, PersistentValue, PreparedKey, Result, Runtime, Value
+    Args, Context, ContextBufferExt, ContextNativeStateExt, Engine, Error, NativeState, NativeStateSupport, PersistentValue, PreparedKey, Result, Runtime, Value
 };
 
 fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {
@@ -761,4 +762,184 @@ where
         let n = expect_js(result.to_f64(cx), "tokio result");
         assert_eq!(n, 88.0);
     });
+}
+
+pub fn array_buffer_alloc_and_inspect<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let buf = expect_js(cx.array_buffer_alloc(16), "alloc 16-byte buffer");
+        assert_eq!(expect_js(buf.byte_length(cx), "byte_length"), 16);
+        let bytes = expect_js(buf.to_vec(cx), "to_vec");
+        assert_eq!(bytes, vec![0u8; 16]);
+    });
+}
+
+pub fn array_buffer_adopt_vec_visible_to_js<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let buf = expect_js(
+            cx.array_buffer_from_vec(vec![10u8, 20, 30, 40]),
+            "adopt Vec<u8> as ArrayBuffer",
+        );
+        let buf_value = buf.into_value();
+        let globals = cx.globals();
+        expect_js(globals.set(cx, "buf", buf_value), "set globalThis.buf");
+        let v = expect_js(cx.eval("new Uint8Array(buf)[2]"), "read buf[2]");
+        let n = expect_js(v.to_f64(cx), "as f64");
+        assert_eq!(n, 30.0);
+    });
+}
+
+pub fn uint8_array_from_rust_visible_to_js<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let arr = expect_js(
+            cx.uint8_array_from_vec(vec![1u8, 2, 3, 4, 5]),
+            "uint8_array_from_vec",
+        );
+        let val = arr.into_value();
+        let globals = cx.globals();
+        expect_js(globals.set(cx, "a", val), "set globalThis.a");
+        let len = expect_js(cx.eval("a.length"), "a.length");
+        assert_eq!(expect_js(len.to_f64(cx), "len f64"), 5.0);
+        let v = expect_js(cx.eval("a[3]"), "a[3]");
+        assert_eq!(expect_js(v.to_f64(cx), "v f64"), 4.0);
+    });
+}
+
+pub fn typed_array_from_js_readable_in_rust<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let val = expect_js(
+            cx.eval("new Float32Array([1.5, 2.5, 3.5])"),
+            "eval Float32Array",
+        );
+        assert_eq!(
+            E::value_typed_array_kind(val.as_raw()),
+            Some(TypedArrayKind::Float32),
+            "kind detection"
+        );
+        let obj = expect_js(val.try_as_object(), "as object");
+        let arr = Float32Array::<E>::new(obj);
+        let info = expect_js(arr.info(cx), "info");
+        assert_eq!(info.kind, TypedArrayKind::Float32);
+        assert_eq!(info.byte_offset, 0);
+        assert_eq!(info.byte_length, 12);
+        assert_eq!(info.length, 3);
+        let v = expect_js(arr.to_vec(cx), "to_vec");
+        assert_eq!(v, vec![1.5f32, 2.5, 3.5]);
+    });
+}
+
+pub fn vec_u8_round_trip<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        use rjsi_core::ToJs;
+        let original = vec![7u8, 11, 13, 17, 19];
+        let val = expect_js(original.clone().to_js(cx), "to_js Vec<u8>");
+        let globals = cx.globals();
+        expect_js(globals.set(cx, "v", val), "set globalThis.v");
+        let mirror = expect_js(cx.eval("v"), "fetch v back");
+        let round_trip: Vec<u8> = expect_js(
+            <Vec<u8> as rjsi_core::FromJs<E>>::from_js(cx, mirror),
+            "FromJs Vec<u8>",
+        );
+        assert_eq!(round_trip, original);
+    });
+}
+
+pub fn typed_array_byte_offset_view<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let val = expect_js(
+            cx.eval("(() => { const b = new ArrayBuffer(8); const u = new Uint8Array(b); for (let i=0;i<8;i++) u[i]=i+1; return new Uint16Array(b, 2, 2); })()"),
+            "eval offset view",
+        );
+        assert_eq!(
+            E::value_typed_array_kind(val.as_raw()),
+            Some(TypedArrayKind::Uint16),
+        );
+        let obj = expect_js(val.try_as_object(), "as object");
+        let info = expect_js(E::typed_array_info(cx, obj.as_raw()), "info");
+        assert_eq!(info.kind, TypedArrayKind::Uint16);
+        assert_eq!(info.byte_offset, 2);
+        assert_eq!(info.byte_length, 4);
+        assert_eq!(info.length, 2);
+
+        let mut bytes = vec![0u8; info.byte_length];
+        expect_js(
+            E::typed_array_copy_to(cx, obj.as_raw(), &mut bytes),
+            "typed_array_copy_to",
+        );
+        assert_eq!(bytes, vec![3u8, 4, 5, 6]);
+    });
+}
+
+pub fn append_to_reuses_allocation<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let arr1 = expect_js(cx.uint8_array_from_vec(vec![1u8, 2, 3]), "first array");
+        let mut pool: Vec<u8> = Vec::with_capacity(16);
+        expect_js(arr1.append_to(cx, &mut pool), "append first");
+        assert_eq!(pool, vec![1u8, 2, 3]);
+        pool.clear();
+        let arr2 = expect_js(
+            cx.uint8_array_from_vec(vec![9u8, 8, 7, 6, 5]),
+            "second array",
+        );
+        expect_js(arr2.append_to(cx, &mut pool), "append second");
+        assert_eq!(pool, vec![9u8, 8, 7, 6, 5]);
+    });
+}
+
+pub fn from_js_uint8_array_wrapper<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let val = expect_js(cx.eval("new Uint8Array([42, 43, 44])"), "eval Uint8Array");
+        let arr: Uint8Array<E> = expect_js(
+            <Uint8Array<E> as rjsi_core::FromJs<E>>::from_js(cx, val),
+            "FromJs Uint8Array",
+        );
+        let v = expect_js(arr.to_vec(cx), "to_vec");
+        assert_eq!(v, vec![42u8, 43, 44]);
+    });
+}
+
+pub fn buffer_capabilities_runs_all<E, R>(runtime: &mut R)
+where
+    E: Engine + Buffers,
+    R: Runtime<E>,
+{
+    array_buffer_alloc_and_inspect(runtime);
+    array_buffer_adopt_vec_visible_to_js(runtime);
+    uint8_array_from_rust_visible_to_js(runtime);
+    typed_array_from_js_readable_in_rust(runtime);
+    vec_u8_round_trip(runtime);
+    typed_array_byte_offset_view(runtime);
+    append_to_reuses_allocation(runtime);
+    from_js_uint8_array_wrapper(runtime);
 }

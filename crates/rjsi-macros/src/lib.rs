@@ -1,13 +1,11 @@
+use heck::{
+    ToKebabCase, ToLowerCamelCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase
+};
 use proc_macro::TokenStream;
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Index, ItemImpl, parse_macro_input};
-
-use heck::{
-    ToKebabCase, ToLowerCamelCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase,
-    ToUpperCamelCase,
-};
 
 #[derive(Clone, Copy, Default)]
 enum RenameAll {
@@ -53,9 +51,7 @@ impl RenameAll {
     }
 }
 
-fn js_nested_metas(
-    attrs: &[syn::Attribute],
-) -> impl Iterator<Item = syn::Meta> + use<'_> {
+fn js_nested_metas(attrs: &[syn::Attribute]) -> impl Iterator<Item = syn::Meta> + use<'_> {
     attrs
         .iter()
         .filter(|a| a.path().is_ident("js"))

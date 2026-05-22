@@ -89,3 +89,8 @@ fn js_channel_capabilities() {
 fn tokio_channel_capabilities() {
     conformance::tokio_channel_capabilities(&mut rt());
 }
+
+#[test]
+fn buffers_conformance() {
+    conformance::buffer_capabilities_runs_all(&mut rt());
+}

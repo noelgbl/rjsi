@@ -1,4 +1,5 @@
 mod args;
+mod buffer_convert;
 pub mod capabilities;
 pub mod channel;
 mod class;
@@ -21,7 +22,7 @@ pub use args::{ArgSlice, Args, ArgsIter, RawHostFn};
 pub use channel::{JsChannel, JsSender, PromiseId, SettleMsg};
 pub use class::{ClassSupport, ContextClassExt, InstanceRef, JsClass};
 pub use context::{
-    __cx, Context, ContextMicrotaskExt, ContextModulesExt, ContextPromiseExt, RuntimeModulesExt
+    __cx, Context, ContextBufferExt, ContextMicrotaskExt, ContextModulesExt, ContextPromiseExt, RuntimeModulesExt
 };
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;

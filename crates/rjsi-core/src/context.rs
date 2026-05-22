@@ -1,4 +1,6 @@
-use crate::capabilities::Promise;
+use crate::capabilities::{
+    ArrayBuffer, BigInt64Array, BigUint64Array, BufferOwner, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Promise, TypedArrayKind, Uint8Array, Uint8ClampedArray, Uint16Array, Uint32Array
+};
 use crate::module::{Loader, ModuleHost, Resolver};
 use crate::{Engine, Object, PersistentValue, Result, Value};
 
@@ -197,6 +199,135 @@ pub trait RuntimeModulesExt<E: Engine + crate::capabilities::Modules> {
     fn set_import_meta_hook<F>(&mut self, hook: F) -> Result<()>
     where
         F: FnMut(&str) -> std::collections::HashMap<String, String> + 'static;
+}
+
+pub trait ContextBufferExt<'rt, E: Engine + crate::capabilities::Buffers> {
+    fn array_buffer_alloc(&mut self, len: usize) -> Result<ArrayBuffer<'rt, E>>;
+    fn array_buffer_from_vec(&mut self, v: Vec<u8>) -> Result<ArrayBuffer<'rt, E>>;
+    fn array_buffer_from_boxed(&mut self, v: Box<[u8]>) -> Result<ArrayBuffer<'rt, E>>;
+    fn array_buffer_from_bytes(&mut self, v: bytes::Bytes) -> Result<ArrayBuffer<'rt, E>>;
+
+    fn int8_array_from_vec(&mut self, v: Vec<i8>) -> Result<Int8Array<'rt, E>>;
+    fn uint8_array_from_vec(&mut self, v: Vec<u8>) -> Result<Uint8Array<'rt, E>>;
+    fn uint8_clamped_array_from_vec(&mut self, v: Vec<u8>) -> Result<Uint8ClampedArray<'rt, E>>;
+    fn int16_array_from_vec(&mut self, v: Vec<i16>) -> Result<Int16Array<'rt, E>>;
+    fn uint16_array_from_vec(&mut self, v: Vec<u16>) -> Result<Uint16Array<'rt, E>>;
+    fn int32_array_from_vec(&mut self, v: Vec<i32>) -> Result<Int32Array<'rt, E>>;
+    fn uint32_array_from_vec(&mut self, v: Vec<u32>) -> Result<Uint32Array<'rt, E>>;
+    fn float32_array_from_vec(&mut self, v: Vec<f32>) -> Result<Float32Array<'rt, E>>;
+    fn float64_array_from_vec(&mut self, v: Vec<f64>) -> Result<Float64Array<'rt, E>>;
+    fn big_int64_array_from_vec(&mut self, v: Vec<i64>) -> Result<BigInt64Array<'rt, E>>;
+    fn big_uint64_array_from_vec(&mut self, v: Vec<u64>) -> Result<BigUint64Array<'rt, E>>;
+}
+
+fn array_buffer_adopt_typed_vec<'rt, E, T>(
+    cx: &mut Context<'rt, E>,
+    mut v: Vec<T>,
+) -> Result<E::Object<'rt>>
+where
+    E: Engine + crate::capabilities::Buffers,
+    T: Send + 'static,
+{
+    let ptr = v.as_mut_ptr() as *mut u8;
+    let len_bytes = v.len() * std::mem::size_of::<T>();
+    let owner: BufferOwner = Box::new(v);
+    unsafe { E::array_buffer_adopt(cx, ptr, len_bytes, owner) }
+}
+
+fn typed_array_from_vec<'rt, E, T, W>(
+    cx: &mut Context<'rt, E>,
+    v: Vec<T>,
+    kind: TypedArrayKind,
+    wrap: impl FnOnce(Object<'rt, E>) -> W,
+) -> Result<W>
+where
+    E: Engine + crate::capabilities::Buffers,
+    T: Send + 'static,
+{
+    let length = v.len();
+    let buf_raw = array_buffer_adopt_typed_vec(cx, v)?;
+    let ta_raw = E::typed_array_new(cx, kind, buf_raw, 0, length)?;
+    Ok(wrap(Object::new(ta_raw)))
+}
+
+impl<'rt, E> ContextBufferExt<'rt, E> for Context<'rt, E>
+where
+    E: Engine + crate::capabilities::Buffers,
+{
+    fn array_buffer_alloc(&mut self, len: usize) -> Result<ArrayBuffer<'rt, E>> {
+        let raw = E::array_buffer_alloc(self, len)?;
+        Ok(ArrayBuffer::new(Object::new(raw)))
+    }
+
+    fn array_buffer_from_vec(&mut self, v: Vec<u8>) -> Result<ArrayBuffer<'rt, E>> {
+        let raw = array_buffer_adopt_typed_vec(self, v)?;
+        Ok(ArrayBuffer::new(Object::new(raw)))
+    }
+
+    fn array_buffer_from_boxed(&mut self, mut v: Box<[u8]>) -> Result<ArrayBuffer<'rt, E>> {
+        let ptr = v.as_mut_ptr();
+        let len = v.len();
+        let owner: BufferOwner = Box::new(v);
+        let raw = unsafe { E::array_buffer_adopt(self, ptr, len, owner) }?;
+        Ok(ArrayBuffer::new(Object::new(raw)))
+    }
+
+    fn array_buffer_from_bytes(&mut self, v: bytes::Bytes) -> Result<ArrayBuffer<'rt, E>> {
+        let ptr = v.as_ptr() as *mut u8;
+        let len = v.len();
+        let owner: BufferOwner = Box::new(v);
+        let raw = unsafe { E::array_buffer_adopt(self, ptr, len, owner) }?;
+        Ok(ArrayBuffer::new(Object::new(raw)))
+    }
+
+    fn int8_array_from_vec(&mut self, v: Vec<i8>) -> Result<Int8Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Int8, Int8Array::new)
+    }
+
+    fn uint8_array_from_vec(&mut self, v: Vec<u8>) -> Result<Uint8Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Uint8, Uint8Array::new)
+    }
+
+    fn uint8_clamped_array_from_vec(&mut self, v: Vec<u8>) -> Result<Uint8ClampedArray<'rt, E>> {
+        typed_array_from_vec(
+            self,
+            v,
+            TypedArrayKind::Uint8Clamped,
+            Uint8ClampedArray::new,
+        )
+    }
+
+    fn int16_array_from_vec(&mut self, v: Vec<i16>) -> Result<Int16Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Int16, Int16Array::new)
+    }
+
+    fn uint16_array_from_vec(&mut self, v: Vec<u16>) -> Result<Uint16Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Uint16, Uint16Array::new)
+    }
+
+    fn int32_array_from_vec(&mut self, v: Vec<i32>) -> Result<Int32Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Int32, Int32Array::new)
+    }
+
+    fn uint32_array_from_vec(&mut self, v: Vec<u32>) -> Result<Uint32Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Uint32, Uint32Array::new)
+    }
+
+    fn float32_array_from_vec(&mut self, v: Vec<f32>) -> Result<Float32Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Float32, Float32Array::new)
+    }
+
+    fn float64_array_from_vec(&mut self, v: Vec<f64>) -> Result<Float64Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::Float64, Float64Array::new)
+    }
+
+    fn big_int64_array_from_vec(&mut self, v: Vec<i64>) -> Result<BigInt64Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::BigInt64, BigInt64Array::new)
+    }
+
+    fn big_uint64_array_from_vec(&mut self, v: Vec<u64>) -> Result<BigUint64Array<'rt, E>> {
+        typed_array_from_vec(self, v, TypedArrayKind::BigUint64, BigUint64Array::new)
+    }
 }
 
 #[doc(hidden)]

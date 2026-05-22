@@ -744,3 +744,304 @@ impl Engine for JscEngine {
         Some(JscValue::new(cx.ctx, exc))
     }
 }
+
+#[allow(unsafe_op_in_unsafe_fn)]
+unsafe extern "C" fn buffer_deallocator(
+    _bytes: *mut std::ffi::c_void,
+    ctx_data: *mut std::ffi::c_void,
+) {
+    if !ctx_data.is_null() {
+        drop(Box::from_raw(
+            ctx_data as *mut rjsi_core::capabilities::BufferOwner,
+        ));
+    }
+}
+
+fn jsc_to_typed_array_kind(
+    t: rusty_jsc_sys::JSTypedArrayType,
+) -> Option<rjsi_core::capabilities::TypedArrayKind> {
+    use rjsi_core::capabilities::TypedArrayKind;
+    Some(match t {
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt8Array => TypedArrayKind::Int8,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8Array => TypedArrayKind::Uint8,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8ClampedArray => {
+            TypedArrayKind::Uint8Clamped
+        }
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt16Array => TypedArrayKind::Int16,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint16Array => TypedArrayKind::Uint16,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt32Array => TypedArrayKind::Int32,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint32Array => TypedArrayKind::Uint32,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat32Array => TypedArrayKind::Float32,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat64Array => TypedArrayKind::Float64,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigInt64Array => TypedArrayKind::BigInt64,
+        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigUint64Array => {
+            TypedArrayKind::BigUint64
+        }
+        _ => return None,
+    })
+}
+
+fn typed_array_kind_to_jsc(
+    k: rjsi_core::capabilities::TypedArrayKind,
+) -> rusty_jsc_sys::JSTypedArrayType {
+    use rjsi_core::capabilities::TypedArrayKind;
+    match k {
+        TypedArrayKind::Int8 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt8Array,
+        TypedArrayKind::Uint8 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8Array,
+        TypedArrayKind::Uint8Clamped => {
+            rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8ClampedArray
+        }
+        TypedArrayKind::Int16 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt16Array,
+        TypedArrayKind::Uint16 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint16Array,
+        TypedArrayKind::Int32 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt32Array,
+        TypedArrayKind::Uint32 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint32Array,
+        TypedArrayKind::Float32 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat32Array,
+        TypedArrayKind::Float64 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat64Array,
+        TypedArrayKind::BigInt64 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigInt64Array,
+        TypedArrayKind::BigUint64 => {
+            rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigUint64Array
+        }
+    }
+}
+
+fn jsc_typed_array_type_of(val: &JscValue<'_>) -> rusty_jsc_sys::JSTypedArrayType {
+    let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+    unsafe { rusty_jsc_sys::JSValueGetTypedArrayType(val.ctx, val.val, &mut exception) }
+}
+
+impl rjsi_core::capabilities::Buffers for JscEngine {
+    fn value_is_array_buffer<'cx>(val: &Self::Value<'cx>) -> bool {
+        jsc_typed_array_type_of(val) == rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeArrayBuffer
+    }
+
+    fn value_typed_array_kind<'cx>(
+        val: &Self::Value<'cx>,
+    ) -> Option<rjsi_core::capabilities::TypedArrayKind> {
+        jsc_to_typed_array_kind(jsc_typed_array_type_of(val))
+    }
+
+    unsafe fn array_buffer_adopt<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        ptr: *mut u8,
+        len: usize,
+        owner: rjsi_core::capabilities::BufferOwner,
+    ) -> Result<Self::Object<'rt>> {
+        let raw_cx = rjsi_core::__cx::context_mut(cx);
+        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let ctx_data = Box::into_raw(Box::new(owner)) as *mut std::ffi::c_void;
+        let obj = unsafe {
+            rusty_jsc_sys::JSObjectMakeArrayBufferWithBytesNoCopy(
+                raw_cx.ctx,
+                ptr as *mut std::ffi::c_void,
+                len as _,
+                Some(buffer_deallocator),
+                ctx_data,
+                &mut exception,
+            )
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        Ok(JscObject::new(raw_cx.ctx, obj))
+    }
+
+    fn array_buffer_alloc<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        len: usize,
+    ) -> Result<Self::Object<'rt>> {
+        let zeroed: Vec<u8> = vec![0u8; len];
+        let mut zeroed = zeroed.into_boxed_slice();
+        let ptr = zeroed.as_mut_ptr();
+        let owner: rjsi_core::capabilities::BufferOwner = Box::new(zeroed);
+        unsafe {
+            <Self as rjsi_core::capabilities::Buffers>::array_buffer_adopt(cx, ptr, len, owner)
+        }
+    }
+
+    fn typed_array_new<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        kind: rjsi_core::capabilities::TypedArrayKind,
+        buffer: Self::Object<'rt>,
+        byte_offset: usize,
+        length: usize,
+    ) -> Result<Self::Object<'rt>> {
+        let raw_cx = rjsi_core::__cx::context_mut(cx);
+        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let obj = unsafe {
+            rusty_jsc_sys::JSObjectMakeTypedArrayWithArrayBufferAndOffset(
+                raw_cx.ctx,
+                typed_array_kind_to_jsc(kind),
+                buffer.val,
+                byte_offset as _,
+                length as _,
+                &mut exception,
+            )
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        Ok(JscObject::new(raw_cx.ctx, obj))
+    }
+
+    fn array_buffer_byte_length<'cx>(
+        cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+    ) -> Result<usize> {
+        let raw_cx = rjsi_core::__cx::context_mut(cx);
+        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let len = unsafe {
+            rusty_jsc_sys::JSObjectGetArrayBufferByteLength(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        Ok(len as usize)
+    }
+
+    fn typed_array_info<'cx>(
+        cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+    ) -> Result<rjsi_core::capabilities::TypedArrayInfo> {
+        let raw_cx = rjsi_core::__cx::context_mut(cx);
+        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let val_ref = obj.val as rusty_jsc_sys::JSValueRef;
+        let ty =
+            unsafe { rusty_jsc_sys::JSValueGetTypedArrayType(raw_cx.ctx, val_ref, &mut exception) };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        let kind =
+            jsc_to_typed_array_kind(ty).ok_or_else(|| Error::type_err("not a TypedArray"))?;
+        let byte_length = unsafe {
+            rusty_jsc_sys::JSObjectGetTypedArrayByteLength(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        let byte_offset = unsafe {
+            rusty_jsc_sys::JSObjectGetTypedArrayByteOffset(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        let length = unsafe {
+            rusty_jsc_sys::JSObjectGetTypedArrayLength(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        Ok(rjsi_core::capabilities::TypedArrayInfo {
+            kind,
+            byte_offset: byte_offset as usize,
+            byte_length: byte_length as usize,
+            length: length as usize,
+        })
+    }
+
+    fn typed_array_buffer<'rt>(
+        cx: &mut rjsi_core::Context<'rt, Self>,
+        obj: &Self::Object<'rt>,
+    ) -> Result<Self::Object<'rt>> {
+        let raw_cx = rjsi_core::__cx::context_mut(cx);
+        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let buf = unsafe {
+            rusty_jsc_sys::JSObjectGetTypedArrayBuffer(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        Ok(JscObject::new(raw_cx.ctx, buf))
+    }
+
+    fn array_buffer_copy_to<'cx>(
+        cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+        dst: &mut [u8],
+    ) -> Result<()> {
+        let raw_cx = rjsi_core::__cx::context_mut(cx);
+        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let byte_len = unsafe {
+            rusty_jsc_sys::JSObjectGetArrayBufferByteLength(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        if dst.len() != byte_len as usize {
+            return Err(Error::type_err("array_buffer_copy_to: dst length mismatch"));
+        }
+        let src_ptr = unsafe {
+            rusty_jsc_sys::JSObjectGetArrayBufferBytesPtr(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        if src_ptr.is_null() {
+            if dst.is_empty() {
+                return Ok(());
+            }
+            return Err(Error::type_err("array_buffer_copy_to: null bytes pointer"));
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(src_ptr as *const u8, dst.as_mut_ptr(), dst.len());
+        }
+        Ok(())
+    }
+
+    fn typed_array_copy_to<'cx>(
+        cx: &mut rjsi_core::Context<'cx, Self>,
+        obj: &Self::Object<'cx>,
+        dst: &mut [u8],
+    ) -> Result<()> {
+        let raw_cx = rjsi_core::__cx::context_mut(cx);
+        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let byte_len = unsafe {
+            rusty_jsc_sys::JSObjectGetTypedArrayByteLength(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        if dst.len() != byte_len as usize {
+            return Err(Error::type_err("typed_array_copy_to: dst length mismatch"));
+        }
+        let byte_offset = unsafe {
+            rusty_jsc_sys::JSObjectGetTypedArrayByteOffset(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        let src_ptr = unsafe {
+            rusty_jsc_sys::JSObjectGetTypedArrayBytesPtr(raw_cx.ctx, obj.val, &mut exception)
+        };
+        if !exception.is_null() {
+            store_exception(raw_cx, exception);
+            return Err(Error::Exception);
+        }
+        if src_ptr.is_null() {
+            if dst.is_empty() {
+                return Ok(());
+            }
+            return Err(Error::type_err("typed_array_copy_to: null bytes pointer"));
+        }
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                (src_ptr as *const u8).add(byte_offset as usize),
+                dst.as_mut_ptr(),
+                dst.len(),
+            );
+        }
+        Ok(())
+    }
+}
