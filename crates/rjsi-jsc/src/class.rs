@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use javascriptcore_sys as jsc;
 use rjsi_core::{__cx, Args, ClassSupport, Context, Error, Function, JsClass, Object, Result};
-use rusty_jsc_sys as jsc;
 
 use crate::engine::{JscArgs, JscContext, JscEngine, JscObject, ManagedJSString};
 
@@ -24,7 +24,7 @@ fn get_instance_class<C: 'static>(name: &str) -> jsc::JSClassRef {
 
         let c_name = std::ffi::CString::new(name)
             .unwrap_or_else(|_| std::ffi::CString::new("NativeInstance").unwrap());
-        let mut def = unsafe { jsc::kJSClassDefinitionEmpty };
+        let mut def = jsc::JSClassDefinition::default();
         def.className = c_name.as_ptr();
         def.finalize = Some(instance_finalizer::<C>);
 
@@ -43,7 +43,7 @@ static CTOR_CLASS: OnceLock<CtorFnClass> = OnceLock::new();
 fn get_ctor_class() -> jsc::JSClassRef {
     CTOR_CLASS
         .get_or_init(|| {
-            let mut def = unsafe { jsc::kJSClassDefinitionEmpty };
+            let mut def = jsc::JSClassDefinition::default();
             def.className = b"NativeConstructor\0".as_ptr() as *const _;
             def.callAsFunction = Some(ctor_as_function);
             def.callAsConstructor = Some(ctor_as_constructor);
@@ -64,7 +64,7 @@ trait RawCtor: Send + Sync {
     fn call_as_ctor(
         &self,
         ctx: jsc::JSContextRef,
-        argument_count: jsc::size_t,
+        argument_count: usize,
         arguments: *const jsc::JSValueRef,
         exception: *mut jsc::JSValueRef,
     ) -> jsc::JSObjectRef;
@@ -83,7 +83,7 @@ impl<C: JsClass<JscEngine>> RawCtor for ConcreteCtor<C> {
     fn call_as_ctor(
         &self,
         ctx: jsc::JSContextRef,
-        argument_count: jsc::size_t,
+        argument_count: usize,
         arguments: *const jsc::JSValueRef,
         exception: *mut jsc::JSValueRef,
     ) -> jsc::JSObjectRef {
@@ -142,7 +142,7 @@ unsafe extern "C" fn ctor_as_function(
     ctx: jsc::JSContextRef,
     function: jsc::JSObjectRef,
     _this: jsc::JSObjectRef,
-    argc: jsc::size_t,
+    argc: usize,
     argv: *const jsc::JSValueRef,
     exception: *mut jsc::JSValueRef,
 ) -> jsc::JSValueRef {
@@ -159,7 +159,7 @@ unsafe extern "C" fn ctor_as_function(
 unsafe extern "C" fn ctor_as_constructor(
     ctx: jsc::JSContextRef,
     constructor: jsc::JSObjectRef,
-    argc: jsc::size_t,
+    argc: usize,
     argv: *const jsc::JSValueRef,
     exception: *mut jsc::JSValueRef,
 ) -> jsc::JSObjectRef {

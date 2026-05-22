@@ -6,8 +6,7 @@ edition = "2024"
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
 anyhow.workspace = true
-rusty_jsc = { git = "https://github.com/wasmerio/rusty_jsc", rev = "1a6f72bf4f3c423f8cd3e7d91e121a0c0ad50af7" }
-rusty_jsc_sys = { git = "https://github.com/wasmerio/rusty_jsc", rev = "1a6f72bf4f3c423f8cd3e7d91e121a0c0ad50af7" }
+javascriptcore-sys = { path = "../javascriptcore-sys" }
 smallvec.workspace = true
 
 [dev-dependencies]

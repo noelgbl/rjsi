@@ -5,29 +5,32 @@ use rjsi_core::{Engine, Error, PropertyKey, Result};
 pub struct JscEngine;
 
 pub struct JscContext<'rt> {
-    pub(crate) ctx: rusty_jsc_sys::JSContextRef,
+    pub(crate) ctx: javascriptcore_sys::JSContextRef,
     pub(crate) runtime: *mut crate::runtime::JscRuntime,
-    pub(crate) pending_exception: Option<rusty_jsc_sys::JSValueRef>,
+    pub(crate) pending_exception: Option<javascriptcore_sys::JSValueRef>,
     pub(crate) _phantom: std::marker::PhantomData<&'rt mut ()>,
 }
 
 impl<'rt> Drop for JscContext<'rt> {
     fn drop(&mut self) {
         if let Some(exc) = self.pending_exception.take() {
-            unsafe { rusty_jsc_sys::JSValueUnprotect(self.ctx, exc) };
+            unsafe { javascriptcore_sys::JSValueUnprotect(self.ctx, exc) };
         }
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct JscValue<'cx> {
-    pub(crate) ctx: rusty_jsc_sys::JSContextRef,
-    pub(crate) val: rusty_jsc_sys::JSValueRef,
+    pub(crate) ctx: javascriptcore_sys::JSContextRef,
+    pub(crate) val: javascriptcore_sys::JSValueRef,
     pub(crate) _phantom: std::marker::PhantomData<&'cx ()>,
 }
 
 impl<'cx> JscValue<'cx> {
-    pub(crate) fn new(ctx: rusty_jsc_sys::JSContextRef, val: rusty_jsc_sys::JSValueRef) -> Self {
+    pub(crate) fn new(
+        ctx: javascriptcore_sys::JSContextRef,
+        val: javascriptcore_sys::JSValueRef,
+    ) -> Self {
         Self {
             ctx,
             val,
@@ -38,13 +41,16 @@ impl<'cx> JscValue<'cx> {
 
 #[derive(Clone, Copy)]
 pub struct JscObject<'cx> {
-    pub(crate) ctx: rusty_jsc_sys::JSContextRef,
-    pub(crate) val: rusty_jsc_sys::JSObjectRef,
+    pub(crate) ctx: javascriptcore_sys::JSContextRef,
+    pub(crate) val: javascriptcore_sys::JSObjectRef,
     pub(crate) _phantom: std::marker::PhantomData<&'cx ()>,
 }
 
 impl<'cx> JscObject<'cx> {
-    pub(crate) fn new(ctx: rusty_jsc_sys::JSContextRef, val: rusty_jsc_sys::JSObjectRef) -> Self {
+    pub(crate) fn new(
+        ctx: javascriptcore_sys::JSContextRef,
+        val: javascriptcore_sys::JSObjectRef,
+    ) -> Self {
         Self {
             ctx,
             val,
@@ -55,12 +61,15 @@ impl<'cx> JscObject<'cx> {
 
 #[derive(Clone, Copy)]
 pub struct JscKey<'cx> {
-    pub(crate) val: rusty_jsc_sys::JSValueRef,
+    pub(crate) val: javascriptcore_sys::JSValueRef,
     pub(crate) _phantom: std::marker::PhantomData<&'cx ()>,
 }
 
 impl<'cx> JscKey<'cx> {
-    pub(crate) fn new(_ctx: rusty_jsc_sys::JSContextRef, val: rusty_jsc_sys::JSValueRef) -> Self {
+    pub(crate) fn new(
+        _ctx: javascriptcore_sys::JSContextRef,
+        val: javascriptcore_sys::JSValueRef,
+    ) -> Self {
         Self {
             val,
             _phantom: std::marker::PhantomData,
@@ -69,68 +78,68 @@ impl<'cx> JscKey<'cx> {
 }
 
 pub struct JscPersistentValue {
-    pub(crate) ctx: rusty_jsc_sys::JSContextRef,
-    pub(crate) val: rusty_jsc_sys::JSValueRef,
+    pub(crate) ctx: javascriptcore_sys::JSContextRef,
+    pub(crate) val: javascriptcore_sys::JSValueRef,
 }
 
 impl Drop for JscPersistentValue {
     fn drop(&mut self) {
         unsafe {
-            rusty_jsc_sys::JSValueUnprotect(self.ctx, self.val);
+            javascriptcore_sys::JSValueUnprotect(self.ctx, self.val);
         }
     }
 }
 
 pub struct JscArgs<'cx> {
-    pub(crate) ctx: rusty_jsc_sys::JSContextRef,
-    pub(crate) args: *const rusty_jsc_sys::JSValueRef,
+    pub(crate) ctx: javascriptcore_sys::JSContextRef,
+    pub(crate) args: *const javascriptcore_sys::JSValueRef,
     pub(crate) count: usize,
     pub(crate) _phantom: std::marker::PhantomData<&'cx ()>,
 }
 
-struct SyncClassRef(rusty_jsc_sys::JSClassRef);
+struct SyncClassRef(javascriptcore_sys::JSClassRef);
 unsafe impl Send for SyncClassRef {}
 unsafe impl Sync for SyncClassRef {}
 
 static HOST_FN_CLASS: OnceLock<SyncClassRef> = OnceLock::new();
 
-fn get_host_fn_class() -> rusty_jsc_sys::JSClassRef {
+fn get_host_fn_class() -> javascriptcore_sys::JSClassRef {
     HOST_FN_CLASS
         .get_or_init(|| {
-            let mut def = unsafe { rusty_jsc_sys::kJSClassDefinitionEmpty };
+            let mut def = javascriptcore_sys::JSClassDefinition::default();
             def.className = b"HostFunction\0".as_ptr() as *const _;
             def.callAsFunction = Some(host_fn_callback);
             def.finalize = Some(host_fn_finalize);
-            SyncClassRef(unsafe { rusty_jsc_sys::JSClassCreate(&def) })
+            SyncClassRef(unsafe { javascriptcore_sys::JSClassCreate(&def) })
         })
         .0
 }
 
-pub(crate) struct ManagedJSString(pub(crate) rusty_jsc_sys::JSStringRef);
+pub(crate) struct ManagedJSString(pub(crate) javascriptcore_sys::JSStringRef);
 impl ManagedJSString {
     pub fn new(s: &str) -> Self {
         let c_str = std::ffi::CString::new(s).unwrap();
-        Self(unsafe { rusty_jsc_sys::JSStringCreateWithUTF8CString(c_str.as_ptr()) })
+        Self(unsafe { javascriptcore_sys::JSStringCreateWithUTF8CString(c_str.as_ptr()) })
     }
 }
 impl Drop for ManagedJSString {
     fn drop(&mut self) {
-        unsafe { rusty_jsc_sys::JSStringRelease(self.0) }
+        unsafe { javascriptcore_sys::JSStringRelease(self.0) }
     }
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
 unsafe extern "C" fn host_fn_callback(
-    ctx: rusty_jsc_sys::JSContextRef,
-    function: rusty_jsc_sys::JSObjectRef,
-    this_object: rusty_jsc_sys::JSObjectRef,
-    argument_count: rusty_jsc_sys::size_t,
-    arguments: *const rusty_jsc_sys::JSValueRef,
-    exception: *mut rusty_jsc_sys::JSValueRef,
-) -> rusty_jsc_sys::JSValueRef {
-    let private_data = rusty_jsc_sys::JSObjectGetPrivate(function);
+    ctx: javascriptcore_sys::JSContextRef,
+    function: javascriptcore_sys::JSObjectRef,
+    this_object: javascriptcore_sys::JSObjectRef,
+    argument_count: usize,
+    arguments: *const javascriptcore_sys::JSValueRef,
+    exception: *mut javascriptcore_sys::JSValueRef,
+) -> javascriptcore_sys::JSValueRef {
+    let private_data = javascriptcore_sys::JSObjectGetPrivate(function);
     if private_data.is_null() {
-        return rusty_jsc_sys::JSValueMakeUndefined(ctx);
+        return javascriptcore_sys::JSValueMakeUndefined(ctx);
     }
 
     type HostFnTrait = dyn rjsi_core::RawHostFn<JscEngine>;
@@ -145,9 +154,9 @@ unsafe extern "C" fn host_fn_callback(
 
     let mut rjsi_cx = rjsi_core::Context::new(cx_raw);
     let this_val = if this_object.is_null() {
-        rusty_jsc_sys::JSValueMakeUndefined(ctx)
+        javascriptcore_sys::JSValueMakeUndefined(ctx)
     } else {
-        this_object as rusty_jsc_sys::JSValueRef
+        this_object as javascriptcore_sys::JSValueRef
     };
     let this_core = rjsi_core::Value::new(JscValue::new(ctx, this_val));
 
@@ -168,43 +177,44 @@ unsafe extern "C" fn host_fn_callback(
                 if !exception.is_null() {
                     *exception = exc_val;
                 }
-                rusty_jsc_sys::JSValueUnprotect(ctx, exc_val);
+                javascriptcore_sys::JSValueUnprotect(ctx, exc_val);
             } else if !exception.is_null() {
                 let msg = ManagedJSString::new("JavaScript exception");
-                let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
+                let err_str = javascriptcore_sys::JSValueMakeString(ctx, msg.0);
                 *exception =
-                    rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
-                        as rusty_jsc_sys::JSValueRef;
+                    javascriptcore_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
+                        as javascriptcore_sys::JSValueRef;
             }
-            rusty_jsc_sys::JSValueMakeUndefined(ctx)
+            javascriptcore_sys::JSValueMakeUndefined(ctx)
         }
         Err(e) => {
             let msg = ManagedJSString::new(&e.to_string());
-            let err_str = rusty_jsc_sys::JSValueMakeString(ctx, msg.0);
-            let err_val = rusty_jsc_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
-                as rusty_jsc_sys::JSValueRef;
+            let err_str = javascriptcore_sys::JSValueMakeString(ctx, msg.0);
+            let err_val =
+                javascriptcore_sys::JSObjectMakeError(ctx, 1, &err_str, std::ptr::null_mut())
+                    as javascriptcore_sys::JSValueRef;
             if !exception.is_null() {
                 *exception = err_val;
             }
-            rusty_jsc_sys::JSValueMakeUndefined(ctx)
+            javascriptcore_sys::JSValueMakeUndefined(ctx)
         }
     }
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]
-unsafe extern "C" fn host_fn_finalize(object: rusty_jsc_sys::JSObjectRef) {
-    let private_data = rusty_jsc_sys::JSObjectGetPrivate(object);
+unsafe extern "C" fn host_fn_finalize(object: javascriptcore_sys::JSObjectRef) {
+    let private_data = javascriptcore_sys::JSObjectGetPrivate(object);
     if !private_data.is_null() {
         type HostFnTrait = dyn rjsi_core::RawHostFn<JscEngine>;
         let _ = Box::from_raw(private_data as *mut Box<HostFnTrait>);
     }
 }
 
-fn store_exception(cx: &mut JscContext<'_>, exc: rusty_jsc_sys::JSValueRef) {
+pub(crate) fn store_exception(cx: &mut JscContext<'_>, exc: javascriptcore_sys::JSValueRef) {
     if let Some(prev) = cx.pending_exception.replace(exc) {
-        unsafe { rusty_jsc_sys::JSValueUnprotect(cx.ctx, prev) };
+        unsafe { javascriptcore_sys::JSValueUnprotect(cx.ctx, prev) };
     }
-    unsafe { rusty_jsc_sys::JSValueProtect(cx.ctx, exc) };
+    unsafe { javascriptcore_sys::JSValueProtect(cx.ctx, exc) };
 }
 
 impl Engine for JscEngine {
@@ -251,9 +261,9 @@ impl Engine for JscEngine {
             .map(|s| s.0)
             .unwrap_or(std::ptr::null_mut());
 
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let value = unsafe {
-            rusty_jsc_sys::JSEvaluateScript(
+            javascriptcore_sys::JSEvaluateScript(
                 cx.ctx,
                 script.0,
                 std::ptr::null_mut(),
@@ -272,13 +282,13 @@ impl Engine for JscEngine {
     }
 
     fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
-        let global = unsafe { rusty_jsc_sys::JSContextGetGlobalObject(cx.ctx) };
+        let global = unsafe { javascriptcore_sys::JSContextGetGlobalObject(cx.ctx) };
         JscObject::new(cx.ctx, global)
     }
 
     fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
         let obj = unsafe {
-            rusty_jsc_sys::JSObjectMake(cx.ctx, std::ptr::null_mut(), std::ptr::null_mut())
+            javascriptcore_sys::JSObjectMake(cx.ctx, std::ptr::null_mut(), std::ptr::null_mut())
         };
         Ok(JscObject::new(cx.ctx, obj))
     }
@@ -288,17 +298,22 @@ impl Engine for JscEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> Result<Self::Value<'rt>> {
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let val_ref = match key {
             PropertyKey::Str(s) => {
                 let js_str = ManagedJSString::new(s);
                 unsafe {
-                    rusty_jsc_sys::JSObjectGetProperty(cx.ctx, obj.val, js_str.0, &mut exception)
+                    javascriptcore_sys::JSObjectGetProperty(
+                        cx.ctx,
+                        obj.val,
+                        js_str.0,
+                        &mut exception,
+                    )
                 }
             }
             PropertyKey::Prepared(k) => unsafe {
                 let prepared = crate::runtime::prepared_key(cx, &k)?;
-                rusty_jsc_sys::JSObjectGetPropertyForKey(
+                javascriptcore_sys::JSObjectGetPropertyForKey(
                     cx.ctx,
                     obj.val,
                     prepared.val,
@@ -306,10 +321,15 @@ impl Engine for JscEngine {
                 )
             },
             PropertyKey::Symbol(s) => unsafe {
-                rusty_jsc_sys::JSObjectGetPropertyForKey(cx.ctx, obj.val, s.val, &mut exception)
+                javascriptcore_sys::JSObjectGetPropertyForKey(
+                    cx.ctx,
+                    obj.val,
+                    s.val,
+                    &mut exception,
+                )
             },
             PropertyKey::Index(idx) => unsafe {
-                rusty_jsc_sys::JSObjectGetPropertyAtIndex(cx.ctx, obj.val, idx, &mut exception)
+                javascriptcore_sys::JSObjectGetPropertyAtIndex(cx.ctx, obj.val, idx, &mut exception)
             },
         };
 
@@ -327,12 +347,12 @@ impl Engine for JscEngine {
         key: PropertyKey<'rt, Self>,
         val: Self::Value<'rt>,
     ) -> Result<()> {
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         match key {
             PropertyKey::Str(s) => {
                 let js_str = ManagedJSString::new(s);
                 unsafe {
-                    rusty_jsc_sys::JSObjectSetProperty(
+                    javascriptcore_sys::JSObjectSetProperty(
                         cx.ctx,
                         obj.val,
                         js_str.0,
@@ -345,7 +365,7 @@ impl Engine for JscEngine {
             PropertyKey::Prepared(k) => {
                 let prepared = crate::runtime::prepared_key(cx, &k)?;
                 unsafe {
-                    rusty_jsc_sys::JSObjectSetPropertyForKey(
+                    javascriptcore_sys::JSObjectSetPropertyForKey(
                         cx.ctx,
                         obj.val,
                         prepared.val,
@@ -357,7 +377,7 @@ impl Engine for JscEngine {
             }
             PropertyKey::Symbol(s) => {
                 unsafe {
-                    rusty_jsc_sys::JSObjectSetPropertyForKey(
+                    javascriptcore_sys::JSObjectSetPropertyForKey(
                         cx.ctx,
                         obj.val,
                         s.val,
@@ -369,7 +389,7 @@ impl Engine for JscEngine {
             }
             PropertyKey::Index(idx) => {
                 unsafe {
-                    rusty_jsc_sys::JSObjectSetPropertyAtIndex(
+                    javascriptcore_sys::JSObjectSetPropertyAtIndex(
                         cx.ctx,
                         obj.val,
                         idx,
@@ -393,15 +413,15 @@ impl Engine for JscEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> Result<bool> {
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let has = match key {
             PropertyKey::Str(s) => {
                 let js_str = ManagedJSString::new(s);
-                unsafe { rusty_jsc_sys::JSObjectHasProperty(cx.ctx, obj.val, js_str.0) }
+                unsafe { javascriptcore_sys::JSObjectHasProperty(cx.ctx, obj.val, js_str.0) }
             }
             PropertyKey::Prepared(k) => unsafe {
                 let prepared = crate::runtime::prepared_key(cx, &k)?;
-                rusty_jsc_sys::JSObjectHasPropertyForKey(
+                javascriptcore_sys::JSObjectHasPropertyForKey(
                     cx.ctx,
                     obj.val,
                     prepared.val,
@@ -409,11 +429,16 @@ impl Engine for JscEngine {
                 )
             },
             PropertyKey::Symbol(s) => unsafe {
-                rusty_jsc_sys::JSObjectHasPropertyForKey(cx.ctx, obj.val, s.val, &mut exception)
+                javascriptcore_sys::JSObjectHasPropertyForKey(
+                    cx.ctx,
+                    obj.val,
+                    s.val,
+                    &mut exception,
+                )
             },
             PropertyKey::Index(idx) => {
                 let js_str = ManagedJSString::new(&idx.to_string());
-                unsafe { rusty_jsc_sys::JSObjectHasProperty(cx.ctx, obj.val, js_str.0) }
+                unsafe { javascriptcore_sys::JSObjectHasProperty(cx.ctx, obj.val, js_str.0) }
             }
         };
 
@@ -430,17 +455,22 @@ impl Engine for JscEngine {
         obj: &Self::Object<'rt>,
         key: PropertyKey<'rt, Self>,
     ) -> Result<bool> {
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let deleted = match key {
             PropertyKey::Str(s) => {
                 let js_str = ManagedJSString::new(s);
                 unsafe {
-                    rusty_jsc_sys::JSObjectDeleteProperty(cx.ctx, obj.val, js_str.0, &mut exception)
+                    javascriptcore_sys::JSObjectDeleteProperty(
+                        cx.ctx,
+                        obj.val,
+                        js_str.0,
+                        &mut exception,
+                    )
                 }
             }
             PropertyKey::Prepared(k) => unsafe {
                 let prepared = crate::runtime::prepared_key(cx, &k)?;
-                rusty_jsc_sys::JSObjectDeletePropertyForKey(
+                javascriptcore_sys::JSObjectDeletePropertyForKey(
                     cx.ctx,
                     obj.val,
                     prepared.val,
@@ -448,12 +478,22 @@ impl Engine for JscEngine {
                 )
             },
             PropertyKey::Symbol(s) => unsafe {
-                rusty_jsc_sys::JSObjectDeletePropertyForKey(cx.ctx, obj.val, s.val, &mut exception)
+                javascriptcore_sys::JSObjectDeletePropertyForKey(
+                    cx.ctx,
+                    obj.val,
+                    s.val,
+                    &mut exception,
+                )
             },
             PropertyKey::Index(idx) => {
                 let js_str = ManagedJSString::new(&idx.to_string());
                 unsafe {
-                    rusty_jsc_sys::JSObjectDeleteProperty(cx.ctx, obj.val, js_str.0, &mut exception)
+                    javascriptcore_sys::JSObjectDeleteProperty(
+                        cx.ctx,
+                        obj.val,
+                        js_str.0,
+                        &mut exception,
+                    )
                 }
             }
         };
@@ -472,16 +512,17 @@ impl Engine for JscEngine {
         this: Self::Value<'rt>,
         args: &[Self::Value<'rt>],
     ) -> Result<Self::Value<'rt>> {
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let args_refs: Vec<_> = args.iter().map(|v| v.val).collect();
 
         let this_obj = if unsafe {
-            rusty_jsc_sys::JSValueIsUndefined(cx.ctx, this.val)
-                || rusty_jsc_sys::JSValueIsNull(cx.ctx, this.val)
+            javascriptcore_sys::JSValueIsUndefined(cx.ctx, this.val)
+                || javascriptcore_sys::JSValueIsNull(cx.ctx, this.val)
         } {
             std::ptr::null_mut()
         } else {
-            let obj = unsafe { rusty_jsc_sys::JSValueToObject(cx.ctx, this.val, &mut exception) };
+            let obj =
+                unsafe { javascriptcore_sys::JSValueToObject(cx.ctx, this.val, &mut exception) };
             if !exception.is_null() {
                 store_exception(cx, exception);
                 return Err(Error::Exception);
@@ -490,7 +531,7 @@ impl Engine for JscEngine {
         };
 
         let result = unsafe {
-            rusty_jsc_sys::JSObjectCallAsFunction(
+            javascriptcore_sys::JSObjectCallAsFunction(
                 cx.ctx,
                 func.val,
                 this_obj,
@@ -510,52 +551,57 @@ impl Engine for JscEngine {
 
     fn value_is_undefined<'cx>(val: &Self::Value<'cx>) -> bool {
         unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val)
-                == rusty_jsc_sys::JSType_kJSTypeUndefined
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::Undefined
         }
     }
 
     fn value_is_null<'cx>(val: &Self::Value<'cx>) -> bool {
         unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeNull
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val) == javascriptcore_sys::JSType::Null
         }
     }
 
     fn value_is_boolean<'cx>(val: &Self::Value<'cx>) -> bool {
         unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeBoolean
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::Boolean
         }
     }
 
     fn value_is_number<'cx>(val: &Self::Value<'cx>) -> bool {
         unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeNumber
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::Number
         }
     }
 
     fn value_is_string<'cx>(val: &Self::Value<'cx>) -> bool {
         unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeString
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::String
         }
     }
 
     fn value_is_object<'cx>(val: &Self::Value<'cx>) -> bool {
         unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeObject
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::Object
         }
     }
 
     fn value_is_function<'cx>(val: &Self::Value<'cx>) -> bool {
-        unsafe { rusty_jsc_sys::JSObjectIsFunction(val.ctx, val.val as _) }
+        unsafe { javascriptcore_sys::JSObjectIsFunction(val.ctx, val.val as _) }
     }
 
     fn value_is_array<'cx>(val: &Self::Value<'cx>) -> bool {
-        unsafe { rusty_jsc_sys::JSValueIsArray(val.ctx, val.val) }
+        unsafe { javascriptcore_sys::JSValueIsArray(val.ctx, val.val) }
     }
 
     fn value_is_symbol<'cx>(val: &Self::Value<'cx>) -> bool {
         unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeSymbol
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::Symbol
         }
     }
 
@@ -565,35 +611,37 @@ impl Engine for JscEngine {
 
     fn make_undefined<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
         JscValue::new(cx.ctx, unsafe {
-            rusty_jsc_sys::JSValueMakeUndefined(cx.ctx)
+            javascriptcore_sys::JSValueMakeUndefined(cx.ctx)
         })
     }
 
     fn make_null<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
-        JscValue::new(cx.ctx, unsafe { rusty_jsc_sys::JSValueMakeNull(cx.ctx) })
+        JscValue::new(cx.ctx, unsafe {
+            javascriptcore_sys::JSValueMakeNull(cx.ctx)
+        })
     }
 
     fn make_bool<'rt>(cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
         JscValue::new(cx.ctx, unsafe {
-            rusty_jsc_sys::JSValueMakeBoolean(cx.ctx, v)
+            javascriptcore_sys::JSValueMakeBoolean(cx.ctx, v)
         })
     }
 
     fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
         JscValue::new(cx.ctx, unsafe {
-            rusty_jsc_sys::JSValueMakeNumber(cx.ctx, v as f64)
+            javascriptcore_sys::JSValueMakeNumber(cx.ctx, v as f64)
         })
     }
 
     fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
         JscValue::new(cx.ctx, unsafe {
-            rusty_jsc_sys::JSValueMakeNumber(cx.ctx, v)
+            javascriptcore_sys::JSValueMakeNumber(cx.ctx, v)
         })
     }
 
     fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
         let js_str = ManagedJSString::new(s);
-        let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, js_str.0) };
+        let val = unsafe { javascriptcore_sys::JSValueMakeString(cx.ctx, js_str.0) };
         Ok(JscValue::new(cx.ctx, val))
     }
 
@@ -609,14 +657,14 @@ impl Engine for JscEngine {
         let ptr = Box::into_raw(Box::new(boxed_closure));
 
         let class = get_host_fn_class();
-        let obj = unsafe { rusty_jsc_sys::JSObjectMake(cx.ctx, class, ptr as *mut _) };
+        let obj = unsafe { javascriptcore_sys::JSObjectMake(cx.ctx, class, ptr as *mut _) };
 
         if !name.is_empty() {
             let name_str = ManagedJSString::new(name);
             let name_key = ManagedJSString::new("name");
-            let name_val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, name_str.0) };
+            let name_val = unsafe { javascriptcore_sys::JSValueMakeString(cx.ctx, name_str.0) };
             unsafe {
-                rusty_jsc_sys::JSObjectSetProperty(
+                javascriptcore_sys::JSObjectSetProperty(
                     cx.ctx,
                     obj,
                     name_key.0,
@@ -632,9 +680,10 @@ impl Engine for JscEngine {
 
     fn value_as_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
         if unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeBoolean
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::Boolean
         } {
-            Some(unsafe { rusty_jsc_sys::JSValueToBoolean(val.ctx, val.val) })
+            Some(unsafe { javascriptcore_sys::JSValueToBoolean(val.ctx, val.val) })
         } else {
             None
         }
@@ -642,12 +691,12 @@ impl Engine for JscEngine {
 
     fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
         let _ = cx;
-        unsafe { rusty_jsc_sys::JSValueToBoolean(val.ctx, val.val) }
+        unsafe { javascriptcore_sys::JSValueToBoolean(val.ctx, val.val) }
     }
 
     fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
-        let num = unsafe { rusty_jsc_sys::JSValueToNumber(cx.ctx, val.val, &mut exception) };
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
+        let num = unsafe { javascriptcore_sys::JSValueToNumber(cx.ctx, val.val, &mut exception) };
         if !exception.is_null() {
             store_exception(cx, exception);
             Err(Error::Exception)
@@ -657,21 +706,21 @@ impl Engine for JscEngine {
     }
 
     fn value_to_string<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<String> {
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let js_str_ref =
-            unsafe { rusty_jsc_sys::JSValueToStringCopy(cx.ctx, val.val, &mut exception) };
+            unsafe { javascriptcore_sys::JSValueToStringCopy(cx.ctx, val.val, &mut exception) };
         if !exception.is_null() {
             store_exception(cx, exception);
             return Err(Error::Exception);
         }
 
-        let len = unsafe { rusty_jsc_sys::JSStringGetMaximumUTF8CStringSize(js_str_ref) };
+        let len = unsafe { javascriptcore_sys::JSStringGetMaximumUTF8CStringSize(js_str_ref) };
         let mut chars = vec![0u8; len as usize];
         let actual_len = unsafe {
-            rusty_jsc_sys::JSStringGetUTF8CString(js_str_ref, chars.as_mut_ptr() as _, len)
+            javascriptcore_sys::JSStringGetUTF8CString(js_str_ref, chars.as_mut_ptr() as _, len)
         };
         unsafe {
-            rusty_jsc_sys::JSStringRelease(js_str_ref);
+            javascriptcore_sys::JSStringRelease(js_str_ref);
         }
 
         if actual_len > 0 {
@@ -687,11 +736,12 @@ impl Engine for JscEngine {
 
     fn value_as_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
         if unsafe {
-            rusty_jsc_sys::JSValueGetType(val.ctx, val.val) == rusty_jsc_sys::JSType_kJSTypeObject
+            javascriptcore_sys::JSValueGetType(val.ctx, val.val)
+                == javascriptcore_sys::JSType::Object
         } {
             Some(JscObject::new(
                 val.ctx,
-                val.val as rusty_jsc_sys::JSObjectRef,
+                val.val as javascriptcore_sys::JSObjectRef,
             ))
         } else {
             None
@@ -703,10 +753,10 @@ impl Engine for JscEngine {
     }
 
     fn value_as_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
-        if unsafe { rusty_jsc_sys::JSObjectIsFunction(val.ctx, val.val as _) } {
+        if unsafe { javascriptcore_sys::JSObjectIsFunction(val.ctx, val.val as _) } {
             Some(JscObject::new(
                 val.ctx,
-                val.val as rusty_jsc_sys::JSObjectRef,
+                val.val as javascriptcore_sys::JSObjectRef,
             ))
         } else {
             None
@@ -722,7 +772,7 @@ impl Engine for JscEngine {
         val: Self::Value<'rt>,
     ) -> Self::PersistentValue {
         unsafe {
-            rusty_jsc_sys::JSValueProtect(cx.ctx, val.val);
+            javascriptcore_sys::JSValueProtect(cx.ctx, val.val);
         }
         JscPersistentValue {
             ctx: cx.ctx,
@@ -740,7 +790,7 @@ impl Engine for JscEngine {
 
     fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
         let exc = cx.pending_exception.take()?;
-        unsafe { rusty_jsc_sys::JSValueUnprotect(cx.ctx, exc) };
+        unsafe { javascriptcore_sys::JSValueUnprotect(cx.ctx, exc) };
         Some(JscValue::new(cx.ctx, exc))
     }
 }
@@ -758,60 +808,52 @@ unsafe extern "C" fn buffer_deallocator(
 }
 
 fn jsc_to_typed_array_kind(
-    t: rusty_jsc_sys::JSTypedArrayType,
+    t: javascriptcore_sys::JSTypedArrayType,
 ) -> Option<rjsi_core::capabilities::TypedArrayKind> {
     use rjsi_core::capabilities::TypedArrayKind;
     Some(match t {
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt8Array => TypedArrayKind::Int8,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8Array => TypedArrayKind::Uint8,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8ClampedArray => {
-            TypedArrayKind::Uint8Clamped
-        }
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt16Array => TypedArrayKind::Int16,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint16Array => TypedArrayKind::Uint16,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt32Array => TypedArrayKind::Int32,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint32Array => TypedArrayKind::Uint32,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat32Array => TypedArrayKind::Float32,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat64Array => TypedArrayKind::Float64,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigInt64Array => TypedArrayKind::BigInt64,
-        rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigUint64Array => {
-            TypedArrayKind::BigUint64
-        }
+        javascriptcore_sys::JSTypedArrayType::Int8Array => TypedArrayKind::Int8,
+        javascriptcore_sys::JSTypedArrayType::Uint8Array => TypedArrayKind::Uint8,
+        javascriptcore_sys::JSTypedArrayType::Uint8ClampedArray => TypedArrayKind::Uint8Clamped,
+        javascriptcore_sys::JSTypedArrayType::Int16Array => TypedArrayKind::Int16,
+        javascriptcore_sys::JSTypedArrayType::Uint16Array => TypedArrayKind::Uint16,
+        javascriptcore_sys::JSTypedArrayType::Int32Array => TypedArrayKind::Int32,
+        javascriptcore_sys::JSTypedArrayType::Uint32Array => TypedArrayKind::Uint32,
+        javascriptcore_sys::JSTypedArrayType::Float32Array => TypedArrayKind::Float32,
+        javascriptcore_sys::JSTypedArrayType::Float64Array => TypedArrayKind::Float64,
+        javascriptcore_sys::JSTypedArrayType::BigInt64Array => TypedArrayKind::BigInt64,
+        javascriptcore_sys::JSTypedArrayType::BigUint64Array => TypedArrayKind::BigUint64,
         _ => return None,
     })
 }
 
 fn typed_array_kind_to_jsc(
     k: rjsi_core::capabilities::TypedArrayKind,
-) -> rusty_jsc_sys::JSTypedArrayType {
+) -> javascriptcore_sys::JSTypedArrayType {
     use rjsi_core::capabilities::TypedArrayKind;
     match k {
-        TypedArrayKind::Int8 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt8Array,
-        TypedArrayKind::Uint8 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8Array,
-        TypedArrayKind::Uint8Clamped => {
-            rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint8ClampedArray
-        }
-        TypedArrayKind::Int16 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt16Array,
-        TypedArrayKind::Uint16 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint16Array,
-        TypedArrayKind::Int32 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeInt32Array,
-        TypedArrayKind::Uint32 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeUint32Array,
-        TypedArrayKind::Float32 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat32Array,
-        TypedArrayKind::Float64 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeFloat64Array,
-        TypedArrayKind::BigInt64 => rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigInt64Array,
-        TypedArrayKind::BigUint64 => {
-            rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeBigUint64Array
-        }
+        TypedArrayKind::Int8 => javascriptcore_sys::JSTypedArrayType::Int8Array,
+        TypedArrayKind::Uint8 => javascriptcore_sys::JSTypedArrayType::Uint8Array,
+        TypedArrayKind::Uint8Clamped => javascriptcore_sys::JSTypedArrayType::Uint8ClampedArray,
+        TypedArrayKind::Int16 => javascriptcore_sys::JSTypedArrayType::Int16Array,
+        TypedArrayKind::Uint16 => javascriptcore_sys::JSTypedArrayType::Uint16Array,
+        TypedArrayKind::Int32 => javascriptcore_sys::JSTypedArrayType::Int32Array,
+        TypedArrayKind::Uint32 => javascriptcore_sys::JSTypedArrayType::Uint32Array,
+        TypedArrayKind::Float32 => javascriptcore_sys::JSTypedArrayType::Float32Array,
+        TypedArrayKind::Float64 => javascriptcore_sys::JSTypedArrayType::Float64Array,
+        TypedArrayKind::BigInt64 => javascriptcore_sys::JSTypedArrayType::BigInt64Array,
+        TypedArrayKind::BigUint64 => javascriptcore_sys::JSTypedArrayType::BigUint64Array,
     }
 }
 
-fn jsc_typed_array_type_of(val: &JscValue<'_>) -> rusty_jsc_sys::JSTypedArrayType {
-    let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
-    unsafe { rusty_jsc_sys::JSValueGetTypedArrayType(val.ctx, val.val, &mut exception) }
+fn jsc_typed_array_type_of(val: &JscValue<'_>) -> javascriptcore_sys::JSTypedArrayType {
+    let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
+    unsafe { javascriptcore_sys::JSValueGetTypedArrayType(val.ctx, val.val, &mut exception) }
 }
 
 impl rjsi_core::capabilities::Buffers for JscEngine {
     fn value_is_array_buffer<'cx>(val: &Self::Value<'cx>) -> bool {
-        jsc_typed_array_type_of(val) == rusty_jsc_sys::JSTypedArrayType_kJSTypedArrayTypeArrayBuffer
+        jsc_typed_array_type_of(val) == javascriptcore_sys::JSTypedArrayType::ArrayBuffer
     }
 
     fn value_typed_array_kind<'cx>(
@@ -827,10 +869,10 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         owner: rjsi_core::capabilities::BufferOwner,
     ) -> Result<Self::Object<'rt>> {
         let raw_cx = rjsi_core::__cx::context_mut(cx);
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let ctx_data = Box::into_raw(Box::new(owner)) as *mut std::ffi::c_void;
         let obj = unsafe {
-            rusty_jsc_sys::JSObjectMakeArrayBufferWithBytesNoCopy(
+            javascriptcore_sys::JSObjectMakeArrayBufferWithBytesNoCopy(
                 raw_cx.ctx,
                 ptr as *mut std::ffi::c_void,
                 len as _,
@@ -867,9 +909,9 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         length: usize,
     ) -> Result<Self::Object<'rt>> {
         let raw_cx = rjsi_core::__cx::context_mut(cx);
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let obj = unsafe {
-            rusty_jsc_sys::JSObjectMakeTypedArrayWithArrayBufferAndOffset(
+            javascriptcore_sys::JSObjectMakeTypedArrayWithArrayBufferAndOffset(
                 raw_cx.ctx,
                 typed_array_kind_to_jsc(kind),
                 buffer.val,
@@ -890,9 +932,13 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         obj: &Self::Object<'cx>,
     ) -> Result<usize> {
         let raw_cx = rjsi_core::__cx::context_mut(cx);
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let len = unsafe {
-            rusty_jsc_sys::JSObjectGetArrayBufferByteLength(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetArrayBufferByteLength(
+                raw_cx.ctx,
+                obj.val,
+                &mut exception,
+            )
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
@@ -906,10 +952,11 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         obj: &Self::Object<'cx>,
     ) -> Result<rjsi_core::capabilities::TypedArrayInfo> {
         let raw_cx = rjsi_core::__cx::context_mut(cx);
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
-        let val_ref = obj.val as rusty_jsc_sys::JSValueRef;
-        let ty =
-            unsafe { rusty_jsc_sys::JSValueGetTypedArrayType(raw_cx.ctx, val_ref, &mut exception) };
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
+        let val_ref = obj.val as javascriptcore_sys::JSValueRef;
+        let ty = unsafe {
+            javascriptcore_sys::JSValueGetTypedArrayType(raw_cx.ctx, val_ref, &mut exception)
+        };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
             return Err(Error::Exception);
@@ -917,21 +964,21 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         let kind =
             jsc_to_typed_array_kind(ty).ok_or_else(|| Error::type_err("not a TypedArray"))?;
         let byte_length = unsafe {
-            rusty_jsc_sys::JSObjectGetTypedArrayByteLength(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetTypedArrayByteLength(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
             return Err(Error::Exception);
         }
         let byte_offset = unsafe {
-            rusty_jsc_sys::JSObjectGetTypedArrayByteOffset(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetTypedArrayByteOffset(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
             return Err(Error::Exception);
         }
         let length = unsafe {
-            rusty_jsc_sys::JSObjectGetTypedArrayLength(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetTypedArrayLength(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
@@ -950,9 +997,9 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         obj: &Self::Object<'rt>,
     ) -> Result<Self::Object<'rt>> {
         let raw_cx = rjsi_core::__cx::context_mut(cx);
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let buf = unsafe {
-            rusty_jsc_sys::JSObjectGetTypedArrayBuffer(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetTypedArrayBuffer(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
@@ -967,9 +1014,13 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         dst: &mut [u8],
     ) -> Result<()> {
         let raw_cx = rjsi_core::__cx::context_mut(cx);
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let byte_len = unsafe {
-            rusty_jsc_sys::JSObjectGetArrayBufferByteLength(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetArrayBufferByteLength(
+                raw_cx.ctx,
+                obj.val,
+                &mut exception,
+            )
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
@@ -979,7 +1030,7 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
             return Err(Error::type_err("array_buffer_copy_to: dst length mismatch"));
         }
         let src_ptr = unsafe {
-            rusty_jsc_sys::JSObjectGetArrayBufferBytesPtr(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetArrayBufferBytesPtr(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
@@ -1003,9 +1054,9 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
         dst: &mut [u8],
     ) -> Result<()> {
         let raw_cx = rjsi_core::__cx::context_mut(cx);
-        let mut exception: rusty_jsc_sys::JSValueRef = std::ptr::null_mut();
+        let mut exception: javascriptcore_sys::JSValueRef = std::ptr::null_mut();
         let byte_len = unsafe {
-            rusty_jsc_sys::JSObjectGetTypedArrayByteLength(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetTypedArrayByteLength(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
@@ -1015,14 +1066,14 @@ impl rjsi_core::capabilities::Buffers for JscEngine {
             return Err(Error::type_err("typed_array_copy_to: dst length mismatch"));
         }
         let byte_offset = unsafe {
-            rusty_jsc_sys::JSObjectGetTypedArrayByteOffset(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetTypedArrayByteOffset(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);
             return Err(Error::Exception);
         }
         let src_ptr = unsafe {
-            rusty_jsc_sys::JSObjectGetTypedArrayBytesPtr(raw_cx.ctx, obj.val, &mut exception)
+            javascriptcore_sys::JSObjectGetTypedArrayBytesPtr(raw_cx.ctx, obj.val, &mut exception)
         };
         if !exception.is_null() {
             store_exception(raw_cx, exception);

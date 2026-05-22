@@ -1,23 +1,45 @@
 use std::collections::HashMap;
 
+use javascriptcore_sys as jsc;
 use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
 
 pub struct JscPreparedKeyData {
-    ctx: rusty_jsc_sys::JSContextRef,
-    val: rusty_jsc_sys::JSValueRef,
+    ctx: jsc::JSContextRef,
+    val: jsc::JSValueRef,
 }
 
 impl Drop for JscPreparedKeyData {
     fn drop(&mut self) {
         unsafe {
-            rusty_jsc_sys::JSValueUnprotect(self.ctx, self.val);
+            jsc::JSValueUnprotect(self.ctx, self.val);
         }
+    }
+}
+
+pub(crate) struct JscGlobalContext {
+    raw: jsc::JSGlobalContextRef,
+}
+
+impl JscGlobalContext {
+    fn new() -> Self {
+        let raw = unsafe { jsc::JSGlobalContextCreate(std::ptr::null_mut()) };
+        Self { raw }
+    }
+
+    pub(crate) fn get_ref(&self) -> jsc::JSContextRef {
+        self.raw as jsc::JSContextRef
+    }
+}
+
+impl Drop for JscGlobalContext {
+    fn drop(&mut self) {
+        unsafe { jsc::JSGlobalContextRelease(self.raw) };
     }
 }
 
 pub struct JscRuntime {
     prepared_keys: HashMap<u64, JscPreparedKeyData>,
-    pub(crate) context: rusty_jsc::JSContext,
+    pub(crate) context: JscGlobalContext,
     microtask_policy: MicrotaskDrainPolicy,
 }
 
@@ -25,7 +47,7 @@ impl JscRuntime {
     pub fn new() -> Self {
         Self {
             prepared_keys: HashMap::new(),
-            context: rusty_jsc::JSContext::new(),
+            context: JscGlobalContext::new(),
             microtask_policy: MicrotaskDrainPolicy::Explicit,
         }
     }
@@ -46,9 +68,9 @@ impl JscRuntime {
 
         let ctx = self.context.get_ref();
         let js_str = crate::engine::ManagedJSString::new(name);
-        let val = unsafe { rusty_jsc_sys::JSValueMakeString(ctx, js_str.0) };
+        let val = unsafe { jsc::JSValueMakeString(ctx, js_str.0) };
         unsafe {
-            rusty_jsc_sys::JSValueProtect(ctx, val);
+            jsc::JSValueProtect(ctx, val);
         }
         self.prepared_keys
             .insert(id, JscPreparedKeyData { ctx, val });
@@ -92,7 +114,7 @@ pub(crate) fn prepared_key<'cx>(
 ) -> Result<crate::engine::JscKey<'cx>> {
     if cx.runtime.is_null() {
         let js_str = crate::engine::ManagedJSString::new(key.as_str());
-        let val = unsafe { rusty_jsc_sys::JSValueMakeString(cx.ctx, js_str.0) };
+        let val = unsafe { jsc::JSValueMakeString(cx.ctx, js_str.0) };
         return Ok(crate::engine::JscKey::new(cx.ctx, val));
     }
 

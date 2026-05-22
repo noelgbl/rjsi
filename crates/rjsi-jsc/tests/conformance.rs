@@ -79,3 +79,18 @@ fn exception_value_is_accessible() {
 fn buffers_conformance() {
     conformance::buffer_capabilities_runs_all(&mut rt());
 }
+
+#[test]
+fn promise_capabilities() {
+    conformance::promise_capabilities(&mut rt());
+}
+
+#[test]
+fn js_channel_capabilities() {
+    conformance::js_channel_capabilities(&mut rt());
+}
+
+#[test]
+fn tokio_channel_capabilities() {
+    conformance::tokio_channel_capabilities(&mut rt());
+}

@@ -2,8 +2,8 @@ use std::any::TypeId;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use javascriptcore_sys as jsc;
 use rjsi_core::{__cx, Context, Error, NativeState, NativeStateSupport, Object, Result};
-use rusty_jsc_sys as jsc;
 
 use crate::engine::{JscEngine, JscObject};
 
@@ -26,7 +26,7 @@ fn get_native_state_class<S: NativeState>() -> jsc::JSClassRef {
         if let Some(&existing) = map.get(&type_id) {
             return existing;
         }
-        let mut def = unsafe { jsc::kJSClassDefinitionEmpty };
+        let mut def = jsc::JSClassDefinition::default();
         def.className = b"RjsiNativeState\0".as_ptr() as *const _;
         def.finalize = Some(native_state_finalizer::<S>);
         let class_ref = unsafe { jsc::JSClassCreate(&def) };
