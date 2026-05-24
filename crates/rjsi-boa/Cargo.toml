@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 rjsi-core = { path = "../rjsi-core" }
 anyhow.workspace = true
-boa_engine = "0.21.1"
+boa_engine = { git = "https://github.com/boa-dev/boa", rev = "8f5ef6542d641fd22320e51234e914b59e623717" }
 
 [dev-dependencies]
 criterion = "0.8.2"
