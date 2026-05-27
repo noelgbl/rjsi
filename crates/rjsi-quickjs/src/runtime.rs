@@ -1,9 +1,8 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use rjsi_core::module::ImportMetaHook;
-use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result as RjsiResult, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result as RjsiResult, Runtime, Store};
 use rquickjs::{Atom, Context as QContext, Ctx, Runtime as QRuntime};
 
 use crate::engine::{QuickJsContext, QuickJsEngine, map_err};
@@ -12,15 +11,20 @@ pub struct QuickJsPreparedKeyData {
     atom: Atom<'static>,
 }
 
+impl QuickJsPreparedKeyData {
+    pub(crate) fn atom(&self) -> &Atom<'static> {
+        &self.atom
+    }
+}
+
 pub(crate) type ImportMetaHookCell = Rc<RefCell<Option<ImportMetaHook>>>;
 
 pub struct QuickJsRuntime {
-    prepared_keys: HashMap<u64, QuickJsPreparedKeyData>,
+    pub(crate) store: Store<QuickJsEngine>,
     #[allow(dead_code)]
     pub(crate) rt: QRuntime,
     pub(crate) ctx: QContext,
     pub(crate) import_meta_hook: ImportMetaHookCell,
-    microtask_policy: MicrotaskDrainPolicy,
 }
 
 impl QuickJsRuntime {
@@ -28,11 +32,10 @@ impl QuickJsRuntime {
         let rt = QRuntime::new().unwrap();
         let ctx = QContext::full(&rt).unwrap();
         Self {
-            prepared_keys: HashMap::new(),
+            store: Store::new(),
             rt,
             ctx,
             import_meta_hook: Rc::new(RefCell::new(None)),
-            microtask_policy: MicrotaskDrainPolicy::Explicit,
         }
     }
 
@@ -47,13 +50,13 @@ impl QuickJsRuntime {
     }
 
     fn ensure_prepared_key(&mut self, id: u64, name: &str) -> Result<(), rquickjs::Error> {
-        if self.prepared_keys.contains_key(&id) {
+        if self.store.contains_prepared_key(id) {
             return Ok(());
         }
 
         self.ctx.clone().with(|qctx: Ctx<'_>| {
             let atom = Atom::from_str(qctx, name)?;
-            self.prepared_keys.insert(
+            self.store.insert_prepared_key(
                 id,
                 QuickJsPreparedKeyData {
                     atom: unsafe { std::mem::transmute(atom) },
@@ -83,11 +86,11 @@ impl Runtime<QuickJsEngine> for QuickJsRuntime {
     }
 
     fn microtask_policy(&self) -> MicrotaskDrainPolicy {
-        self.microtask_policy
+        self.store.microtask_policy()
     }
 
     fn set_microtask_policy(&mut self, policy: MicrotaskDrainPolicy) {
-        self.microtask_policy = policy;
+        self.store.set_microtask_policy(policy);
     }
 }
 
@@ -96,18 +99,18 @@ pub(crate) fn prepared_key<'js>(
     key: &PreparedKey<QuickJsEngine>,
 ) -> RjsiResult<Atom<'js>> {
     let runtime = unsafe { &mut *cx.runtime };
-    if !runtime.prepared_keys.contains_key(&key.id()) {
+    if !runtime.store.contains_prepared_key(key.id()) {
         let atom = Atom::from_str(cx.qctx.clone(), key.as_str());
         let atom = map_err(cx, atom)?;
-        runtime.prepared_keys.insert(
+        runtime.store.insert_prepared_key(
             key.id(),
             QuickJsPreparedKeyData {
                 atom: unsafe { std::mem::transmute(atom) },
             },
         );
     }
-    let atom = &runtime.prepared_keys.get(&key.id()).unwrap().atom;
-    Ok(unsafe { std::mem::transmute(atom.clone()) })
+    let prepared = runtime.store.get_prepared_key(key.id()).unwrap();
+    Ok(unsafe { std::mem::transmute(prepared.atom().clone()) })
 }
 
 pub(crate) fn _map_prepare_err<'js, T>(

@@ -186,7 +186,8 @@ impl Engine for HermesEngine {
         match key {
             PropertyKey::Str(s) => map_hermes_value(obj.get(s)),
             PropertyKey::Prepared(p) => {
-                map_hermes_value(obj.get_with_propname(&crate::runtime::prepared_key(cx, &p)?))
+                let key = crate::runtime::prepared_key(cx, &p)?;
+                map_hermes_value(obj.get_with_propname(&key))
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;
@@ -209,7 +210,8 @@ impl Engine for HermesEngine {
         match key {
             PropertyKey::Str(s) => map_hermes(obj.set(s, val)),
             PropertyKey::Prepared(p) => {
-                map_hermes(obj.set_with_propname(&crate::runtime::prepared_key(cx, &p)?, val))
+                let key = crate::runtime::prepared_key(cx, &p)?;
+                map_hermes(obj.set_with_propname(&key, val))
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;
@@ -231,7 +233,8 @@ impl Engine for HermesEngine {
         Ok(match key {
             PropertyKey::Str(s) => obj.has(s),
             PropertyKey::Prepared(p) => {
-                obj.has_with_propname(&crate::runtime::prepared_key(cx, &p)?)
+                let key = crate::runtime::prepared_key(cx, &p)?;
+                obj.has_with_propname(&key)
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;
@@ -253,7 +256,8 @@ impl Engine for HermesEngine {
         let _ = match key {
             PropertyKey::Str(s) => map_hermes(obj.delete(s)),
             PropertyKey::Prepared(p) => {
-                map_hermes(obj.delete_with_propname(&crate::runtime::prepared_key(cx, &p)?))
+                let key = crate::runtime::prepared_key(cx, &p)?;
+                map_hermes(obj.delete_with_propname(&key))
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;

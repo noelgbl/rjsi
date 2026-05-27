@@ -17,6 +17,7 @@ mod native_state;
 mod object;
 mod persistent;
 mod runtime;
+mod store;
 mod string;
 mod symbol;
 mod value;
@@ -40,6 +41,7 @@ pub use native_state::{
 pub use object::Object;
 pub use persistent::PersistentValue;
 pub use runtime::{MicrotaskDrainPolicy, Runtime};
+pub use store::Store;
 pub use string::JsString;
 pub use symbol::Symbol;
 pub use value::Value;

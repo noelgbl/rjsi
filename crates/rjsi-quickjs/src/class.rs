@@ -1,69 +1,61 @@
 use std::any::TypeId;
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::ffi::CString;
 
 use rjsi_core::{__cx, Args, ClassSupport, Context, Error, Function, JsClass, Object, Result};
 use rquickjs::qjs;
 
 use crate::engine::{QuickJsArgs, QuickJsContext, QuickJsEngine};
+use crate::runtime::QuickJsRuntime;
 
-thread_local! {
-    static CLASS_IDS: RefCell<HashMap<TypeId, qjs::JSClassID>> =
-        RefCell::new(HashMap::new());
+fn get_or_register_class_id<C: 'static>(
+    runtime: &mut QuickJsRuntime,
+    rt_ptr: *mut qjs::JSRuntime,
+    name: &str,
+) -> qjs::JSClassID {
+    *runtime
+        .store
+        .get_or_register_class_handle::<qjs::JSClassID, _>(TypeId::of::<C>(), || {
+            let mut id: qjs::JSClassID = 0;
+            unsafe { qjs::JS_NewClassID(rt_ptr, &mut id) };
+
+            let c_name =
+                CString::new(name).unwrap_or_else(|_| CString::new("NativeClass").unwrap());
+            let class_def = qjs::JSClassDef {
+                class_name: c_name.as_ptr(),
+                finalizer: Some(qjs_finalizer::<C>),
+                gc_mark: None,
+                call: None,
+                exotic: std::ptr::null_mut(),
+            };
+            unsafe { qjs::JS_NewClass(rt_ptr, id, &class_def) };
+            id
+        })
 }
 
-fn get_or_register_class_id<C: 'static>(rt: *mut qjs::JSRuntime, name: &str) -> qjs::JSClassID {
-    CLASS_IDS.with(|map| {
-        let mut map = map.borrow_mut();
-        let type_id = TypeId::of::<C>();
-
-        if let Some(&id) = map.get(&type_id) {
-            return id;
-        }
-
-        let mut id: qjs::JSClassID = 0;
-        unsafe { qjs::JS_NewClassID(rt, &mut id) };
-
-        let c_name = CString::new(name).unwrap_or_else(|_| CString::new("NativeClass").unwrap());
-        let class_def = qjs::JSClassDef {
-            class_name: c_name.as_ptr(),
-            finalizer: Some(qjs_finalizer::<C>),
-            gc_mark: None,
-            call: None,
-            exotic: std::ptr::null_mut(),
-        };
-        unsafe { qjs::JS_NewClass(rt, id, &class_def) };
-
-        map.insert(type_id, id);
-        id
-    })
-}
-
-fn class_id_for<C: 'static>() -> qjs::JSClassID {
-    CLASS_IDS.with(|map| *map.borrow().get(&TypeId::of::<C>()).unwrap_or(&0))
+fn lookup_class_id<C: 'static>(runtime: &QuickJsRuntime) -> Option<qjs::JSClassID> {
+    runtime
+        .store
+        .get_class_handle::<qjs::JSClassID>(TypeId::of::<C>())
+        .copied()
 }
 
 unsafe extern "C" fn qjs_finalizer<C: 'static>(_rt: *mut qjs::JSRuntime, val: qjs::JSValue) {
-    let class_id = class_id_for::<C>();
-    if class_id == 0 {
-        return;
-    }
-    let ptr = unsafe { qjs::JS_GetOpaque(val, class_id) };
+    let mut class_id: qjs::JSClassID = 0;
+    let ptr = unsafe { qjs::JS_GetAnyOpaque(val, &mut class_id) };
     if !ptr.is_null() {
         drop(unsafe { Box::from_raw(ptr as *mut C) });
     }
 }
 
 fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
-    runtime: *mut crate::runtime::QuickJsRuntime,
+    runtime_ptr: *mut crate::runtime::QuickJsRuntime,
     ctx: rquickjs::Ctx<'js>,
     _this: rquickjs::function::This<rquickjs::Value<'js>>,
     args: rquickjs::function::Rest<rquickjs::Value<'js>>,
 ) -> rquickjs::Result<rquickjs::Value<'js>> {
     let mut context = Context::new(QuickJsContext {
         qctx: ctx.clone(),
-        runtime,
+        runtime: runtime_ptr,
     });
     let rjsi_args = Args::new(QuickJsArgs { argv: args.0 });
 
@@ -81,7 +73,10 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
         }
     })?;
 
-    let class_id = class_id_for::<C>();
+    let class_id = {
+        let runtime = unsafe { &*runtime_ptr };
+        lookup_class_id::<C>(runtime).expect("class id missing during constructor call")
+    };
     let raw_ptr = Box::into_raw(Box::new(instance)) as *mut std::ffi::c_void;
     let ctx_ptr = ctx.as_raw().as_ptr();
 
@@ -101,19 +96,28 @@ impl ClassSupport for QuickJsEngine {
     ) -> Result<Function<'js, Self>> {
         let qjs_cx = __cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
-        let runtime = qjs_cx.runtime;
+        let runtime_ptr = qjs_cx.runtime;
+
+        if runtime_ptr.is_null() {
+            return Err(Error::type_err(
+                "QuickJsContext missing QuickJsRuntime; class registration requires a runtime scope",
+            ));
+        }
 
         let ctx_ptr = qctx.as_raw().as_ptr();
         let rt_ptr = unsafe { qjs::JS_GetRuntime(ctx_ptr) };
 
-        let class_id = get_or_register_class_id::<C>(rt_ptr, C::NAME);
+        let class_id = {
+            let runtime = unsafe { &mut *runtime_ptr };
+            get_or_register_class_id::<C>(runtime, rt_ptr, C::NAME)
+        };
 
         let proto = rquickjs::Object::new(qctx.clone()).map_err(|e| Error::Host(Box::new(e)))?;
 
         {
             let mut define_cx = Context::new(QuickJsContext {
                 qctx: qctx.clone(),
-                runtime,
+                runtime: runtime_ptr,
             });
             let proto_rjsi = Object::new(proto.clone());
             C::define_prototype(&mut define_cx, &proto_rjsi)?;
@@ -123,7 +127,7 @@ impl ClassSupport for QuickJsEngine {
         unsafe { qjs::JS_SetClassProto(ctx_ptr, class_id, proto_dup) };
 
         let ctor = rquickjs::Function::new(qctx.clone(), move |ctx, this, args| {
-            qjs_ctor_call::<C>(runtime, ctx, this, args)
+            qjs_ctor_call::<C>(runtime_ptr, ctx, this, args)
         })
         .map_err(|e| Error::Host(Box::new(e)))?
         .with_constructor(true);
@@ -139,13 +143,15 @@ impl ClassSupport for QuickJsEngine {
     }
 
     unsafe fn class_get_instance_ptr<C: 'static>(
-        _cx: &mut Context<'_, Self>,
+        cx: &mut Context<'_, Self>,
         obj: &Object<'_, Self>,
     ) -> Option<*mut C> {
-        let class_id = class_id_for::<C>();
-        if class_id == 0 {
+        let qjs_cx = __cx::context_mut(cx);
+        if qjs_cx.runtime.is_null() {
             return None;
         }
+        let runtime = unsafe { &*qjs_cx.runtime };
+        let class_id = lookup_class_id::<C>(runtime)?;
         let ptr = unsafe { qjs::JS_GetOpaque(obj.as_raw().as_raw(), class_id) };
         if ptr.is_null() {
             None

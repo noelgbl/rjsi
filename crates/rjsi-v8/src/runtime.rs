@@ -1,13 +1,11 @@
-use std::collections::HashMap;
 use std::sync::Mutex;
 
-use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime, Store};
 
 pub struct V8Runtime {
-    prepared_keys: HashMap<u64, v8::Global<v8::Name>>,
+    pub(crate) store: Store<crate::engine::V8Engine>,
     isolate: v8::OwnedIsolate,
     context: v8::Global<v8::Context>,
-    microtask_policy: MicrotaskDrainPolicy,
     pub(crate) native_state_template: Mutex<Option<v8::Global<v8::ObjectTemplate>>>,
 }
 
@@ -30,10 +28,9 @@ impl V8Runtime {
         };
 
         Self {
-            prepared_keys: HashMap::new(),
+            store: Store::new(),
             isolate,
             context,
-            microtask_policy: MicrotaskDrainPolicy::Explicit,
             native_state_template: Mutex::new(None),
         }
     }
@@ -50,7 +47,7 @@ impl V8Runtime {
     }
 
     fn ensure_prepared_key(&mut self, id: u64, name: &str) -> std::io::Result<()> {
-        if self.prepared_keys.contains_key(&id) {
+        if self.store.contains_prepared_key(id) {
             return Ok(());
         }
 
@@ -64,7 +61,7 @@ impl V8Runtime {
             .ok_or_else(|| std::io::Error::other("failed to create V8 property name"))?;
         let local_name: v8::Local<'_, v8::Name> = string.into();
         let global_name = v8::Global::new(&mut context_scope, local_name);
-        self.prepared_keys.insert(id, global_name);
+        self.store.insert_prepared_key(id, global_name);
         Ok(())
     }
 }
@@ -101,11 +98,11 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
     }
 
     fn microtask_policy(&self) -> MicrotaskDrainPolicy {
-        self.microtask_policy
+        self.store.microtask_policy()
     }
 
     fn set_microtask_policy(&mut self, policy: MicrotaskDrainPolicy) {
-        self.microtask_policy = policy;
+        self.store.set_microtask_policy(policy);
     }
 }
 
@@ -122,11 +119,11 @@ pub(crate) fn prepared_key<'js>(
     }
 
     let runtime = unsafe { &mut *cx.runtime };
-    if !runtime.prepared_keys.contains_key(&key.id()) {
+    if !runtime.store.contains_prepared_key(key.id()) {
         runtime
             .ensure_prepared_key(key.id(), key.as_str())
             .map_err(rjsi_core::Error::from_host)?;
     }
-    let global = runtime.prepared_keys.get(&key.id()).unwrap();
+    let global = runtime.store.get_prepared_key(key.id()).unwrap();
     Ok(unsafe { crate::engine::cast_local(v8::Local::new(scope, global)) })
 }

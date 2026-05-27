@@ -1,37 +1,27 @@
 use std::any::TypeId;
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use javascriptcore_sys as jsc;
 use rjsi_core::{__cx, Args, ClassSupport, Context, Error, Function, JsClass, Object, Result};
 
 use crate::engine::{JscArgs, JscContext, JscEngine, JscObject, ManagedJSString};
+use crate::runtime::{JscClassHandle, JscRuntime};
 
-thread_local! {
-    static INSTANCE_CLASSES: RefCell<HashMap<TypeId, jsc::JSClassRef>> =
-        RefCell::new(HashMap::new());
-}
-
-fn get_instance_class<C: 'static>(name: &str) -> jsc::JSClassRef {
-    INSTANCE_CLASSES.with(|map| {
-        let mut map = map.borrow_mut();
-        let type_id = TypeId::of::<C>();
-
-        if let Some(&class_ref) = map.get(&type_id) {
-            return class_ref;
-        }
-
-        let c_name = std::ffi::CString::new(name)
-            .unwrap_or_else(|_| std::ffi::CString::new("NativeInstance").unwrap());
-        let mut def = jsc::JSClassDefinition::default();
-        def.className = c_name.as_ptr();
-        def.finalize = Some(instance_finalizer::<C>);
-
-        let class_ref = unsafe { jsc::JSClassCreate(&def) };
-        map.insert(type_id, class_ref);
-        class_ref
-    })
+fn get_or_register_instance_class<C: 'static>(
+    runtime: &mut JscRuntime,
+    name: &str,
+) -> jsc::JSClassRef {
+    runtime
+        .store
+        .get_or_register_class_handle::<JscClassHandle, _>(TypeId::of::<C>(), || {
+            let c_name = std::ffi::CString::new(name)
+                .unwrap_or_else(|_| std::ffi::CString::new("NativeInstance").unwrap());
+            let mut def = jsc::JSClassDefinition::default();
+            def.className = c_name.as_ptr();
+            def.finalize = Some(instance_finalizer::<C>);
+            JscClassHandle::new(unsafe { jsc::JSClassCreate(&def) })
+        })
+        .raw()
 }
 
 struct CtorFnClass(jsc::JSClassRef);
@@ -184,8 +174,17 @@ impl ClassSupport for JscEngine {
     ) -> Result<Function<'js, Self>> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
+        let runtime_ptr = jsc_cx.runtime;
+        if runtime_ptr.is_null() {
+            return Err(Error::type_err(
+                "JscContext missing JscRuntime; class registration requires a runtime scope",
+            ));
+        }
 
-        let instance_class = get_instance_class::<C>(C::NAME);
+        let instance_class = {
+            let runtime = unsafe { &mut *runtime_ptr };
+            get_or_register_instance_class::<C>(runtime, C::NAME)
+        };
 
         let proto_obj =
             unsafe { jsc::JSObjectMake(ctx, std::ptr::null_mut(), std::ptr::null_mut()) };
@@ -193,7 +192,7 @@ impl ClassSupport for JscEngine {
         {
             let cx_raw = JscContext {
                 ctx,
-                runtime: jsc_cx.runtime,
+                runtime: runtime_ptr,
                 pending_exception: None,
                 _phantom: std::marker::PhantomData,
             };

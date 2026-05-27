@@ -2,23 +2,21 @@ use std::collections::HashMap;
 use std::ops::DerefMut;
 
 use boa_engine::{Context as BoaCx, JsString};
-use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime, Store};
 
 use crate::engine::BoaEngine;
 
 pub struct BoaRuntime {
-    prepared_keys: HashMap<u64, JsString>,
+    pub(crate) store: Store<BoaEngine>,
     pub(crate) context: BoaCx,
-    microtask_policy: MicrotaskDrainPolicy,
     pub(crate) native_states: HashMap<boa_engine::object::JsObject, rjsi_core::ErasedNativeState>,
 }
 
 impl BoaRuntime {
     pub fn new() -> Self {
         Self {
-            prepared_keys: HashMap::new(),
+            store: Store::new(),
             context: BoaCx::default(),
-            microtask_policy: MicrotaskDrainPolicy::Explicit,
             native_states: HashMap::new(),
         }
     }
@@ -33,12 +31,12 @@ impl BoaRuntime {
     }
 
     fn ensure_prepared_key(&mut self, id: u64, name: &str) {
-        if self.prepared_keys.contains_key(&id) {
+        if self.store.contains_prepared_key(id) {
             return;
         }
 
         let _ = self.context.interner_mut().get_or_intern(name);
-        self.prepared_keys.insert(id, JsString::from(name));
+        self.store.insert_prepared_key(id, JsString::from(name));
     }
 }
 
@@ -60,11 +58,11 @@ impl Runtime<BoaEngine> for BoaRuntime {
     }
 
     fn microtask_policy(&self) -> MicrotaskDrainPolicy {
-        self.microtask_policy
+        self.store.microtask_policy()
     }
 
     fn set_microtask_policy(&mut self, policy: MicrotaskDrainPolicy) {
-        self.microtask_policy = policy;
+        self.store.set_microtask_policy(policy);
     }
 }
 
@@ -80,5 +78,5 @@ pub(crate) fn prepared_key<'js>(
     runtime.ensure_prepared_key(key.id(), key.as_str());
     let boa_cx = cx.deref_mut();
     let _ = boa_cx.interner_mut().get_or_intern(key.as_str());
-    Ok(runtime.prepared_keys.get(&key.id()).unwrap().clone())
+    Ok(runtime.store.get_prepared_key(key.id()).unwrap().clone())
 }

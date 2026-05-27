@@ -1,16 +1,10 @@
 use std::any::TypeId;
-use std::cell::RefCell;
-use std::collections::HashMap;
 
 use javascriptcore_sys as jsc;
 use rjsi_core::{__cx, Context, Error, NativeState, NativeStateSupport, Object, Result};
 
 use crate::engine::{JscEngine, JscObject};
-
-thread_local! {
-    static NATIVE_STATE_CLASSES: RefCell<HashMap<TypeId, jsc::JSClassRef>> =
-        RefCell::new(HashMap::new());
-}
+use crate::runtime::{JscClassHandle, JscRuntime};
 
 unsafe extern "C" fn native_state_finalizer<S: 'static>(object: jsc::JSObjectRef) {
     let ptr = unsafe { jsc::JSObjectGetPrivate(object) };
@@ -19,20 +13,25 @@ unsafe extern "C" fn native_state_finalizer<S: 'static>(object: jsc::JSObjectRef
     }
 }
 
-fn get_native_state_class<S: NativeState>() -> jsc::JSClassRef {
-    NATIVE_STATE_CLASSES.with(|map| {
-        let mut map = map.borrow_mut();
-        let type_id = TypeId::of::<S>();
-        if let Some(&existing) = map.get(&type_id) {
-            return existing;
-        }
-        let mut def = jsc::JSClassDefinition::default();
-        def.className = b"RjsiNativeState\0".as_ptr() as *const _;
-        def.finalize = Some(native_state_finalizer::<S>);
-        let class_ref = unsafe { jsc::JSClassCreate(&def) };
-        map.insert(type_id, class_ref);
-        class_ref
-    })
+pub(crate) fn get_or_register_native_state_class<S: NativeState>(
+    runtime: &mut JscRuntime,
+) -> jsc::JSClassRef {
+    runtime
+        .store
+        .get_or_register_class_handle::<JscClassHandle, _>(TypeId::of::<S>(), || {
+            let mut def = jsc::JSClassDefinition::default();
+            def.className = b"RjsiNativeState\0".as_ptr() as *const _;
+            def.finalize = Some(native_state_finalizer::<S>);
+            JscClassHandle::new(unsafe { jsc::JSClassCreate(&def) })
+        })
+        .raw()
+}
+
+fn lookup_native_state_class<S: NativeState>(runtime: &JscRuntime) -> Option<jsc::JSClassRef> {
+    runtime
+        .store
+        .get_class_handle::<JscClassHandle>(TypeId::of::<S>())
+        .map(|h| h.raw())
 }
 
 impl NativeStateSupport for JscEngine {
@@ -42,8 +41,14 @@ impl NativeStateSupport for JscEngine {
     ) -> Result<Object<'js, Self>> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
+        if jsc_cx.runtime.is_null() {
+            return Err(Error::type_err(
+                "JscContext missing JscRuntime; native state creation requires a runtime scope",
+            ));
+        }
+        let runtime = unsafe { &mut *jsc_cx.runtime };
 
-        let class = get_native_state_class::<S>();
+        let class = get_or_register_native_state_class::<S>(runtime);
         let raw = Box::into_raw(Box::new(state)) as *mut std::ffi::c_void;
 
         let obj = unsafe { jsc::JSObjectMake(ctx, class, raw) };
@@ -61,8 +66,12 @@ impl NativeStateSupport for JscEngine {
     ) -> Option<&'js S> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
+        if jsc_cx.runtime.is_null() {
+            return None;
+        }
+        let runtime = unsafe { &*jsc_cx.runtime };
 
-        let class = get_native_state_class::<S>();
+        let class = lookup_native_state_class::<S>(runtime)?;
         let matches =
             unsafe { jsc::JSValueIsObjectOfClass(ctx, obj.as_raw().val as jsc::JSValueRef, class) };
         if !matches {
@@ -83,8 +92,12 @@ impl NativeStateSupport for JscEngine {
     ) -> Option<&'js mut S> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
+        if jsc_cx.runtime.is_null() {
+            return None;
+        }
+        let runtime = unsafe { &*jsc_cx.runtime };
 
-        let class = get_native_state_class::<S>();
+        let class = lookup_native_state_class::<S>(runtime)?;
         let matches =
             unsafe { jsc::JSValueIsObjectOfClass(ctx, obj.as_raw().val as jsc::JSValueRef, class) };
         if !matches {

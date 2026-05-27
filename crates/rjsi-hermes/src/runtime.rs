@@ -1,36 +1,75 @@
-use std::collections::HashSet;
+use std::mem::ManuallyDrop;
+use std::ops::Deref;
 
-use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result as RjsiResult, Runtime};
+use libhermes_sys::{HermesRt, hermes__PropNameID__Release};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result as RjsiResult, Runtime, Store};
 use rusty_hermes::{PropNameId, Runtime as HermesRtInner};
 
 use crate::engine::{HermesEngine, runtime_ffi_ptr};
 
-/// Marker type for
-/// [`HermesEngine::PreparedKeyData`](crate::engine::HermesEngine).
-#[derive(Clone, Copy, Debug, Default)]
-pub struct HermesPreparedKeyData;
+pub struct HermesPreparedKeyData {
+    pv: *mut std::ffi::c_void,
+    #[allow(dead_code)]
+    rt: *mut HermesRt,
+    _marker: std::marker::PhantomData<&'static ()>,
+}
+
+impl HermesPreparedKeyData {
+    fn from_owned<'rt>(owned: PropNameId<'rt>) -> Self {
+        let cached =
+            unsafe { std::mem::transmute_copy::<PropNameId<'rt>, HermesPreparedKeyData>(&owned) };
+        std::mem::forget(owned);
+        cached
+    }
+}
+
+impl Drop for HermesPreparedKeyData {
+    fn drop(&mut self) {
+        if !self.pv.is_null() {
+            unsafe { hermes__PropNameID__Release(self.pv) };
+        }
+    }
+}
+
+pub enum HermesKey<'js> {
+    Owned(PropNameId<'js>),
+    Borrowed(ManuallyDrop<PropNameId<'js>>),
+}
+
+impl<'js> Deref for HermesKey<'js> {
+    type Target = PropNameId<'js>;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            HermesKey::Owned(p) => p,
+            HermesKey::Borrowed(p) => p,
+        }
+    }
+}
+
+unsafe fn borrow_propname_id<'js>(cached: &HermesPreparedKeyData) -> ManuallyDrop<PropNameId<'js>> {
+    ManuallyDrop::new(unsafe {
+        std::mem::transmute_copy::<HermesPreparedKeyData, PropNameId<'js>>(cached)
+    })
+}
 
 pub struct HermesRuntime {
-    /// IDs registered via [`HermesRuntime::prepare_key`].
-    prepared_keys: HashSet<u64>,
+    pub(crate) store: Store<HermesEngine>,
     pub inner: HermesRtInner,
-    microtask_policy: MicrotaskDrainPolicy,
 }
 
 impl HermesRuntime {
     pub fn new() -> Result<Self, rusty_hermes::Error> {
         Ok(Self {
-            prepared_keys: HashSet::new(),
+            store: Store::new(),
             inner: HermesRtInner::new()?,
-            microtask_policy: MicrotaskDrainPolicy::Explicit,
         })
     }
 
     pub fn with_config(config: rusty_hermes::RuntimeConfig) -> Result<Self, rusty_hermes::Error> {
         Ok(Self {
-            prepared_keys: HashSet::new(),
+            store: Store::new(),
             inner: HermesRtInner::with_config(config)?,
-            microtask_policy: MicrotaskDrainPolicy::Explicit,
         })
     }
 
@@ -43,8 +82,13 @@ impl HermesRuntime {
         Ok(key)
     }
 
-    fn ensure_prepared_key(&mut self, id: u64, _name: &str) {
-        self.prepared_keys.insert(id);
+    fn ensure_prepared_key(&mut self, id: u64, name: &str) {
+        if self.store.contains_prepared_key(id) {
+            return;
+        }
+        let owned = PropNameId::from_utf8(&self.inner, name);
+        self.store
+            .insert_prepared_key(id, HermesPreparedKeyData::from_owned(owned));
     }
 }
 
@@ -69,27 +113,27 @@ impl Runtime<HermesEngine> for HermesRuntime {
     }
 
     fn microtask_policy(&self) -> MicrotaskDrainPolicy {
-        self.microtask_policy
+        self.store.microtask_policy()
     }
 
     fn set_microtask_policy(&mut self, policy: MicrotaskDrainPolicy) {
-        self.microtask_policy = policy;
+        self.store.set_microtask_policy(policy);
     }
 }
 
 pub(crate) fn prepared_key<'js>(
     cx: &mut crate::engine::HermesContext<'js>,
     key: &PreparedKey<HermesEngine>,
-) -> RjsiResult<PropNameId<'js>> {
+) -> RjsiResult<HermesKey<'js>> {
     if cx.runtime.is_null() {
         let p = PropNameId::from_utf8(&*cx.inner, key.as_str());
-        return Ok(unsafe { std::mem::transmute(p) });
+        return Ok(HermesKey::Owned(unsafe { std::mem::transmute(p) }));
     }
 
     let runtime = unsafe { &mut *cx.runtime };
     runtime.ensure_prepared_key(key.id(), key.as_str());
-    let p = PropNameId::from_utf8(&*cx.inner, key.as_str());
-    Ok(unsafe { std::mem::transmute(p) })
+    let cached = runtime.store.get_prepared_key(key.id()).unwrap();
+    Ok(HermesKey::Borrowed(unsafe { borrow_propname_id(cached) }))
 }
 
 impl HermesRuntime {

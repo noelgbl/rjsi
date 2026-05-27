@@ -1,11 +1,15 @@
-use std::collections::HashMap;
-
 use javascriptcore_sys as jsc;
-use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime};
+use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result, Runtime, Store};
 
 pub struct JscPreparedKeyData {
     ctx: jsc::JSContextRef,
     val: jsc::JSValueRef,
+}
+
+impl JscPreparedKeyData {
+    pub(crate) fn val(&self) -> jsc::JSValueRef {
+        self.val
+    }
 }
 
 impl Drop for JscPreparedKeyData {
@@ -38,17 +42,15 @@ impl Drop for JscGlobalContext {
 }
 
 pub struct JscRuntime {
-    prepared_keys: HashMap<u64, JscPreparedKeyData>,
+    pub(crate) store: Store<crate::engine::JscEngine>,
     pub(crate) context: JscGlobalContext,
-    microtask_policy: MicrotaskDrainPolicy,
 }
 
 impl JscRuntime {
     pub fn new() -> Self {
         Self {
-            prepared_keys: HashMap::new(),
+            store: Store::new(),
             context: JscGlobalContext::new(),
-            microtask_policy: MicrotaskDrainPolicy::Explicit,
         }
     }
 
@@ -62,7 +64,7 @@ impl JscRuntime {
     }
 
     fn ensure_prepared_key(&mut self, id: u64, name: &str) {
-        if self.prepared_keys.contains_key(&id) {
+        if self.store.contains_prepared_key(id) {
             return;
         }
 
@@ -72,8 +74,8 @@ impl JscRuntime {
         unsafe {
             jsc::JSValueProtect(ctx, val);
         }
-        self.prepared_keys
-            .insert(id, JscPreparedKeyData { ctx, val });
+        self.store
+            .insert_prepared_key(id, JscPreparedKeyData { ctx, val });
     }
 }
 
@@ -100,11 +102,11 @@ impl Runtime<crate::engine::JscEngine> for JscRuntime {
     }
 
     fn microtask_policy(&self) -> MicrotaskDrainPolicy {
-        self.microtask_policy
+        self.store.microtask_policy()
     }
 
     fn set_microtask_policy(&mut self, policy: MicrotaskDrainPolicy) {
-        self.microtask_policy = policy;
+        self.store.set_microtask_policy(policy);
     }
 }
 
@@ -120,6 +122,28 @@ pub(crate) fn prepared_key<'js>(
 
     let runtime = unsafe { &mut *cx.runtime };
     runtime.ensure_prepared_key(key.id(), key.as_str());
-    let prepared = runtime.prepared_keys.get(&key.id()).unwrap();
-    Ok(crate::engine::JscKey::new(cx.ctx, prepared.val))
+    let prepared = runtime.store.get_prepared_key(key.id()).unwrap();
+    Ok(crate::engine::JscKey::new(cx.ctx, prepared.val()))
+}
+
+pub(crate) struct JscClassHandle {
+    raw: jsc::JSClassRef,
+}
+
+impl JscClassHandle {
+    pub(crate) fn new(raw: jsc::JSClassRef) -> Self {
+        Self { raw }
+    }
+
+    pub(crate) fn raw(&self) -> jsc::JSClassRef {
+        self.raw
+    }
+}
+
+impl Drop for JscClassHandle {
+    fn drop(&mut self) {
+        if !self.raw.is_null() {
+            unsafe { jsc::JSClassRelease(self.raw) };
+        }
+    }
 }

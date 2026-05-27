@@ -1,59 +1,49 @@
 use std::any::TypeId;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::mem;
 
 use rjsi_core::{__cx, Context, Error, NativeState, NativeStateSupport, Object, Result};
 use rquickjs::{Value as QValue, qjs};
 
 use crate::engine::QuickJsEngine;
-
-thread_local! {
-    static NATIVE_STATE_CLASS_IDS: RefCell<HashMap<TypeId, qjs::JSClassID>> =
-        RefCell::new(HashMap::new());
-}
-
-fn native_state_class_id_for<S: 'static>() -> qjs::JSClassID {
-    NATIVE_STATE_CLASS_IDS.with(|map| *map.borrow().get(&TypeId::of::<S>()).unwrap_or(&0))
-}
-
-fn ensure_native_state_class<S: NativeState>(rt: *mut qjs::JSRuntime) -> qjs::JSClassID {
-    NATIVE_STATE_CLASS_IDS.with(|map| {
-        let mut map = map.borrow_mut();
-        let type_id = TypeId::of::<S>();
-        if let Some(&id) = map.get(&type_id) {
-            return id;
-        }
-
-        let mut id: qjs::JSClassID = 0;
-        unsafe { qjs::JS_NewClassID(rt, &mut id) };
-
-        let class_def = qjs::JSClassDef {
-            class_name: b"RjsiNativeState\0".as_ptr() as *const _,
-            finalizer: Some(native_state_finalizer::<S>),
-            gc_mark: None,
-            call: None,
-            exotic: std::ptr::null_mut(),
-        };
-        unsafe { qjs::JS_NewClass(rt, id, &class_def) };
-
-        map.insert(type_id, id);
-        id
-    })
-}
+use crate::runtime::QuickJsRuntime;
 
 unsafe extern "C" fn native_state_finalizer<S: 'static>(
     _rt: *mut qjs::JSRuntime,
     val: qjs::JSValue,
 ) {
-    let class_id = native_state_class_id_for::<S>();
-    if class_id == 0 {
-        return;
-    }
-    let ptr = unsafe { qjs::JS_GetOpaque(val, class_id) };
+    let mut class_id: qjs::JSClassID = 0;
+    let ptr = unsafe { qjs::JS_GetAnyOpaque(val, &mut class_id) };
     if !ptr.is_null() {
         drop(unsafe { Box::from_raw(ptr as *mut S) });
     }
+}
+
+fn get_or_register_native_state_class<S: NativeState>(
+    runtime: &mut QuickJsRuntime,
+    rt_ptr: *mut qjs::JSRuntime,
+) -> qjs::JSClassID {
+    *runtime
+        .store
+        .get_or_register_class_handle::<qjs::JSClassID, _>(TypeId::of::<S>(), || {
+            let mut id: qjs::JSClassID = 0;
+            unsafe { qjs::JS_NewClassID(rt_ptr, &mut id) };
+
+            let class_def = qjs::JSClassDef {
+                class_name: b"RjsiNativeState\0".as_ptr() as *const _,
+                finalizer: Some(native_state_finalizer::<S>),
+                gc_mark: None,
+                call: None,
+                exotic: std::ptr::null_mut(),
+            };
+            unsafe { qjs::JS_NewClass(rt_ptr, id, &class_def) };
+            id
+        })
+}
+
+fn lookup_native_state_class<S: NativeState>(runtime: &QuickJsRuntime) -> Option<qjs::JSClassID> {
+    runtime
+        .store
+        .get_class_handle::<qjs::JSClassID>(TypeId::of::<S>())
+        .copied()
 }
 
 impl NativeStateSupport for QuickJsEngine {
@@ -66,7 +56,14 @@ impl NativeStateSupport for QuickJsEngine {
         let ctx_ptr = qctx.as_raw().as_ptr();
         let rt_ptr = unsafe { qjs::JS_GetRuntime(ctx_ptr) };
 
-        let class_id = ensure_native_state_class::<S>(rt_ptr);
+        if qjs_cx.runtime.is_null() {
+            return Err(Error::type_err(
+                "QuickJsContext missing QuickJsRuntime; native state creation requires a runtime scope",
+            ));
+        }
+        let runtime = unsafe { &mut *qjs_cx.runtime };
+
+        let class_id = get_or_register_native_state_class::<S>(runtime, rt_ptr);
         let raw = Box::into_raw(Box::new(state)) as *mut std::ffi::c_void;
 
         let js_val = unsafe { qjs::JS_NewObjectClass(ctx_ptr, class_id) };
@@ -88,32 +85,35 @@ impl NativeStateSupport for QuickJsEngine {
         cx: &mut Context<'js, Self>,
         obj: &Object<'js, Self>,
     ) -> Option<&'js S> {
-        let _ = __cx::context_mut(cx);
-        let class_id = native_state_class_id_for::<S>();
-        if class_id == 0 {
+        let qjs_cx = __cx::context_mut(cx);
+        if qjs_cx.runtime.is_null() {
             return None;
         }
+        let runtime = unsafe { &*qjs_cx.runtime };
+        let class_id = lookup_native_state_class::<S>(runtime)?;
 
         let ptr = unsafe { qjs::JS_GetOpaque(obj.as_raw().as_raw(), class_id) };
         if ptr.is_null() {
             return None;
         }
-        Some(unsafe { mem::transmute::<&S, &'js S>(&*(ptr as *const S)) })
+        Some(unsafe { std::mem::transmute::<&S, &'js S>(&*(ptr as *const S)) })
     }
 
     fn object_get_state_mut<'js, S: NativeState>(
         cx: &mut Context<'js, Self>,
         obj: &mut Object<'js, Self>,
     ) -> Option<&'js mut S> {
-        let _ = __cx::context_mut(cx);
-        let class_id = native_state_class_id_for::<S>();
-        if class_id == 0 {
+        let qjs_cx = __cx::context_mut(cx);
+        if qjs_cx.runtime.is_null() {
             return None;
         }
+        let runtime = unsafe { &*qjs_cx.runtime };
+        let class_id = lookup_native_state_class::<S>(runtime)?;
+
         let ptr = unsafe { qjs::JS_GetOpaque(obj.as_raw().as_raw(), class_id) };
         if ptr.is_null() {
             return None;
         }
-        Some(unsafe { mem::transmute::<&mut S, &'js mut S>(&mut *(ptr as *mut S)) })
+        Some(unsafe { std::mem::transmute::<&mut S, &'js mut S>(&mut *(ptr as *mut S)) })
     }
 }
