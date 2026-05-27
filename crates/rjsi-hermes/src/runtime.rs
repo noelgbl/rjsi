@@ -57,7 +57,7 @@ impl Default for HermesRuntime {
 impl Runtime<HermesEngine> for HermesRuntime {
     fn with_scope<R>(
         &mut self,
-        f: impl for<'rt> FnOnce(&mut Context<'rt, HermesEngine>) -> R,
+        f: impl for<'js> FnOnce(&mut Context<'js, HermesEngine>) -> R,
     ) -> R {
         let runtime_ptr = self as *mut _;
         let ctx = crate::engine::HermesContext {
@@ -77,10 +77,10 @@ impl Runtime<HermesEngine> for HermesRuntime {
     }
 }
 
-pub(crate) fn prepared_key<'cx>(
-    cx: &mut crate::engine::HermesContext<'cx>,
+pub(crate) fn prepared_key<'js>(
+    cx: &mut crate::engine::HermesContext<'js>,
     key: &PreparedKey<HermesEngine>,
-) -> RjsiResult<PropNameId<'cx>> {
+) -> RjsiResult<PropNameId<'js>> {
     if cx.runtime.is_null() {
         let p = PropNameId::from_utf8(&*cx.inner, key.as_str());
         return Ok(unsafe { std::mem::transmute(p) });

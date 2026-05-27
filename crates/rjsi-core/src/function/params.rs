@@ -5,14 +5,14 @@ use super::types::{Exhaustive, Flat, Opt, Rest, This};
 use crate::convert::Coerced;
 use crate::{Args, Context, Engine, Error, FromJs, Result, Value};
 
-pub struct Params<'a, 'cx, E: Engine> {
-    cx: &'a mut Context<'cx, E>,
-    this: Option<Value<'cx, E>>,
-    args: &'a Args<'cx, E>,
+pub struct Params<'a, 'js, E: Engine> {
+    cx: &'a mut Context<'js, E>,
+    this: Option<Value<'js, E>>,
+    args: &'a Args<'js, E>,
 }
 
-impl<'a, 'cx, E: Engine> Params<'a, 'cx, E> {
-    pub fn new(cx: &'a mut Context<'cx, E>, this: Value<'cx, E>, args: &'a Args<'cx, E>) -> Self {
+impl<'a, 'js, E: Engine> Params<'a, 'js, E> {
+    pub fn new(cx: &'a mut Context<'js, E>, this: Value<'js, E>, args: &'a Args<'js, E>) -> Self {
         Self {
             cx,
             this: Some(this),
@@ -31,15 +31,15 @@ impl<'a, 'cx, E: Engine> Params<'a, 'cx, E> {
         Ok(())
     }
 
-    pub fn ctx(&mut self) -> &mut Context<'cx, E> {
+    pub fn ctx(&mut self) -> &mut Context<'js, E> {
         self.cx
     }
 
-    pub fn this(&self) -> Option<&Value<'cx, E>> {
+    pub fn this(&self) -> Option<&Value<'js, E>> {
         self.this.as_ref()
     }
 
-    pub fn arg(&self, index: usize) -> Option<Value<'cx, E>> {
+    pub fn arg(&self, index: usize) -> Option<Value<'js, E>> {
         self.args.get(index)
     }
 
@@ -51,7 +51,7 @@ impl<'a, 'cx, E: Engine> Params<'a, 'cx, E> {
         self.args.is_empty()
     }
 
-    pub fn access(self) -> ParamsAccessor<'a, 'cx, E> {
+    pub fn access(self) -> ParamsAccessor<'a, 'js, E> {
         ParamsAccessor {
             params: self,
             offset: 0,
@@ -59,24 +59,24 @@ impl<'a, 'cx, E: Engine> Params<'a, 'cx, E> {
     }
 }
 
-pub struct ParamsAccessor<'a, 'cx, E: Engine> {
-    params: Params<'a, 'cx, E>,
+pub struct ParamsAccessor<'a, 'js, E: Engine> {
+    params: Params<'a, 'js, E>,
     offset: usize,
 }
 
-impl<'a, 'cx, E: Engine> ParamsAccessor<'a, 'cx, E> {
-    pub fn ctx(&mut self) -> &mut Context<'cx, E> {
+impl<'a, 'js, E: Engine> ParamsAccessor<'a, 'js, E> {
+    pub fn ctx(&mut self) -> &mut Context<'js, E> {
         self.params.cx
     }
 
-    pub fn take_this(&mut self) -> Result<Value<'cx, E>> {
+    pub fn take_this(&mut self) -> Result<Value<'js, E>> {
         self.params
             .this
             .take()
             .ok_or_else(|| Error::type_err("`this` already extracted"))
     }
 
-    pub fn arg(&mut self) -> Value<'cx, E> {
+    pub fn arg(&mut self) -> Value<'js, E> {
         let v = self
             .params
             .args
@@ -164,29 +164,29 @@ impl ParamRequirement {
     }
 }
 
-pub trait FromParam<'cx, E: Engine>: Sized {
+pub trait FromParam<'js, E: Engine>: Sized {
     fn param_requirement() -> ParamRequirement;
 
-    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self>;
+    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self>;
 }
 
-pub trait FromParams<'cx, E: Engine>: Sized {
+pub trait FromParams<'js, E: Engine>: Sized {
     fn param_requirements() -> ParamRequirement;
 
-    fn from_params<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self>;
+    fn from_params<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self>;
 }
 
 macro_rules! impl_from_param_primitive {
     ($($T:ty),* $(,)?) => {
         $(
-            impl<'cx, E: Engine> FromParam<'cx, E> for $T {
+            impl<'js, E: Engine> FromParam<'js, E> for $T {
                 fn param_requirement() -> ParamRequirement {
                     ParamRequirement::single()
                 }
 
-                fn from_param<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+                fn from_param<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
                     let v = params.arg();
-                    <$T as FromJs<'cx, E>>::from_js(params.ctx(), v)
+                    <$T as FromJs<'js, E>>::from_js(params.ctx(), v)
                 }
             }
         )*
@@ -214,39 +214,39 @@ impl_from_param_primitive!(
     Coerced<String>,
 );
 
-impl<'cx, E: Engine> FromParam<'cx, E> for Value<'cx, E> {
+impl<'js, E: Engine> FromParam<'js, E> for Value<'js, E> {
     fn param_requirement() -> ParamRequirement {
         ParamRequirement::single()
     }
 
-    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
         Ok(params.arg())
     }
 }
 
-impl<'cx, E: Engine, T> FromParam<'cx, E> for This<T>
+impl<'js, E: Engine, T> FromParam<'js, E> for This<T>
 where
-    T: FromJs<'cx, E>,
+    T: FromJs<'js, E>,
 {
     fn param_requirement() -> ParamRequirement {
         ParamRequirement::any()
     }
 
-    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
         let this = params.take_this()?;
         T::from_js(params.ctx(), this).map(This)
     }
 }
 
-impl<'cx, E: Engine, T> FromParam<'cx, E> for Opt<T>
+impl<'js, E: Engine, T> FromParam<'js, E> for Opt<T>
 where
-    T: FromJs<'cx, E>,
+    T: FromJs<'js, E>,
 {
     fn param_requirement() -> ParamRequirement {
         ParamRequirement::optional()
     }
 
-    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
         if params.is_empty() {
             Ok(Opt(None))
         } else {
@@ -256,15 +256,15 @@ where
     }
 }
 
-impl<'cx, E: Engine, T> FromParam<'cx, E> for Rest<T>
+impl<'js, E: Engine, T> FromParam<'js, E> for Rest<T>
 where
-    T: FromJs<'cx, E>,
+    T: FromJs<'js, E>,
 {
     fn param_requirement() -> ParamRequirement {
         ParamRequirement::any()
     }
 
-    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
         let mut out = Vec::with_capacity(params.len());
         while !params.is_empty() {
             let v = params.arg();
@@ -274,25 +274,25 @@ where
     }
 }
 
-impl<'cx, E: Engine> FromParam<'cx, E> for Exhaustive {
+impl<'js, E: Engine> FromParam<'js, E> for Exhaustive {
     fn param_requirement() -> ParamRequirement {
         ParamRequirement::exhaustive()
     }
 
-    fn from_param<'a>(_params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+    fn from_param<'a>(_params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
         Ok(Exhaustive)
     }
 }
 
-impl<'cx, E: Engine, T> FromParam<'cx, E> for Flat<T>
+impl<'js, E: Engine, T> FromParam<'js, E> for Flat<T>
 where
-    T: FromParams<'cx, E>,
+    T: FromParams<'js, E>,
 {
     fn param_requirement() -> ParamRequirement {
         T::param_requirements()
     }
 
-    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+    fn from_param<'a>(params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
         T::from_params(params).map(Flat)
     }
 }
@@ -300,18 +300,18 @@ where
 macro_rules! impl_from_params_tuple {
     ($($t:ident),*) => {
         #[allow(non_snake_case)]
-        impl<'cx, E: Engine $(, $t)*> FromParams<'cx, E> for ($($t,)*)
+        impl<'js, E: Engine $(, $t)*> FromParams<'js, E> for ($($t,)*)
         where
-            $($t: FromParam<'cx, E>,)*
+            $($t: FromParam<'js, E>,)*
         {
             fn param_requirements() -> ParamRequirement {
                 ParamRequirement::none()
-                    $(.combine(<$t as FromParam<'cx, E>>::param_requirement()))*
+                    $(.combine(<$t as FromParam<'js, E>>::param_requirement()))*
             }
 
-            fn from_params<'a>(_params: &mut ParamsAccessor<'a, 'cx, E>) -> Result<Self> {
+            fn from_params<'a>(_params: &mut ParamsAccessor<'a, 'js, E>) -> Result<Self> {
                 Ok((
-                    $(<$t as FromParam<'cx, E>>::from_param(_params)?,)*
+                    $(<$t as FromParam<'js, E>>::from_param(_params)?,)*
                 ))
             }
         }

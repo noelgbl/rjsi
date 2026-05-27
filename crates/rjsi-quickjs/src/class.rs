@@ -96,9 +96,9 @@ fn qjs_ctor_call<'js, C: JsClass<QuickJsEngine>>(
 }
 
 impl ClassSupport for QuickJsEngine {
-    fn class_register<'rt, C: JsClass<Self>>(
-        cx: &mut Context<'rt, Self>,
-    ) -> Result<Function<'rt, Self>> {
+    fn class_register<'js, C: JsClass<Self>>(
+        cx: &mut Context<'js, Self>,
+    ) -> Result<Function<'js, Self>> {
         let qjs_cx = __cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
         let runtime = qjs_cx.runtime;

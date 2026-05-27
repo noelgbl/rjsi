@@ -45,9 +45,9 @@ fn class_ctor_callback<C: JsClass<V8Engine>>(
 }
 
 impl ClassSupport for V8Engine {
-    fn class_register<'rt, C: JsClass<Self>>(
-        cx: &mut Context<'rt, Self>,
-    ) -> Result<Function<'rt, Self>> {
+    fn class_register<'js, C: JsClass<Self>>(
+        cx: &mut Context<'js, Self>,
+    ) -> Result<Function<'js, Self>> {
         let v8_cx = __cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
 

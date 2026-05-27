@@ -13,9 +13,9 @@ const STATE_RESOLVED: &str = "resolved";
 const STATE_REJECTED: &str = "rejected";
 
 impl Promises for JscEngine {
-    fn promise_new<'rt>(
-        cx: &mut Context<'rt, Self>,
-    ) -> Result<(Self::Object<'rt>, Self::Object<'rt>)> {
+    fn promise_new<'js>(
+        cx: &mut Context<'js, Self>,
+    ) -> Result<(Self::Object<'js>, Self::Object<'js>)> {
         let jsc_cx = rjsi_core::__cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
 
@@ -44,25 +44,25 @@ impl Promises for JscEngine {
         Ok((JscObject::new(ctx, promise), JscObject::new(ctx, resolver)))
     }
 
-    fn promise_resolve<'rt>(
-        cx: &mut Context<'rt, Self>,
-        resolver: Self::Object<'rt>,
-        value: Self::Value<'rt>,
+    fn promise_resolve<'js>(
+        cx: &mut Context<'js, Self>,
+        resolver: Self::Object<'js>,
+        value: Self::Value<'js>,
     ) -> Result<()> {
         settle(cx, resolver, value, STATE_RESOLVED, RESOLVE_KEY)
     }
 
-    fn promise_reject<'rt>(
-        cx: &mut Context<'rt, Self>,
-        resolver: Self::Object<'rt>,
-        reason: Self::Value<'rt>,
+    fn promise_reject<'js>(
+        cx: &mut Context<'js, Self>,
+        resolver: Self::Object<'js>,
+        reason: Self::Value<'js>,
     ) -> Result<()> {
         settle(cx, resolver, reason, STATE_REJECTED, REJECT_KEY)
     }
 
-    fn promise_state<'rt>(
-        cx: &mut Context<'rt, Self>,
-        promise: &Self::Object<'rt>,
+    fn promise_state<'js>(
+        cx: &mut Context<'js, Self>,
+        promise: &Self::Object<'js>,
     ) -> Result<PromiseState> {
         let jsc_cx = rjsi_core::__cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
@@ -74,10 +74,10 @@ impl Promises for JscEngine {
         })
     }
 
-    fn promise_result<'rt>(
-        cx: &mut Context<'rt, Self>,
-        promise: &Self::Object<'rt>,
-    ) -> Result<Option<std::result::Result<Self::Value<'rt>, Self::Value<'rt>>>> {
+    fn promise_result<'js>(
+        cx: &mut Context<'js, Self>,
+        promise: &Self::Object<'js>,
+    ) -> Result<Option<std::result::Result<Self::Value<'js>, Self::Value<'js>>>> {
         let state = <Self as Promises>::promise_state(cx, promise)?;
         if state == PromiseState::Pending {
             return Ok(None);
@@ -97,7 +97,7 @@ impl Promises for JscEngine {
 }
 
 impl Microtasks for JscEngine {
-    fn queue_microtask<'rt>(cx: &mut Context<'rt, Self>, task: Self::Function<'rt>) {
+    fn queue_microtask<'js>(cx: &mut Context<'js, Self>, task: Self::Function<'js>) {
         let jsc_cx = rjsi_core::__cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
         let global = unsafe { jsc::JSContextGetGlobalObject(ctx) };
@@ -139,7 +139,7 @@ impl Microtasks for JscEngine {
         }
     }
 
-    fn drain_microtasks<'rt>(cx: &mut Context<'rt, Self>) {
+    fn drain_microtasks<'js>(cx: &mut Context<'js, Self>) {
         let jsc_cx = rjsi_core::__cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
         let script = ManagedJSString::new("undefined");
@@ -157,10 +157,10 @@ impl Microtasks for JscEngine {
     }
 }
 
-fn settle<'rt>(
-    cx: &mut Context<'rt, JscEngine>,
-    resolver: JscObject<'rt>,
-    value: JscValue<'rt>,
+fn settle<'js>(
+    cx: &mut Context<'js, JscEngine>,
+    resolver: JscObject<'js>,
+    value: JscValue<'js>,
     state: &str,
     fn_name: &str,
 ) -> Result<()> {

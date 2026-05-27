@@ -17,6 +17,7 @@ default-runtime-jsc = ["jsc"]
 default-runtime-hermes = ["hermes"]
 macros = ["dep:rjsi-macros"]
 console = ["dep:rjsi-console"]
+futures = ["rjsi-core/futures"]
 
 [dependencies]
 anyhow.workspace = true

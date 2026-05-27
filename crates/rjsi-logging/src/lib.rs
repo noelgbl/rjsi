@@ -112,21 +112,21 @@ impl LogLevel {
     }
 }
 
-pub struct FormatOptions<'cx, E: Engine> {
+pub struct FormatOptions<'js, E: Engine> {
     #[allow(dead_code)]
     newline: bool,
     #[allow(dead_code)]
-    get_own_property_desc_fn: Function<'cx, E>,
+    get_own_property_desc_fn: Function<'js, E>,
     #[allow(dead_code)]
-    object_prototype: Object<'cx, E>,
+    object_prototype: Object<'js, E>,
     color: bool,
-    number_function: Function<'cx, E>,
-    parse_float: Function<'cx, E>,
-    parse_int: Function<'cx, E>,
+    number_function: Function<'js, E>,
+    parse_float: Function<'js, E>,
+    parse_int: Function<'js, E>,
 }
 
-impl<'cx, E: Engine> FormatOptions<'cx, E> {
-    pub fn new(ctx: &mut Context<'cx, E>, color: bool, newline: bool) -> Result<Self> {
+impl<'js, E: Engine> FormatOptions<'js, E> {
+    pub fn new(ctx: &mut Context<'js, E>, color: bool, newline: bool) -> Result<Self> {
         let globals = ctx.globals();
         let number_function = globals.get(ctx, "Number")?.try_as_function()?;
         let parse_float = globals.get(ctx, "parseFloat")?.try_as_function()?;

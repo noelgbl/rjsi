@@ -62,10 +62,10 @@ impl<E: Engine + Promises, T, Err> JsChannel<E, T, Err> {
         )
     }
 
-    pub fn create_promise<'rt>(
+    pub fn create_promise<'js>(
         &mut self,
-        cx: &mut Context<'rt, E>,
-    ) -> RjsiResult<(PromiseId, Object<'rt, E>)> {
+        cx: &mut Context<'js, E>,
+    ) -> RjsiResult<(PromiseId, Object<'js, E>)> {
         let (promise, resolver) = cx.promise_new()?;
         let id = self.next_id;
         self.next_id += 1;
@@ -74,15 +74,15 @@ impl<E: Engine + Promises, T, Err> JsChannel<E, T, Err> {
         Ok((id, promise))
     }
 
-    pub fn pump<'rt, F, G>(
+    pub fn pump<'js, F, G>(
         &mut self,
-        cx: &mut Context<'rt, E>,
+        cx: &mut Context<'js, E>,
         mut map_resolve: F,
         mut map_reject: G,
     ) -> RjsiResult<()>
     where
-        F: FnMut(&mut Context<'rt, E>, T) -> RjsiResult<crate::Value<'rt, E>>,
-        G: FnMut(&mut Context<'rt, E>, Err) -> RjsiResult<crate::Value<'rt, E>>,
+        F: FnMut(&mut Context<'js, E>, T) -> RjsiResult<crate::Value<'js, E>>,
+        G: FnMut(&mut Context<'js, E>, Err) -> RjsiResult<crate::Value<'js, E>>,
     {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
@@ -105,11 +105,11 @@ impl<E: Engine + Promises, T, Err> JsChannel<E, T, Err> {
         Ok(())
     }
 
-    pub fn settle<'rt>(
+    pub fn settle<'js>(
         &mut self,
-        cx: &mut Context<'rt, E>,
+        cx: &mut Context<'js, E>,
         id: PromiseId,
-        outcome: std::result::Result<crate::Value<'rt, E>, crate::Value<'rt, E>>,
+        outcome: std::result::Result<crate::Value<'js, E>, crate::Value<'js, E>>,
     ) -> RjsiResult<()> {
         if let Some(resolver) = self.resolvers.remove(&id) {
             let resolver_obj = resolver.restore(cx)?.try_as_object()?;
@@ -121,20 +121,20 @@ impl<E: Engine + Promises, T, Err> JsChannel<E, T, Err> {
         Ok(())
     }
 
-    pub fn pump_to_js<'rt>(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
+    pub fn pump_to_js<'js>(&mut self, cx: &mut Context<'js, E>) -> RjsiResult<()>
     where
-        T: ToJs<'rt, E>,
-        Err: ToJs<'rt, E>,
+        T: ToJs<'js, E>,
+        Err: ToJs<'js, E>,
     {
         self.pump(cx, |cx, val| val.to_js(cx), |cx, err| err.to_js(cx))
     }
 }
 
 impl<E: Engine + Promises + Microtasks, T, Err> JsChannel<E, T, Err> {
-    pub fn pump_and_drain_to_js<'rt>(&mut self, cx: &mut Context<'rt, E>) -> RjsiResult<()>
+    pub fn pump_and_drain_to_js<'js>(&mut self, cx: &mut Context<'js, E>) -> RjsiResult<()>
     where
-        T: ToJs<'rt, E>,
-        Err: ToJs<'rt, E>,
+        T: ToJs<'js, E>,
+        Err: ToJs<'js, E>,
     {
         self.pump_to_js(cx)?;
         cx.drain_microtasks();

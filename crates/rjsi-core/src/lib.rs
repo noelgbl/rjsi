@@ -8,7 +8,10 @@ mod convert;
 mod engine;
 mod error;
 pub mod function;
+#[cfg(feature = "futures")]
+pub mod futures;
 mod keys;
+pub mod markers;
 pub mod module;
 mod native_state;
 mod object;

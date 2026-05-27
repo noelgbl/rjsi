@@ -1,3 +1,4 @@
+use crate::convert::ToJs;
 use crate::{Context, Engine, Result, Value};
 
 pub struct PersistentValue<E: Engine> {
@@ -25,5 +26,11 @@ impl<E: Engine> PersistentValue<E> {
 
     pub fn as_raw(&self) -> &E::PersistentValue {
         &self.raw
+    }
+}
+
+impl<'js, E: Engine> ToJs<'js, E> for PersistentValue<E> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
+        self.restore(cx)
     }
 }

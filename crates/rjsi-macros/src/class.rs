@@ -31,9 +31,9 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
         impl<E: #core::Engine> #core::JsClass<E> for #ident {
             const NAME: &'static str = #name_lit;
 
-            fn define_prototype<'cx>(
-                _cx: &mut #core::Context<'cx, E>,
-                _proto: &#core::Object<'cx, E>,
+            fn define_prototype<'js>(
+                _cx: &mut #core::Context<'js, E>,
+                _proto: &#core::Object<'js, E>,
             ) -> #core::Result<()>
             where
                 E: #core::ClassSupport,
@@ -41,9 +41,9 @@ pub fn expand_js_class(input: DeriveInput) -> TokenStream2 {
                 Ok(())
             }
 
-            fn construct<'rt>(
-                _cx: &mut #core::Context<'rt, E>,
-                _args: #core::Args<'rt, E>,
+            fn construct<'js>(
+                _cx: &mut #core::Context<'js, E>,
+                _args: #core::Args<'js, E>,
             ) -> #core::Result<Self>
             where
                 E: #core::ClassSupport,
@@ -102,9 +102,9 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let fn_name = &f.sig.ident;
 
                 ctor_tokens = Some(quote! {
-                    fn construct<'rt>(
-                        cx: &mut #core::Context<'rt, E>,
-                        args: #core::Args<'rt, E>,
+                    fn construct<'js>(
+                        cx: &mut #core::Context<'js, E>,
+                        args: #core::Args<'js, E>,
                     ) -> #core::Result<Self>
                     where
                         E: #core::ClassSupport,
@@ -127,11 +127,11 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let host_fn = instance_host_fn_ident(rust_name);
                 host_items.push(quote! {
                     #[inline]
-                    fn #host_fn<'rt, E: #core::ClassSupport>(
-                        cx: &mut #core::Context<'rt, E>,
-                        this: #core::Value<'rt, E>,
-                        args: #core::Args<'rt, E>,
-                    ) -> #core::Result<#core::Value<'rt, E>> {
+                    fn #host_fn<'js, E: #core::ClassSupport>(
+                        cx: &mut #core::Context<'js, E>,
+                        this: #core::Value<'js, E>,
+                        args: #core::Args<'js, E>,
+                    ) -> #core::Result<#core::Value<'js, E>> {
                         let _ = args.len();
                         let __this_obj = #core::Object::new(
                             E::value_as_object(this.into_raw())
@@ -166,11 +166,11 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
                 let host_fn = static_host_fn_ident(rust_name);
                 host_items.push(quote! {
                     #[inline]
-                    fn #host_fn<'rt, E: #core::ClassSupport>(
-                        cx: &mut #core::Context<'rt, E>,
-                        _this: #core::Value<'rt, E>,
-                        args: #core::Args<'rt, E>,
-                    ) -> #core::Result<#core::Value<'rt, E>> {
+                    fn #host_fn<'js, E: #core::ClassSupport>(
+                        cx: &mut #core::Context<'js, E>,
+                        _this: #core::Value<'js, E>,
+                        args: #core::Args<'js, E>,
+                    ) -> #core::Result<#core::Value<'js, E>> {
                         #( #arg_extractions )*
                         #ret_expr
                     }
@@ -191,9 +191,9 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
     let construct_body = ctor_tokens.unwrap_or_else(|| {
         if opts.no_constructor {
             quote! {
-                fn construct<'rt>(
-                    _cx: &mut #core::Context<'rt, E>,
-                    _args: #core::Args<'rt, E>,
+                fn construct<'js>(
+                    _cx: &mut #core::Context<'js, E>,
+                    _args: #core::Args<'js, E>,
                 ) -> #core::Result<Self>
                 where
                     E: #core::ClassSupport,
@@ -203,9 +203,9 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
             }
         } else {
             quote! {
-                fn construct<'rt>(
-                    _cx: &mut #core::Context<'rt, E>,
-                    _args: #core::Args<'rt, E>,
+                fn construct<'js>(
+                    _cx: &mut #core::Context<'js, E>,
+                    _args: #core::Args<'js, E>,
                 ) -> #core::Result<Self>
                 where
                     E: #core::ClassSupport,
@@ -240,9 +240,9 @@ pub fn expand_js_methods(attr: TokenStream2, input: ItemImpl) -> TokenStream2 {
         impl<E: #core::ClassSupport> #core::JsClass<E> for #self_ty {
             const NAME: &'static str = #name_lit;
 
-            fn define_prototype<'cx>(
-                cx: &mut #core::Context<'cx, E>,
-                proto: &#core::Object<'cx, E>,
+            fn define_prototype<'js>(
+                cx: &mut #core::Context<'js, E>,
+                proto: &#core::Object<'js, E>,
             ) -> #core::Result<()>
             {
                 #( #method_registrations )*

@@ -36,10 +36,10 @@ fn get_native_state_class<S: NativeState>() -> jsc::JSClassRef {
 }
 
 impl NativeStateSupport for JscEngine {
-    fn object_create_with_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
+    fn object_create_with_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
         state: S,
-    ) -> Result<Object<'cx, Self>> {
+    ) -> Result<Object<'js, Self>> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
 
@@ -55,10 +55,10 @@ impl NativeStateSupport for JscEngine {
         Ok(Object::new(JscObject::new(ctx, obj)))
     }
 
-    fn object_get_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &Object<'cx, Self>,
-    ) -> Option<&'cx S> {
+    fn object_get_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &Object<'js, Self>,
+    ) -> Option<&'js S> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
 
@@ -74,13 +74,13 @@ impl NativeStateSupport for JscEngine {
             return None;
         }
 
-        Some(unsafe { std::mem::transmute::<&S, &'cx S>(&*(ptr as *const S)) })
+        Some(unsafe { std::mem::transmute::<&S, &'js S>(&*(ptr as *const S)) })
     }
 
-    fn object_get_state_mut<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &mut Object<'cx, Self>,
-    ) -> Option<&'cx mut S> {
+    fn object_get_state_mut<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &mut Object<'js, Self>,
+    ) -> Option<&'js mut S> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
 
@@ -96,6 +96,6 @@ impl NativeStateSupport for JscEngine {
             return None;
         }
 
-        Some(unsafe { std::mem::transmute::<&mut S, &'cx mut S>(&mut *(ptr as *mut S)) })
+        Some(unsafe { std::mem::transmute::<&mut S, &'js mut S>(&mut *(ptr as *mut S)) })
     }
 }

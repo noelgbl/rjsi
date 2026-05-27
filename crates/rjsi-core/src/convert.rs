@@ -33,138 +33,138 @@ impl<T> DerefMut for Coerced<T> {
     }
 }
 
-pub trait FromJs<'cx, E: Engine>: Sized {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self>;
+pub trait FromJs<'js, E: Engine>: Sized {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self>;
 }
 
-pub trait ToJs<'cx, E: Engine> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>>;
+pub trait ToJs<'js, E: Engine> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>>;
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for bool {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for bool {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         Ok(cx.boolean(self))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for i32 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for i32 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         Ok(cx.integer(self))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for f64 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for f64 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         Ok(cx.number(self))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for String {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for String {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         cx.string(&self)
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for () {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for () {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         Ok(cx.undefined())
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for &str {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for &str {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         cx.string(self)
     }
 }
 
-impl<'cx, E: Engine, T: ToJs<'cx, E>> ToJs<'cx, E> for crate::Result<T> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine, T: ToJs<'js, E>> ToJs<'js, E> for crate::Result<T> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         self?.to_js(cx)
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for i8 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for i8 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.integer(self as i32))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for u8 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for u8 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.integer(self as i32))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for i16 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for i16 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.integer(self as i32))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for u16 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for u16 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.integer(self as i32))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for i64 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for i64 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.number(self as f64))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for u64 {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for u64 {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.number(self as f64))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for isize {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for isize {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.number(self as f64))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for usize {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> crate::Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for usize {
+    fn to_js(self, cx: &mut Context<'js, E>) -> crate::Result<Value<'js, E>> {
         Ok(cx.number(self as f64))
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for Coerced<bool> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for Coerced<bool> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         self.0.to_js(cx)
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for Coerced<String> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for Coerced<String> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         self.0.to_js(cx)
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for Coerced<i32> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for Coerced<i32> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         self.0.to_js(cx)
     }
 }
 
-impl<'cx, E: Engine> ToJs<'cx, E> for Coerced<f64> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Engine> ToJs<'js, E> for Coerced<f64> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         self.0.to_js(cx)
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for bool {
-    fn from_js(_cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for bool {
+    fn from_js(_cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_bool()
             .ok_or_else(|| Error::type_err("expected boolean"))
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for i32 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for i32 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as i32)
@@ -172,8 +172,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for i32 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for () {
-    fn from_js(_cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for () {
+    fn from_js(_cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         if value.is_undefined() {
             Ok(())
         } else {
@@ -182,8 +182,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for () {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for u64 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for u64 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as u64)
@@ -191,8 +191,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for u64 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for i16 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for i16 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as i16)
@@ -200,8 +200,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for i16 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for u16 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for u16 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as u16)
@@ -209,8 +209,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for u16 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for i8 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for i8 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as i8)
@@ -218,8 +218,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for i8 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for u8 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for u8 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as u8)
@@ -227,8 +227,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for u8 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for isize {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for isize {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as isize)
@@ -236,8 +236,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for isize {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for u32 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for u32 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as u32)
@@ -245,8 +245,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for u32 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for i64 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for i64 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as i64)
@@ -254,8 +254,8 @@ impl<'cx, E: Engine> FromJs<'cx, E> for i64 {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for usize {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for usize {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .map(|n| n as usize)
@@ -263,49 +263,49 @@ impl<'cx, E: Engine> FromJs<'cx, E> for usize {
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for f64 {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for f64 {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_f64(cx)
             .ok_or_else(|| Error::type_err("expected number"))
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for String {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for String {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value
             .as_string(cx)
             .ok_or_else(|| Error::type_err("expected string"))
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for Value<'cx, E> {
+impl<'js, E: Engine> FromJs<'js, E> for Value<'js, E> {
     #[inline]
-    fn from_js(_cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+    fn from_js(_cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         Ok(value)
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for Coerced<bool> {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for Coerced<bool> {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         Ok(Coerced(value.to_bool(cx)))
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for Coerced<f64> {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for Coerced<f64> {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value.to_f64(cx).map(Coerced)
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for Coerced<i32> {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for Coerced<i32> {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value.to_f64(cx).map(|n| Coerced(n as i32))
     }
 }
 
-impl<'cx, E: Engine> FromJs<'cx, E> for Coerced<String> {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Engine> FromJs<'js, E> for Coerced<String> {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         value.to_string(cx).map(Coerced)
     }
 }

@@ -82,11 +82,11 @@ impl rjsi_core::capabilities::Modules for QuickJsEngine {
         Ok(())
     }
 
-    fn module_evaluate<'rt>(
-        cx: &mut Context<'rt, Self>,
+    fn module_evaluate<'js>(
+        cx: &mut Context<'js, Self>,
         name: &str,
         src: &str,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let qjs_cx = rjsi_core::__cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
         let hook = unsafe { (*qjs_cx.runtime).import_meta_hook.clone() };
@@ -102,10 +102,10 @@ impl rjsi_core::capabilities::Modules for QuickJsEngine {
         Ok(promise.into_value().into_object().unwrap())
     }
 
-    fn module_import<'rt>(
-        cx: &mut Context<'rt, Self>,
+    fn module_import<'js>(
+        cx: &mut Context<'js, Self>,
         specifier: &str,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let qjs_cx = rjsi_core::__cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
         let res = QModule::import(&qctx, specifier.as_bytes().to_vec());

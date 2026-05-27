@@ -4,14 +4,14 @@ use crate::capabilities::{
 use crate::context::ContextBufferExt;
 use crate::{Context, Engine, Error, FromJs, Object, Result, ToJs, Value};
 
-impl<'cx, E: Buffers> ToJs<'cx, E> for Vec<u8> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Buffers> ToJs<'js, E> for Vec<u8> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         Ok(cx.uint8_array_from_vec(self)?.into_value())
     }
 }
 
-impl<'cx, E: Buffers> ToJs<'cx, E> for Box<[u8]> {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Buffers> ToJs<'js, E> for Box<[u8]> {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         let buf = cx.array_buffer_from_boxed(self)?;
         let length = buf.byte_length(cx)?;
         let ta = E::typed_array_new(
@@ -25,8 +25,8 @@ impl<'cx, E: Buffers> ToJs<'cx, E> for Box<[u8]> {
     }
 }
 
-impl<'cx, E: Buffers> ToJs<'cx, E> for bytes::Bytes {
-    fn to_js(self, cx: &mut Context<'cx, E>) -> Result<Value<'cx, E>> {
+impl<'js, E: Buffers> ToJs<'js, E> for bytes::Bytes {
+    fn to_js(self, cx: &mut Context<'js, E>) -> Result<Value<'js, E>> {
         let buf = cx.array_buffer_from_bytes(self)?;
         let length = buf.byte_length(cx)?;
         let ta = E::typed_array_new(
@@ -40,8 +40,8 @@ impl<'cx, E: Buffers> ToJs<'cx, E> for bytes::Bytes {
     }
 }
 
-impl<'cx, E: Buffers> FromJs<'cx, E> for Vec<u8> {
-    fn from_js(cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Buffers> FromJs<'js, E> for Vec<u8> {
+    fn from_js(cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         if E::value_is_array_buffer(value.as_raw()) {
             let obj = value
                 .as_object()
@@ -62,8 +62,8 @@ impl<'cx, E: Buffers> FromJs<'cx, E> for Vec<u8> {
     }
 }
 
-impl<'cx, E: Buffers> FromJs<'cx, E> for ArrayBuffer<'cx, E> {
-    fn from_js(_cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+impl<'js, E: Buffers> FromJs<'js, E> for ArrayBuffer<'js, E> {
+    fn from_js(_cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
         if !E::value_is_array_buffer(value.as_raw()) {
             return Err(Error::type_err("expected ArrayBuffer"));
         }
@@ -76,8 +76,8 @@ impl<'cx, E: Buffers> FromJs<'cx, E> for ArrayBuffer<'cx, E> {
 
 macro_rules! impl_typed_array_from_js {
     ($name:ident, $kind:ident) => {
-        impl<'cx, E: Buffers> FromJs<'cx, E> for $name<'cx, E> {
-            fn from_js(_cx: &mut Context<'cx, E>, value: Value<'cx, E>) -> Result<Self> {
+        impl<'js, E: Buffers> FromJs<'js, E> for $name<'js, E> {
+            fn from_js(_cx: &mut Context<'js, E>, value: Value<'js, E>) -> Result<Self> {
                 match E::value_typed_array_kind(value.as_raw()) {
                     Some(TypedArrayKind::$kind) => {
                         let obj = value.as_object().ok_or_else(|| {

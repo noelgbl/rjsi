@@ -57,10 +57,10 @@ unsafe extern "C" fn native_state_finalizer<S: 'static>(
 }
 
 impl NativeStateSupport for QuickJsEngine {
-    fn object_create_with_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
+    fn object_create_with_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
         state: S,
-    ) -> Result<Object<'cx, Self>> {
+    ) -> Result<Object<'js, Self>> {
         let qjs_cx = __cx::context_mut(cx);
         let qctx = qjs_cx.qctx.clone();
         let ctx_ptr = qctx.as_raw().as_ptr();
@@ -84,10 +84,10 @@ impl NativeStateSupport for QuickJsEngine {
         Ok(Object::new(obj))
     }
 
-    fn object_get_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &Object<'cx, Self>,
-    ) -> Option<&'cx S> {
+    fn object_get_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &Object<'js, Self>,
+    ) -> Option<&'js S> {
         let _ = __cx::context_mut(cx);
         let class_id = native_state_class_id_for::<S>();
         if class_id == 0 {
@@ -98,13 +98,13 @@ impl NativeStateSupport for QuickJsEngine {
         if ptr.is_null() {
             return None;
         }
-        Some(unsafe { mem::transmute::<&S, &'cx S>(&*(ptr as *const S)) })
+        Some(unsafe { mem::transmute::<&S, &'js S>(&*(ptr as *const S)) })
     }
 
-    fn object_get_state_mut<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &mut Object<'cx, Self>,
-    ) -> Option<&'cx mut S> {
+    fn object_get_state_mut<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &mut Object<'js, Self>,
+    ) -> Option<&'js mut S> {
         let _ = __cx::context_mut(cx);
         let class_id = native_state_class_id_for::<S>();
         if class_id == 0 {
@@ -114,6 +114,6 @@ impl NativeStateSupport for QuickJsEngine {
         if ptr.is_null() {
             return None;
         }
-        Some(unsafe { mem::transmute::<&mut S, &'cx mut S>(&mut *(ptr as *mut S)) })
+        Some(unsafe { mem::transmute::<&mut S, &'js mut S>(&mut *(ptr as *mut S)) })
     }
 }

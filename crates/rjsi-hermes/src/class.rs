@@ -94,21 +94,21 @@ unsafe extern "C" fn class_ctor_trampoline<C: JsClass<HermesEngine> + 'static>(
     }
 }
 
-fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> Result<T> {
+fn map_hermes<'js, T>(res: rusty_hermes::Result<T>) -> Result<T> {
     res.map_err(Error::from_host)
 }
 
 impl ClassSupport for HermesEngine {
-    fn class_register<'rt, C: JsClass<Self>>(
-        cx: &mut Context<'rt, Self>,
-    ) -> Result<Function<'rt, Self>> {
+    fn class_register<'js, C: JsClass<Self>>(
+        cx: &mut Context<'js, Self>,
+    ) -> Result<Function<'js, Self>> {
         let hermes_cx = __cx::context_mut(cx);
         let runtime_ptr = hermes_cx.runtime;
         let rt_ffi = runtime_ffi_ptr(unsafe { &(*runtime_ptr).inner });
 
         let proto_inner = {
             let inner = unsafe { &mut (*runtime_ptr).inner };
-            let raw_proto: HermesObject<'rt> =
+            let raw_proto: HermesObject<'js> =
                 unsafe { mem::transmute(HermesObject::new(&*inner)) };
             let mut define_cx = Context::new(HermesContext {
                 inner,

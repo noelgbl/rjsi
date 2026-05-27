@@ -73,7 +73,7 @@ impl Default for QuickJsRuntime {
 impl Runtime<QuickJsEngine> for QuickJsRuntime {
     fn with_scope<R>(
         &mut self,
-        f: impl for<'rt> FnOnce(&mut Context<'rt, QuickJsEngine>) -> R,
+        f: impl for<'js> FnOnce(&mut Context<'js, QuickJsEngine>) -> R,
     ) -> R {
         let runtime = self as *mut _;
         self.ctx.clone().with(|qctx: Ctx<'_>| {
@@ -91,10 +91,10 @@ impl Runtime<QuickJsEngine> for QuickJsRuntime {
     }
 }
 
-pub(crate) fn prepared_key<'cx>(
-    cx: &mut QuickJsContext<'cx>,
+pub(crate) fn prepared_key<'js>(
+    cx: &mut QuickJsContext<'js>,
     key: &PreparedKey<QuickJsEngine>,
-) -> RjsiResult<Atom<'cx>> {
+) -> RjsiResult<Atom<'js>> {
     let runtime = unsafe { &mut *cx.runtime };
     if !runtime.prepared_keys.contains_key(&key.id()) {
         let atom = Atom::from_str(cx.qctx.clone(), key.as_str());
@@ -110,8 +110,8 @@ pub(crate) fn prepared_key<'cx>(
     Ok(unsafe { std::mem::transmute(atom.clone()) })
 }
 
-pub(crate) fn _map_prepare_err<'cx, T>(
-    cx: &QuickJsContext<'cx>,
+pub(crate) fn _map_prepare_err<'js, T>(
+    cx: &QuickJsContext<'js>,
     res: rquickjs::Result<T>,
 ) -> RjsiResult<T> {
     map_err(cx, res)

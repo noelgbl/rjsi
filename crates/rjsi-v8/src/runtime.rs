@@ -78,7 +78,7 @@ impl Default for V8Runtime {
 impl Runtime<crate::engine::V8Engine> for V8Runtime {
     fn with_scope<R>(
         &mut self,
-        f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::V8Engine>) -> R,
+        f: impl for<'js> FnOnce(&mut Context<'js, crate::engine::V8Engine>) -> R,
     ) -> R {
         let runtime_ptr = self as *mut _;
         let scope1 = v8::HandleScope::new(&mut self.isolate);
@@ -109,10 +109,10 @@ impl Runtime<crate::engine::V8Engine> for V8Runtime {
     }
 }
 
-pub(crate) fn prepared_key<'cx>(
-    cx: &mut crate::engine::V8Context<'cx>,
+pub(crate) fn prepared_key<'js>(
+    cx: &mut crate::engine::V8Context<'js>,
     key: &PreparedKey<crate::engine::V8Engine>,
-) -> Result<v8::Local<'cx, v8::Name>> {
+) -> Result<v8::Local<'js, v8::Name>> {
     let scope = unsafe { crate::engine::get_scope(cx) };
     if cx.runtime.is_null() {
         let string = v8::String::new(scope, key.as_str())

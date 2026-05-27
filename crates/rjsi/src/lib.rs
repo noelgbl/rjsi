@@ -2,6 +2,8 @@
 pub use rjsi_boa as boa;
 #[cfg(feature = "console")]
 pub use rjsi_console as console;
+#[cfg(feature = "async")]
+pub use rjsi_core::futures;
 pub use rjsi_core::*;
 #[cfg(feature = "hermes")]
 pub use rjsi_hermes as hermes;

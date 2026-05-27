@@ -86,7 +86,7 @@ impl Default for JscRuntime {
 impl Runtime<crate::engine::JscEngine> for JscRuntime {
     fn with_scope<R>(
         &mut self,
-        f: impl for<'rt> FnOnce(&mut Context<'rt, crate::engine::JscEngine>) -> R,
+        f: impl for<'js> FnOnce(&mut Context<'js, crate::engine::JscEngine>) -> R,
     ) -> R {
         let runtime_ptr = self as *mut _;
         let cx_raw = crate::engine::JscContext {
@@ -108,10 +108,10 @@ impl Runtime<crate::engine::JscEngine> for JscRuntime {
     }
 }
 
-pub(crate) fn prepared_key<'cx>(
-    cx: &mut crate::engine::JscContext<'cx>,
+pub(crate) fn prepared_key<'js>(
+    cx: &mut crate::engine::JscContext<'js>,
     key: &PreparedKey<crate::engine::JscEngine>,
-) -> Result<crate::engine::JscKey<'cx>> {
+) -> Result<crate::engine::JscKey<'js>> {
     if cx.runtime.is_null() {
         let js_str = crate::engine::ManagedJSString::new(key.as_str());
         let val = unsafe { jsc::JSValueMakeString(cx.ctx, js_str.0) };

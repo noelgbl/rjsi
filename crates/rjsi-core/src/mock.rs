@@ -27,9 +27,9 @@ impl MockRuntime {
     }
 }
 
-pub struct MockContext<'rt> {
+pub struct MockContext<'js> {
     pub(crate) runtime: *mut MockRuntime,
-    _marker: PhantomData<&'rt mut ()>,
+    _marker: PhantomData<&'js mut ()>,
 }
 
 pub struct MockPersistentValue {
@@ -54,11 +54,11 @@ impl Drop for MockPersistentValue {
 macro_rules! phantom_val {
     ($name:ident) => {
         #[derive(Clone, Copy)]
-        pub struct $name<'cx> {
-            _p: PhantomData<&'cx ()>,
+        pub struct $name<'js> {
+            _p: PhantomData<&'js ()>,
         }
 
-        impl<'cx> $name<'cx> {
+        impl<'js> $name<'js> {
             pub fn new() -> Self {
                 Self { _p: PhantomData }
             }
@@ -67,12 +67,12 @@ macro_rules! phantom_val {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MockObject<'cx> {
+pub struct MockObject<'js> {
     pub(crate) id: u32,
-    _p: PhantomData<&'cx ()>,
+    _p: PhantomData<&'js ()>,
 }
 
-impl<'cx> MockObject<'cx> {
+impl<'js> MockObject<'js> {
     pub fn new() -> Self {
         Self {
             id: 0,
@@ -86,12 +86,12 @@ phantom_val!(MockSymbol);
 phantom_val!(MockKey);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct MockValue<'cx> {
+pub struct MockValue<'js> {
     pub tag: u32,
-    _p: PhantomData<&'cx ()>,
+    _p: PhantomData<&'js ()>,
 }
 
-impl<'cx> MockValue<'cx> {
+impl<'js> MockValue<'js> {
     pub const UNDEFINED: Self = Self {
         tag: 0,
         _p: PhantomData,
@@ -116,13 +116,13 @@ impl<'cx> MockValue<'cx> {
     }
 }
 
-pub struct MockRawArgs<'cx> {
-    pub argv: Vec<MockValue<'cx>>,
-    _p: PhantomData<&'cx ()>,
+pub struct MockRawArgs<'js> {
+    pub argv: Vec<MockValue<'js>>,
+    _p: PhantomData<&'js ()>,
 }
 
-impl<'cx> MockRawArgs<'cx> {
-    pub fn from_slice(argv: &[MockValue<'cx>]) -> Self {
+impl<'js> MockRawArgs<'js> {
+    pub fn from_slice(argv: &[MockValue<'js>]) -> Self {
         Self {
             argv: argv.to_vec(),
             _p: PhantomData,
@@ -140,7 +140,7 @@ impl MockEngine {
 }
 
 impl Runtime<MockEngine> for MockRuntime {
-    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, MockEngine>) -> R) -> R {
+    fn with_scope<R>(&mut self, f: impl for<'js> FnOnce(&mut Context<'js, MockEngine>) -> R) -> R {
         let cx_raw = MockContext {
             runtime: self as *mut _,
             _marker: PhantomData,
@@ -160,41 +160,41 @@ impl Engine for MockEngine {
     const ENGINE_NAME: &str = "Mock";
 
     type Runtime = MockRuntime;
-    type Context<'rt> = MockContext<'rt>;
-    type Value<'cx> = MockValue<'cx>;
-    type Object<'cx> = MockObject<'cx>;
-    type Function<'cx> = MockFunction<'cx>;
-    type String<'cx> = MockString<'cx>;
-    type Symbol<'cx> = MockSymbol<'cx>;
-    type Key<'cx> = MockKey<'cx>;
+    type Context<'js> = MockContext<'js>;
+    type Value<'js> = MockValue<'js>;
+    type Object<'js> = MockObject<'js>;
+    type Function<'js> = MockFunction<'js>;
+    type String<'js> = MockString<'js>;
+    type Symbol<'js> = MockSymbol<'js>;
+    type Key<'js> = MockKey<'js>;
     type PreparedKeyData = ();
-    type RawArgs<'cx> = MockRawArgs<'cx>;
+    type RawArgs<'js> = MockRawArgs<'js>;
     type PersistentValue = MockPersistentValue;
 
-    fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+    fn enter<'js>(runtime: &'js mut Self::Runtime) -> Self::Context<'js> {
         MockContext {
             runtime: runtime as *mut _,
             _marker: PhantomData,
         }
     }
 
-    fn raw_args_len<'rt>(args: &Self::RawArgs<'rt>) -> usize {
+    fn raw_args_len<'js>(args: &Self::RawArgs<'js>) -> usize {
         args.argv.len()
     }
 
-    fn raw_args_get<'rt>(args: &Self::RawArgs<'rt>, index: usize) -> Option<Self::Value<'rt>> {
+    fn raw_args_get<'js>(args: &Self::RawArgs<'js>, index: usize) -> Option<Self::Value<'js>> {
         args.argv.get(index).copied()
     }
 
-    fn eval<'rt>(
-        _cx: &mut Self::Context<'rt>,
+    fn eval<'js>(
+        _cx: &mut Self::Context<'js>,
         _src: &str,
         _filename: Option<&str>,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         Ok(MockValue::UNDEFINED)
     }
 
-    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
+    fn global_object<'js>(cx: &mut Self::Context<'js>) -> Self::Object<'js> {
         if cx.runtime.is_null() {
             return MockObject::new();
         }
@@ -206,7 +206,7 @@ impl Engine for MockEngine {
         }
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
+    fn object_new<'js>(cx: &mut Self::Context<'js>) -> Result<Self::Object<'js>> {
         if cx.runtime.is_null() {
             return Ok(MockObject::new());
         }
@@ -218,99 +218,99 @@ impl Engine for MockEngine {
         })
     }
 
-    fn object_get<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _obj: &Self::Object<'rt>,
-        _key: PropertyKey<'rt, Self>,
-    ) -> Result<Self::Value<'rt>> {
+    fn object_get<'js>(
+        _cx: &mut Self::Context<'js>,
+        _obj: &Self::Object<'js>,
+        _key: PropertyKey<'js, Self>,
+    ) -> Result<Self::Value<'js>> {
         Ok(MockValue::UNDEFINED)
     }
 
-    fn object_set<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _obj: &Self::Object<'rt>,
-        _key: PropertyKey<'rt, Self>,
-        _val: Self::Value<'rt>,
+    fn object_set<'js>(
+        _cx: &mut Self::Context<'js>,
+        _obj: &Self::Object<'js>,
+        _key: PropertyKey<'js, Self>,
+        _val: Self::Value<'js>,
     ) -> Result<()> {
         Ok(())
     }
 
-    fn object_has<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _obj: &Self::Object<'rt>,
-        _key: PropertyKey<'rt, Self>,
+    fn object_has<'js>(
+        _cx: &mut Self::Context<'js>,
+        _obj: &Self::Object<'js>,
+        _key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         Ok(false)
     }
 
-    fn object_delete<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _obj: &Self::Object<'rt>,
-        _key: PropertyKey<'rt, Self>,
+    fn object_delete<'js>(
+        _cx: &mut Self::Context<'js>,
+        _obj: &Self::Object<'js>,
+        _key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         Ok(true)
     }
 
-    fn function_call<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _func: &Self::Function<'rt>,
-        _this: Self::Value<'rt>,
-        _args: &[Self::Value<'rt>],
-    ) -> Result<Self::Value<'rt>> {
+    fn function_call<'js>(
+        _cx: &mut Self::Context<'js>,
+        _func: &Self::Function<'js>,
+        _this: Self::Value<'js>,
+        _args: &[Self::Value<'js>],
+    ) -> Result<Self::Value<'js>> {
         Ok(MockValue::UNDEFINED)
     }
 
-    fn value_is_undefined<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_undefined<'js>(val: &Self::Value<'js>) -> bool {
         val.tag == 0
     }
-    fn value_is_null<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_null<'js>(val: &Self::Value<'js>) -> bool {
         val.tag == 1
     }
-    fn value_is_boolean<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_boolean<'js>(val: &Self::Value<'js>) -> bool {
         val.tag == 2 || val.tag == 3
     }
-    fn value_is_number<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_number<'js>(val: &Self::Value<'js>) -> bool {
         val.tag >= 4
     }
-    fn value_is_string<'rt>(_val: &Self::Value<'rt>) -> bool {
+    fn value_is_string<'js>(_val: &Self::Value<'js>) -> bool {
         false
     }
-    fn value_is_object<'rt>(_val: &Self::Value<'rt>) -> bool {
+    fn value_is_object<'js>(_val: &Self::Value<'js>) -> bool {
         false
     }
-    fn value_is_function<'rt>(_val: &Self::Value<'rt>) -> bool {
+    fn value_is_function<'js>(_val: &Self::Value<'js>) -> bool {
         false
     }
-    fn value_is_array<'rt>(_val: &Self::Value<'rt>) -> bool {
+    fn value_is_array<'js>(_val: &Self::Value<'js>) -> bool {
         false
     }
-    fn value_is_symbol<'rt>(_val: &Self::Value<'rt>) -> bool {
+    fn value_is_symbol<'js>(_val: &Self::Value<'js>) -> bool {
         false
     }
-    fn value_is_bigint<'rt>(_val: &Self::Value<'rt>) -> bool {
+    fn value_is_bigint<'js>(_val: &Self::Value<'js>) -> bool {
         false
     }
 
-    fn make_undefined<'rt>(_cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_undefined<'js>(_cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         MockValue::UNDEFINED
     }
-    fn make_null<'rt>(_cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_null<'js>(_cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         MockValue::NULL
     }
-    fn make_bool<'rt>(_cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
+    fn make_bool<'js>(_cx: &mut Self::Context<'js>, v: bool) -> Self::Value<'js> {
         if v { MockValue::TRUE } else { MockValue::FALSE }
     }
-    fn make_i32<'rt>(_cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
+    fn make_i32<'js>(_cx: &mut Self::Context<'js>, v: i32) -> Self::Value<'js> {
         MockValue::number(v.unsigned_abs())
     }
-    fn make_f64<'rt>(_cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
+    fn make_f64<'js>(_cx: &mut Self::Context<'js>, v: f64) -> Self::Value<'js> {
         MockValue::number(v as u32)
     }
-    fn make_string<'rt>(_cx: &mut Self::Context<'rt>, _s: &str) -> Result<Self::Value<'rt>> {
+    fn make_string<'js>(_cx: &mut Self::Context<'js>, _s: &str) -> Result<Self::Value<'js>> {
         Ok(MockValue::UNDEFINED)
     }
 
-    fn value_as_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
+    fn value_as_bool<'js>(val: &Self::Value<'js>) -> Option<bool> {
         match val.tag {
             2 => Some(false),
             3 => Some(true),
@@ -318,7 +318,7 @@ impl Engine for MockEngine {
         }
     }
 
-    fn value_to_bool<'rt>(_cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+    fn value_to_bool<'js>(_cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> bool {
         match val.tag {
             0 | 1 | 2 => false,
             3 => true,
@@ -327,7 +327,7 @@ impl Engine for MockEngine {
         }
     }
 
-    fn value_to_f64<'rt>(_cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
+    fn value_to_f64<'js>(_cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> Result<f64> {
         if val.tag >= 4 {
             Ok((val.tag - 4) as f64)
         } else {
@@ -335,32 +335,32 @@ impl Engine for MockEngine {
         }
     }
 
-    fn value_to_string<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        _val: &Self::Value<'rt>,
+    fn value_to_string<'js>(
+        _cx: &mut Self::Context<'js>,
+        _val: &Self::Value<'js>,
     ) -> Result<String> {
         Ok(String::from("mock"))
     }
 
-    fn object_to_value<'rt>(_obj: Self::Object<'rt>) -> Self::Value<'rt> {
+    fn object_to_value<'js>(_obj: Self::Object<'js>) -> Self::Value<'js> {
         MockValue::UNDEFINED
     }
-    fn value_as_object<'rt>(_val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
+    fn value_as_object<'js>(_val: Self::Value<'js>) -> Option<Self::Object<'js>> {
         None
     }
-    fn function_to_value<'rt>(_f: Self::Function<'rt>) -> Self::Value<'rt> {
+    fn function_to_value<'js>(_f: Self::Function<'js>) -> Self::Value<'js> {
         MockValue::UNDEFINED
     }
-    fn value_as_function<'rt>(_val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
+    fn value_as_function<'js>(_val: Self::Value<'js>) -> Option<Self::Function<'js>> {
         None
     }
-    fn function_to_object<'rt>(_f: Self::Function<'rt>) -> Self::Object<'rt> {
+    fn function_to_object<'js>(_f: Self::Function<'js>) -> Self::Object<'js> {
         MockObject::new()
     }
 
-    fn persist_value<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: Self::Value<'rt>,
+    fn persist_value<'js>(
+        cx: &mut Self::Context<'js>,
+        val: Self::Value<'js>,
     ) -> Self::PersistentValue {
         assert!(
             !cx.runtime.is_null(),
@@ -380,10 +380,10 @@ impl Engine for MockEngine {
         }
     }
 
-    fn restore_value<'rt>(
-        cx: &mut Self::Context<'rt>,
+    fn restore_value<'js>(
+        cx: &mut Self::Context<'js>,
         persisted: &Self::PersistentValue,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         assert!(
             !cx.runtime.is_null(),
             "MockEngine::restore_value requires a MockRuntime-backed Context (use Runtime::with_scope)"
@@ -401,11 +401,11 @@ impl Engine for MockEngine {
         })
     }
 
-    fn make_function<'rt, F>(
-        _cx: &mut Self::Context<'rt>,
+    fn make_function<'js, F>(
+        _cx: &mut Self::Context<'js>,
         _name: &str,
         _func: F,
-    ) -> Result<Self::Function<'rt>>
+    ) -> Result<Self::Function<'js>>
     where
         F: crate::args::RawHostFn<Self> + 'static,
     {
@@ -414,10 +414,10 @@ impl Engine for MockEngine {
 }
 
 impl NativeStateSupport for MockEngine {
-    fn object_create_with_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
+    fn object_create_with_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
         state: S,
-    ) -> Result<Object<'cx, Self>> {
+    ) -> Result<Object<'js, Self>> {
         let mcx = crate::__cx::context_mut(cx);
         if mcx.runtime.is_null() {
             return Err(Error::type_err(
@@ -438,10 +438,10 @@ impl NativeStateSupport for MockEngine {
         }))
     }
 
-    fn object_get_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &Object<'cx, Self>,
-    ) -> Option<&'cx S> {
+    fn object_get_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &Object<'js, Self>,
+    ) -> Option<&'js S> {
         let mcx = crate::__cx::context_mut(cx);
         if mcx.runtime.is_null() {
             return None;
@@ -450,13 +450,13 @@ impl NativeStateSupport for MockEngine {
         let id = obj.as_raw().id;
         let slot = rt.native_states.get(&id)?;
         let r = slot.inner.downcast_ref::<S>()?;
-        Some(unsafe { mem::transmute::<&S, &'cx S>(r) })
+        Some(unsafe { mem::transmute::<&S, &'js S>(r) })
     }
 
-    fn object_get_state_mut<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &mut Object<'cx, Self>,
-    ) -> Option<&'cx mut S> {
+    fn object_get_state_mut<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &mut Object<'js, Self>,
+    ) -> Option<&'js mut S> {
         let mcx = crate::__cx::context_mut(cx);
         if mcx.runtime.is_null() {
             return None;
@@ -465,6 +465,6 @@ impl NativeStateSupport for MockEngine {
         let id = obj.as_raw().id;
         let slot = rt.native_states.get_mut(&id)?;
         let r = slot.inner.downcast_mut::<S>()?;
-        Some(unsafe { mem::transmute::<&mut S, &'cx mut S>(r) })
+        Some(unsafe { mem::transmute::<&mut S, &'js mut S>(r) })
     }
 }

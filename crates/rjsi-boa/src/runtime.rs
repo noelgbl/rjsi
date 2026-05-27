@@ -49,7 +49,7 @@ impl Default for BoaRuntime {
 }
 
 impl Runtime<BoaEngine> for BoaRuntime {
-    fn with_scope<R>(&mut self, f: impl for<'rt> FnOnce(&mut Context<'rt, BoaEngine>) -> R) -> R {
+    fn with_scope<R>(&mut self, f: impl for<'js> FnOnce(&mut Context<'js, BoaEngine>) -> R) -> R {
         let runtime_ptr = self as *mut _;
         let wrapper = crate::engine::BoaContext {
             inner: &mut self.context,
@@ -68,8 +68,8 @@ impl Runtime<BoaEngine> for BoaRuntime {
     }
 }
 
-pub(crate) fn prepared_key<'cx>(
-    cx: &mut crate::engine::BoaContext<'cx>,
+pub(crate) fn prepared_key<'js>(
+    cx: &mut crate::engine::BoaContext<'js>,
     key: &PreparedKey<BoaEngine>,
 ) -> Result<JsString> {
     if cx.runtime.is_null() {

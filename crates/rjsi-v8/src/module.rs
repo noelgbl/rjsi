@@ -323,11 +323,11 @@ impl rjsi_core::capabilities::Modules for V8Engine {
         Ok(())
     }
 
-    fn module_evaluate<'rt>(
-        cx: &mut Context<'rt, Self>,
+    fn module_evaluate<'js>(
+        cx: &mut Context<'js, Self>,
         name: &str,
         src: &str,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         {
@@ -351,10 +351,10 @@ impl rjsi_core::capabilities::Modules for V8Engine {
         Ok(unsafe { cast_local(obj) })
     }
 
-    fn module_import<'rt>(
-        cx: &mut Context<'rt, Self>,
+    fn module_import<'js>(
+        cx: &mut Context<'js, Self>,
         specifier: &str,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         {

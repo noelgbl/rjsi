@@ -7,10 +7,10 @@ use rjsi_core::{
 use crate::engine::{V8Engine, cast_local, get_scope};
 
 impl NativeStateSupport for V8Engine {
-    fn object_create_with_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
+    fn object_create_with_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
         state: S,
-    ) -> Result<Object<'cx, Self>> {
+    ) -> Result<Object<'js, Self>> {
         let v8_cx = __cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let runtime_ptr = v8_cx.runtime;
@@ -54,10 +54,10 @@ impl NativeStateSupport for V8Engine {
         Ok(Object::new(unsafe { cast_local(obj) }))
     }
 
-    fn object_get_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &Object<'cx, Self>,
-    ) -> Option<&'cx S> {
+    fn object_get_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &Object<'js, Self>,
+    ) -> Option<&'js S> {
         let v8_cx = __cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let field = obj.as_raw().get_internal_field(scope, 0)?;
@@ -71,13 +71,13 @@ impl NativeStateSupport for V8Engine {
             return None;
         }
         let tagged = unsafe { &*p.cast::<TaggedNativeState<S>>() };
-        Some(unsafe { std::mem::transmute::<&S, &'cx S>(&tagged.value) })
+        Some(unsafe { std::mem::transmute::<&S, &'js S>(&tagged.value) })
     }
 
-    fn object_get_state_mut<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
-        obj: &mut Object<'cx, Self>,
-    ) -> Option<&'cx mut S> {
+    fn object_get_state_mut<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
+        obj: &mut Object<'js, Self>,
+    ) -> Option<&'js mut S> {
         let v8_cx = __cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let field = obj.as_raw().get_internal_field(scope, 0)?;
@@ -91,6 +91,6 @@ impl NativeStateSupport for V8Engine {
             return None;
         }
         let tagged = unsafe { &mut *p.cast::<TaggedNativeState<S>>() };
-        Some(unsafe { std::mem::transmute::<&mut S, &'cx mut S>(&mut tagged.value) })
+        Some(unsafe { std::mem::transmute::<&mut S, &'js mut S>(&mut tagged.value) })
     }
 }

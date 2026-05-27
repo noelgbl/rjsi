@@ -179,9 +179,9 @@ unsafe extern "C" fn ctor_finalize(object: jsc::JSObjectRef) {
 }
 
 impl ClassSupport for JscEngine {
-    fn class_register<'rt, C: JsClass<Self>>(
-        cx: &mut Context<'rt, Self>,
-    ) -> Result<Function<'rt, Self>> {
+    fn class_register<'js, C: JsClass<Self>>(
+        cx: &mut Context<'js, Self>,
+    ) -> Result<Function<'js, Self>> {
         let jsc_cx = __cx::context_mut(cx);
         let ctx = jsc_cx.ctx;
 

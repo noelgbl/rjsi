@@ -1,4 +1,4 @@
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn main() {
     println!("cargo:rustc-link-lib=framework=JavaScriptCore");
 }
@@ -26,7 +26,7 @@ fn main() {
     panic!("libjavascriptcoregtk-4.0, 4.1 or 3.0 must be installed.");
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux")))]
 fn main() {
-    panic!("Only macOS and Linux are supported currently.");
+    panic!("Only macOS, iOS, and Linux are supported currently.");
 }

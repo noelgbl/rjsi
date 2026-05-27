@@ -1,18 +1,24 @@
 use core::iter::FusedIterator;
+use std::marker::PhantomData;
 
+use crate::markers::Invariant;
 use crate::{Context, Engine, Result, Value};
 
 #[repr(transparent)]
-pub struct Args<'cx, E: Engine> {
-    raw: E::RawArgs<'cx>,
+pub struct Args<'js, E: Engine> {
+    raw: E::RawArgs<'js>,
+    _inv: PhantomData<Invariant<'js>>,
 }
 
-impl<'cx, E: Engine> Args<'cx, E> {
-    pub fn new(raw: E::RawArgs<'cx>) -> Self {
-        Self { raw }
+impl<'js, E: Engine> Args<'js, E> {
+    pub fn new(raw: E::RawArgs<'js>) -> Self {
+        Self {
+            raw,
+            _inv: PhantomData,
+        }
     }
 
-    pub fn as_raw(&self) -> &E::RawArgs<'cx> {
+    pub fn as_raw(&self) -> &E::RawArgs<'js> {
         &self.raw
     }
 
@@ -24,11 +30,11 @@ impl<'cx, E: Engine> Args<'cx, E> {
         self.len() == 0
     }
 
-    pub fn get(&self, index: usize) -> Option<Value<'cx, E>> {
+    pub fn get(&self, index: usize) -> Option<Value<'js, E>> {
         E::raw_args_get(&self.raw, index).map(Value::new)
     }
 
-    pub fn iter(&self) -> ArgsIter<'_, 'cx, E> {
+    pub fn iter(&self) -> ArgsIter<'_, 'js, E> {
         ArgsIter {
             raw: &self.raw,
             start: 0,
@@ -36,7 +42,7 @@ impl<'cx, E: Engine> Args<'cx, E> {
         }
     }
 
-    pub fn rest_from(&self, start: usize) -> ArgSlice<'_, 'cx, E> {
+    pub fn rest_from(&self, start: usize) -> ArgSlice<'_, 'js, E> {
         let end = E::raw_args_len(&self.raw);
         ArgSlice {
             raw: &self.raw,
@@ -46,14 +52,14 @@ impl<'cx, E: Engine> Args<'cx, E> {
     }
 }
 
-pub struct ArgsIter<'a, 'cx, E: Engine> {
-    raw: &'a E::RawArgs<'cx>,
+pub struct ArgsIter<'a, 'js, E: Engine> {
+    raw: &'a E::RawArgs<'js>,
     start: usize,
     end: usize,
 }
 
-impl<'a, 'cx, E: Engine> Iterator for ArgsIter<'a, 'cx, E> {
-    type Item = E::Value<'cx>;
+impl<'a, 'js, E: Engine> Iterator for ArgsIter<'a, 'js, E> {
+    type Item = E::Value<'js>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start >= self.end {
@@ -70,13 +76,13 @@ impl<'a, 'cx, E: Engine> Iterator for ArgsIter<'a, 'cx, E> {
     }
 }
 
-impl<'a, 'cx, E: Engine> ExactSizeIterator for ArgsIter<'a, 'cx, E> {
+impl<'a, 'js, E: Engine> ExactSizeIterator for ArgsIter<'a, 'js, E> {
     fn len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
 }
 
-impl<'a, 'cx, E: Engine> DoubleEndedIterator for ArgsIter<'a, 'cx, E> {
+impl<'a, 'js, E: Engine> DoubleEndedIterator for ArgsIter<'a, 'js, E> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start >= self.end {
             return None;
@@ -86,24 +92,24 @@ impl<'a, 'cx, E: Engine> DoubleEndedIterator for ArgsIter<'a, 'cx, E> {
     }
 }
 
-impl<'a, 'cx, E: Engine> FusedIterator for ArgsIter<'a, 'cx, E> {}
+impl<'a, 'js, E: Engine> FusedIterator for ArgsIter<'a, 'js, E> {}
 
-impl<'a, 'cx, E: Engine> IntoIterator for &'a Args<'cx, E> {
-    type Item = E::Value<'cx>;
-    type IntoIter = ArgsIter<'a, 'cx, E>;
+impl<'a, 'js, E: Engine> IntoIterator for &'a Args<'js, E> {
+    type Item = E::Value<'js>;
+    type IntoIter = ArgsIter<'a, 'js, E>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-pub struct ArgSlice<'a, 'cx, E: Engine> {
-    raw: &'a E::RawArgs<'cx>,
+pub struct ArgSlice<'a, 'js, E: Engine> {
+    raw: &'a E::RawArgs<'js>,
     start: usize,
     end: usize,
 }
 
-impl<'a, 'cx, E: Engine> ArgSlice<'a, 'cx, E> {
+impl<'a, 'js, E: Engine> ArgSlice<'a, 'js, E> {
     pub fn len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
@@ -112,12 +118,12 @@ impl<'a, 'cx, E: Engine> ArgSlice<'a, 'cx, E> {
         self.len() == 0
     }
 
-    pub fn get(&self, index: usize) -> Option<Value<'cx, E>> {
+    pub fn get(&self, index: usize) -> Option<Value<'js, E>> {
         let abs = self.start.checked_add(index).filter(|&i| i < self.end)?;
         E::raw_args_get(self.raw, abs).map(Value::new)
     }
 
-    pub fn iter(&self) -> ArgsIter<'_, 'cx, E> {
+    pub fn iter(&self) -> ArgsIter<'_, 'js, E> {
         ArgsIter {
             raw: self.raw,
             start: self.start,
@@ -126,9 +132,9 @@ impl<'a, 'cx, E: Engine> ArgSlice<'a, 'cx, E> {
     }
 }
 
-impl<'a, 'cx, E: Engine> IntoIterator for ArgSlice<'a, 'cx, E> {
-    type Item = E::Value<'cx>;
-    type IntoIter = ArgsIter<'a, 'cx, E>;
+impl<'a, 'js, E: Engine> IntoIterator for ArgSlice<'a, 'js, E> {
+    type Item = E::Value<'js>;
+    type IntoIter = ArgsIter<'a, 'js, E>;
 
     fn into_iter(self) -> Self::IntoIter {
         ArgsIter {
@@ -139,9 +145,9 @@ impl<'a, 'cx, E: Engine> IntoIterator for ArgSlice<'a, 'cx, E> {
     }
 }
 
-impl<'b, 'a, 'cx, E: Engine> IntoIterator for &'b ArgSlice<'a, 'cx, E> {
-    type Item = E::Value<'cx>;
-    type IntoIter = ArgsIter<'b, 'cx, E>;
+impl<'b, 'a, 'js, E: Engine> IntoIterator for &'b ArgSlice<'a, 'js, E> {
+    type Item = E::Value<'js>;
+    type IntoIter = ArgsIter<'b, 'js, E>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -149,24 +155,24 @@ impl<'b, 'a, 'cx, E: Engine> IntoIterator for &'b ArgSlice<'a, 'cx, E> {
 }
 
 pub trait RawHostFn<E: Engine> {
-    fn call<'rt>(
+    fn call<'js>(
         &mut self,
-        cx: &mut Context<'rt, E>,
-        this: Value<'rt, E>,
-        args: Args<'rt, E>,
-    ) -> Result<Value<'rt, E>>;
+        cx: &mut Context<'js, E>,
+        this: Value<'js, E>,
+        args: Args<'js, E>,
+    ) -> Result<Value<'js, E>>;
 }
 
 impl<E: Engine, F> RawHostFn<E> for F
 where
-    F: for<'rt> FnMut(&mut Context<'rt, E>, Value<'rt, E>, Args<'rt, E>) -> Result<Value<'rt, E>>,
+    F: for<'js> FnMut(&mut Context<'js, E>, Value<'js, E>, Args<'js, E>) -> Result<Value<'js, E>>,
 {
-    fn call<'rt>(
+    fn call<'js>(
         &mut self,
-        cx: &mut Context<'rt, E>,
-        this: Value<'rt, E>,
-        args: Args<'rt, E>,
-    ) -> Result<Value<'rt, E>> {
+        cx: &mut Context<'js, E>,
+        this: Value<'js, E>,
+        args: Args<'js, E>,
+    ) -> Result<Value<'js, E>> {
         self(cx, this, args)
     }
 }

@@ -20,7 +20,7 @@ pub struct QuickJsArgs<'js> {
     pub(crate) argv: Vec<Value<'js>>,
 }
 
-pub(crate) fn map_err<'rt, T>(_cx: &QuickJsContext<'rt>, res: rquickjs::Result<T>) -> Result<T> {
+pub(crate) fn map_err<'js, T>(_cx: &QuickJsContext<'js>, res: rquickjs::Result<T>) -> Result<T> {
     match res {
         Ok(v) => Ok(v),
         Err(QError::Exception) => Err(Error::Exception),
@@ -30,96 +30,96 @@ pub(crate) fn map_err<'rt, T>(_cx: &QuickJsContext<'rt>, res: rquickjs::Result<T
 
 impl Engine for QuickJsEngine {
     type Runtime = crate::runtime::QuickJsRuntime;
-    type Context<'rt> = QuickJsContext<'rt>;
-    type Value<'cx> = Value<'cx>;
-    type Object<'cx> = Object<'cx>;
-    type Function<'cx> = Function<'cx>;
-    type String<'cx> = QString<'cx>;
-    type Symbol<'cx> = QSymbol<'cx>;
-    type Key<'cx> = Atom<'cx>;
+    type Context<'js> = QuickJsContext<'js>;
+    type Value<'js> = Value<'js>;
+    type Object<'js> = Object<'js>;
+    type Function<'js> = Function<'js>;
+    type String<'js> = QString<'js>;
+    type Symbol<'js> = QSymbol<'js>;
+    type Key<'js> = Atom<'js>;
     type PreparedKeyData = crate::runtime::QuickJsPreparedKeyData;
-    type RawArgs<'cx> = QuickJsArgs<'cx>;
+    type RawArgs<'js> = QuickJsArgs<'js>;
     type PersistentValue = rquickjs::Persistent<rquickjs::Value<'static>>;
     const ENGINE_NAME: &str = "QuickJS";
 
-    fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+    fn enter<'js>(_runtime: &'js mut Self::Runtime) -> Self::Context<'js> {
         unreachable!("Use Runtime::with_scope instead for QuickJS")
     }
 
-    fn raw_args_len<'rt>(args: &Self::RawArgs<'rt>) -> usize {
+    fn raw_args_len<'js>(args: &Self::RawArgs<'js>) -> usize {
         args.argv.len()
     }
 
-    fn raw_args_get<'rt>(args: &Self::RawArgs<'rt>, index: usize) -> Option<Self::Value<'rt>> {
+    fn raw_args_get<'js>(args: &Self::RawArgs<'js>, index: usize) -> Option<Self::Value<'js>> {
         args.argv.get(index).cloned()
     }
 
-    fn eval<'rt>(
-        cx: &mut Self::Context<'rt>,
+    fn eval<'js>(
+        cx: &mut Self::Context<'js>,
         src: &str,
         _filename: Option<&str>,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         let res: rquickjs::Result<Value<'_>> = cx.qctx.eval(src);
         map_err(cx, res)
     }
 
-    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
+    fn global_object<'js>(cx: &mut Self::Context<'js>) -> Self::Object<'js> {
         cx.qctx.globals()
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
+    fn object_new<'js>(cx: &mut Self::Context<'js>) -> Result<Self::Object<'js>> {
         let res = Object::new(cx.clone_ctx());
         map_err(cx, res)
     }
 
-    fn object_get<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
-    ) -> Result<Self::Value<'rt>> {
+    fn object_get<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
+    ) -> Result<Self::Value<'js>> {
         let res: rquickjs::Result<Value<'_>> = match key {
             PropertyKey::Str(s) => obj.get(s),
             PropertyKey::Prepared(k) => obj.get(crate::runtime::prepared_key(cx, &k)?),
-            PropertyKey::Symbol(s) => obj.get(s),
+            PropertyKey::Symbol(s) => obj.get(s.into_raw()),
             PropertyKey::Index(i) => obj.get(i),
         };
         map_err(cx, res)
     }
 
-    fn object_set<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
-        val: Self::Value<'rt>,
+    fn object_set<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
+        val: Self::Value<'js>,
     ) -> Result<()> {
         let val_local: Value<'_> = val;
         let res: rquickjs::Result<()> = match key {
             PropertyKey::Str(s) => obj.set(s, val_local),
             PropertyKey::Prepared(k) => obj.set(crate::runtime::prepared_key(cx, &k)?, val_local),
-            PropertyKey::Symbol(s) => obj.set(s, val_local),
+            PropertyKey::Symbol(s) => obj.set(s.into_raw(), val_local),
             PropertyKey::Index(i) => obj.set(i, val_local),
         };
         map_err(cx, res)
     }
 
-    fn object_has<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
+    fn object_has<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         let res: rquickjs::Result<bool> = match key {
             PropertyKey::Str(s) => obj.contains_key(s),
             PropertyKey::Prepared(k) => obj.contains_key(crate::runtime::prepared_key(cx, &k)?),
-            PropertyKey::Symbol(s) => obj.contains_key(s),
+            PropertyKey::Symbol(s) => obj.contains_key(s.into_raw()),
             PropertyKey::Index(i) => obj.contains_key(i),
         };
         map_err(cx, res)
     }
 
-    fn object_delete<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
+    fn object_delete<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         let res: rquickjs::Result<bool> = match key {
             PropertyKey::Str(s) => {
@@ -131,7 +131,7 @@ impl Engine for QuickJsEngine {
                 Ok(true)
             }
             PropertyKey::Symbol(s) => {
-                let _ = obj.remove(s);
+                let _ = obj.remove(s.into_raw());
                 Ok(true)
             }
             PropertyKey::Index(i) => {
@@ -142,12 +142,12 @@ impl Engine for QuickJsEngine {
         map_err(cx, res)
     }
 
-    fn function_call<'rt>(
-        cx: &mut Self::Context<'rt>,
-        func: &Self::Function<'rt>,
-        this: Self::Value<'rt>,
-        args: &[Self::Value<'rt>],
-    ) -> Result<Self::Value<'rt>> {
+    fn function_call<'js>(
+        cx: &mut Self::Context<'js>,
+        func: &Self::Function<'js>,
+        this: Self::Value<'js>,
+        args: &[Self::Value<'js>],
+    ) -> Result<Self::Value<'js>> {
         let func_local: Function<'_> = func.clone();
         let this_local: Value<'_> = this;
         let mut fargs = rquickjs::function::Args::new(cx.clone_ctx(), args.len());
@@ -159,123 +159,123 @@ impl Engine for QuickJsEngine {
         map_err(cx, res)
     }
 
-    fn value_is_undefined<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_undefined<'js>(val: &Self::Value<'js>) -> bool {
         val.is_undefined()
     }
-    fn value_is_null<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_null<'js>(val: &Self::Value<'js>) -> bool {
         val.is_null()
     }
-    fn value_is_boolean<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_boolean<'js>(val: &Self::Value<'js>) -> bool {
         val.is_bool()
     }
-    fn value_is_number<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_number<'js>(val: &Self::Value<'js>) -> bool {
         val.is_number()
     }
-    fn value_is_string<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_string<'js>(val: &Self::Value<'js>) -> bool {
         val.is_string()
     }
-    fn value_is_object<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_object<'js>(val: &Self::Value<'js>) -> bool {
         val.is_object()
     }
-    fn value_is_function<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_function<'js>(val: &Self::Value<'js>) -> bool {
         val.is_function()
     }
-    fn value_is_array<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_array<'js>(val: &Self::Value<'js>) -> bool {
         val.is_array()
     }
-    fn value_is_symbol<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_symbol<'js>(val: &Self::Value<'js>) -> bool {
         val.is_symbol()
     }
-    fn value_is_bigint<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_bigint<'js>(val: &Self::Value<'js>) -> bool {
         val.is_big_int()
     }
 
-    fn make_undefined<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_undefined<'js>(cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         Value::new_undefined(cx.clone_ctx())
     }
-    fn make_null<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_null<'js>(cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         Value::new_null(cx.clone_ctx())
     }
-    fn make_bool<'rt>(cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
+    fn make_bool<'js>(cx: &mut Self::Context<'js>, v: bool) -> Self::Value<'js> {
         Value::new_bool(cx.clone_ctx(), v)
     }
-    fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
+    fn make_i32<'js>(cx: &mut Self::Context<'js>, v: i32) -> Self::Value<'js> {
         Value::new_int(cx.clone_ctx(), v)
     }
-    fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
+    fn make_f64<'js>(cx: &mut Self::Context<'js>, v: f64) -> Self::Value<'js> {
         Value::new_float(cx.clone_ctx(), v)
     }
 
-    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
+    fn make_string<'js>(cx: &mut Self::Context<'js>, s: &str) -> Result<Self::Value<'js>> {
         let res = QString::from_str(cx.clone_ctx(), s).map(|s| s.into_value());
         map_err(cx, res)
     }
 
-    fn value_as_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
+    fn value_as_bool<'js>(val: &Self::Value<'js>) -> Option<bool> {
         val.as_bool()
     }
 
-    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+    fn value_to_bool<'js>(cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> bool {
         let res: rquickjs::Result<Coerced<bool>> = val.clone().get();
         map_err(cx, res.map(|c| *c)).unwrap_or(false)
     }
 
-    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
+    fn value_to_f64<'js>(cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> Result<f64> {
         let res: rquickjs::Result<f64> = val.clone().get();
         map_err(cx, res)
     }
 
-    fn value_to_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
+    fn value_to_string<'js>(
+        cx: &mut Self::Context<'js>,
+        val: &Self::Value<'js>,
     ) -> Result<std::string::String> {
         let s: rquickjs::Result<Coerced<std::string::String>> = val.clone().get();
         map_err(cx, s.map(|c| (*c).clone()))
     }
 
-    fn object_to_value<'rt>(obj: Self::Object<'rt>) -> Self::Value<'rt> {
+    fn object_to_value<'js>(obj: Self::Object<'js>) -> Self::Value<'js> {
         obj.into_value()
     }
-    fn value_as_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
+    fn value_as_object<'js>(val: Self::Value<'js>) -> Option<Self::Object<'js>> {
         val.into_object()
     }
-    fn function_to_value<'rt>(f: Self::Function<'rt>) -> Self::Value<'rt> {
+    fn function_to_value<'js>(f: Self::Function<'js>) -> Self::Value<'js> {
         f.into_value()
     }
-    fn value_as_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
+    fn value_as_function<'js>(val: Self::Value<'js>) -> Option<Self::Function<'js>> {
         val.into_function()
     }
-    fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> {
+    fn function_to_object<'js>(f: Self::Function<'js>) -> Self::Object<'js> {
         f.into_value().into_object().unwrap()
     }
 
-    fn persist_value<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: Self::Value<'rt>,
+    fn persist_value<'js>(
+        cx: &mut Self::Context<'js>,
+        val: Self::Value<'js>,
     ) -> Self::PersistentValue {
         rquickjs::Persistent::save(&cx.qctx, val)
     }
 
-    fn restore_value<'rt>(
-        cx: &mut Self::Context<'rt>,
+    fn restore_value<'js>(
+        cx: &mut Self::Context<'js>,
         persisted: &Self::PersistentValue,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         persisted
             .clone()
             .restore(&cx.qctx)
             .map_err(Error::from_host)
     }
 
-    fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
+    fn catch_exception<'js>(cx: &mut Self::Context<'js>) -> Option<Self::Value<'js>> {
         let val = cx.qctx.catch();
         if val.is_undefined() { None } else { Some(val) }
     }
 
-    fn make_function<'rt, F>(
-        cx: &mut Self::Context<'rt>,
+    fn make_function<'js, F>(
+        cx: &mut Self::Context<'js>,
         name: &str,
         func: F,
-    ) -> Result<Self::Function<'rt>>
+    ) -> Result<Self::Function<'js>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -325,9 +325,9 @@ impl Engine for QuickJsEngine {
 }
 
 impl rjsi_core::capabilities::Promises for QuickJsEngine {
-    fn promise_new<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> Result<(Self::Object<'rt>, Self::Object<'rt>)> {
+    fn promise_new<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+    ) -> Result<(Self::Object<'js>, Self::Object<'js>)> {
         let qctx = &rjsi_core::__cx::context_mut(cx).qctx;
         let (promise, resolve, reject) = qctx.promise().map_err(|e| Error::Host(Box::new(e)))?;
         let resolver_obj =
@@ -341,10 +341,10 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
         Ok((promise.into_value().into_object().unwrap(), resolver_obj))
     }
 
-    fn promise_resolve<'rt>(
-        _cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::Object<'rt>,
-        value: Self::Value<'rt>,
+    fn promise_resolve<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        resolver: Self::Object<'js>,
+        value: Self::Value<'js>,
     ) -> Result<()> {
         let resolve: rquickjs::Function = resolver
             .get("resolve")
@@ -355,10 +355,10 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
         Ok(())
     }
 
-    fn promise_reject<'rt>(
-        _cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::Object<'rt>,
-        reason: Self::Value<'rt>,
+    fn promise_reject<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        resolver: Self::Object<'js>,
+        reason: Self::Value<'js>,
     ) -> Result<()> {
         let reject: rquickjs::Function = resolver
             .get("reject")
@@ -369,9 +369,9 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
         Ok(())
     }
 
-    fn promise_state<'rt>(
-        _cx: &mut rjsi_core::Context<'rt, Self>,
-        promise: &Self::Object<'rt>,
+    fn promise_state<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        promise: &Self::Object<'js>,
     ) -> Result<rjsi_core::capabilities::PromiseState> {
         let p: rquickjs::Promise = promise
             .clone()
@@ -391,10 +391,10 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
         })
     }
 
-    fn promise_result<'rt>(
-        _cx: &mut rjsi_core::Context<'rt, Self>,
-        promise: &Self::Object<'rt>,
-    ) -> Result<Option<std::result::Result<Self::Value<'rt>, Self::Value<'rt>>>> {
+    fn promise_result<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        promise: &Self::Object<'js>,
+    ) -> Result<Option<std::result::Result<Self::Value<'js>, Self::Value<'js>>>> {
         let p: rquickjs::Promise = promise
             .clone()
             .into_value()
@@ -425,7 +425,7 @@ impl rjsi_core::capabilities::Promises for QuickJsEngine {
 }
 
 impl rjsi_core::capabilities::Microtasks for QuickJsEngine {
-    fn queue_microtask<'rt>(cx: &mut rjsi_core::Context<'rt, Self>, task: Self::Function<'rt>) {
+    fn queue_microtask<'js>(cx: &mut rjsi_core::Context<'js, Self>, task: Self::Function<'js>) {
         let qctx = &rjsi_core::__cx::context_mut(cx).qctx;
         let promise: rquickjs::Object = qctx.globals().get("Promise").unwrap();
         let resolve: rquickjs::Function = promise.get("resolve").unwrap();
@@ -436,7 +436,7 @@ impl rjsi_core::capabilities::Microtasks for QuickJsEngine {
         then.call::<_, ()>((task,)).unwrap();
     }
 
-    fn drain_microtasks<'rt>(cx: &mut rjsi_core::Context<'rt, Self>) {
+    fn drain_microtasks<'js>(cx: &mut rjsi_core::Context<'js, Self>) {
         let qctx = &rjsi_core::__cx::context_mut(cx).qctx;
         while qctx.execute_pending_job() {}
     }
@@ -496,22 +496,22 @@ fn typed_array_kind_to_qjs(
 }
 
 impl rjsi_core::capabilities::Buffers for QuickJsEngine {
-    fn value_is_array_buffer<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_array_buffer<'js>(val: &Self::Value<'js>) -> bool {
         unsafe { rquickjs_sys::JS_IsArrayBuffer(val.as_raw()) }
     }
 
-    fn value_typed_array_kind<'cx>(
-        val: &Self::Value<'cx>,
+    fn value_typed_array_kind<'js>(
+        val: &Self::Value<'js>,
     ) -> Option<rjsi_core::capabilities::TypedArrayKind> {
         qjs_typed_array_kind(val.as_raw())
     }
 
-    unsafe fn array_buffer_adopt<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
+    unsafe fn array_buffer_adopt<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
         ptr: *mut u8,
         len: usize,
         owner: rjsi_core::capabilities::BufferOwner,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let ctx = rjsi_core::__cx::context_mut(cx).clone_ctx();
         let ctx_ptr = ctx.as_raw().as_ptr();
         let opaque = Box::into_raw(Box::new(owner)) as *mut std::ffi::c_void;
@@ -531,10 +531,10 @@ impl rjsi_core::capabilities::Buffers for QuickJsEngine {
             .ok_or_else(|| Error::type_err("array_buffer_adopt: not an Object"))
     }
 
-    fn array_buffer_alloc<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
+    fn array_buffer_alloc<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
         len: usize,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let mut boxed: Box<[u8]> = vec![0u8; len].into_boxed_slice();
         let ptr = boxed.as_mut_ptr();
         let owner: rjsi_core::capabilities::BufferOwner = Box::new(boxed);
@@ -543,18 +543,18 @@ impl rjsi_core::capabilities::Buffers for QuickJsEngine {
         }
     }
 
-    fn typed_array_new<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
+    fn typed_array_new<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
         kind: rjsi_core::capabilities::TypedArrayKind,
-        buffer: Self::Object<'rt>,
+        buffer: Self::Object<'js>,
         byte_offset: usize,
         length: usize,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let ctx = rjsi_core::__cx::context_mut(cx).clone_ctx();
         let ctx_ptr = ctx.as_raw().as_ptr();
         let off_val = rquickjs::Value::new_float(ctx.clone(), byte_offset as f64);
         let len_val = rquickjs::Value::new_float(ctx.clone(), length as f64);
-        let buf_val: rquickjs::Value<'rt> = buffer.into_value();
+        let buf_val: rquickjs::Value<'js> = buffer.into_value();
         let mut argv: [rquickjs_sys::JSValue; 3] =
             [buf_val.as_raw(), off_val.as_raw(), len_val.as_raw()];
         let raw = unsafe {
@@ -574,9 +574,9 @@ impl rjsi_core::capabilities::Buffers for QuickJsEngine {
             .ok_or_else(|| Error::type_err("typed_array_new: not an Object"))
     }
 
-    fn array_buffer_byte_length<'cx>(
-        _cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn array_buffer_byte_length<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
     ) -> Result<usize> {
         let ctx_ptr = obj.ctx().as_raw().as_ptr();
         let mut size: rquickjs_sys::size_t = 0;
@@ -590,9 +590,9 @@ impl rjsi_core::capabilities::Buffers for QuickJsEngine {
         Ok(size as usize)
     }
 
-    fn typed_array_info<'cx>(
-        cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn typed_array_info<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
     ) -> Result<rjsi_core::capabilities::TypedArrayInfo> {
         let kind = qjs_typed_array_kind(obj.as_value().as_raw())
             .ok_or_else(|| Error::type_err("typed_array_info: not a TypedArray"))?;
@@ -629,10 +629,10 @@ impl rjsi_core::capabilities::Buffers for QuickJsEngine {
         })
     }
 
-    fn typed_array_buffer<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-        obj: &Self::Object<'rt>,
-    ) -> Result<Self::Object<'rt>> {
+    fn typed_array_buffer<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
+    ) -> Result<Self::Object<'js>> {
         let ctx = rjsi_core::__cx::context_mut(cx).clone_ctx();
         let ctx_ptr = ctx.as_raw().as_ptr();
         let raw = unsafe {
@@ -653,9 +653,9 @@ impl rjsi_core::capabilities::Buffers for QuickJsEngine {
             .ok_or_else(|| Error::type_err("typed_array_buffer: not an Object"))
     }
 
-    fn array_buffer_copy_to<'cx>(
-        _cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn array_buffer_copy_to<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
         dst: &mut [u8],
     ) -> Result<()> {
         let ctx_ptr = obj.ctx().as_raw().as_ptr();
@@ -677,9 +677,9 @@ impl rjsi_core::capabilities::Buffers for QuickJsEngine {
         Ok(())
     }
 
-    fn typed_array_copy_to<'cx>(
-        cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn typed_array_copy_to<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
         dst: &mut [u8],
     ) -> Result<()> {
         let ctx = rjsi_core::__cx::context_mut(cx).clone_ctx();

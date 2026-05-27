@@ -18,10 +18,10 @@ unsafe extern "C" fn tagged_native_state_finalizer<S>(data: *mut c_void) {
 }
 
 impl NativeStateSupport for HermesEngine {
-    fn object_create_with_state<'cx, S: NativeState>(
-        cx: &mut Context<'cx, Self>,
+    fn object_create_with_state<'js, S: NativeState>(
+        cx: &mut Context<'js, Self>,
         state: S,
-    ) -> Result<Object<'cx, Self>> {
+    ) -> Result<Object<'js, Self>> {
         let hermes_cx = __cx::context_mut(cx);
         let payload = Box::new(TaggedNativeState::new(state));
         let raw_ptr = Box::into_raw(payload).cast::<c_void>();
@@ -29,14 +29,14 @@ impl NativeStateSupport for HermesEngine {
         unsafe {
             o.set_native_state(raw_ptr, tagged_native_state_finalizer::<S>);
         }
-        let raw: HermesObject<'cx> = unsafe { mem::transmute(o) };
+        let raw: HermesObject<'js> = unsafe { mem::transmute(o) };
         Ok(Object::new(raw))
     }
 
-    fn object_get_state<'cx, S: NativeState>(
-        _cx: &mut Context<'cx, Self>,
-        obj: &Object<'cx, Self>,
-    ) -> Option<&'cx S> {
+    fn object_get_state<'js, S: NativeState>(
+        _cx: &mut Context<'js, Self>,
+        obj: &Object<'js, Self>,
+    ) -> Option<&'js S> {
         let o = obj.as_raw();
         if !o.has_native_state() {
             return None;
@@ -50,13 +50,13 @@ impl NativeStateSupport for HermesEngine {
             return None;
         }
         let payload = unsafe { &*p.cast::<TaggedNativeState<S>>() };
-        Some(unsafe { std::mem::transmute::<&S, &'cx S>(&payload.value) })
+        Some(unsafe { std::mem::transmute::<&S, &'js S>(&payload.value) })
     }
 
-    fn object_get_state_mut<'cx, S: NativeState>(
-        _cx: &mut Context<'cx, Self>,
-        obj: &mut Object<'cx, Self>,
-    ) -> Option<&'cx mut S> {
+    fn object_get_state_mut<'js, S: NativeState>(
+        _cx: &mut Context<'js, Self>,
+        obj: &mut Object<'js, Self>,
+    ) -> Option<&'js mut S> {
         let o = obj.as_raw();
         if !o.has_native_state() {
             return None;
@@ -70,6 +70,6 @@ impl NativeStateSupport for HermesEngine {
             return None;
         }
         let payload = unsafe { &mut *p.cast::<TaggedNativeState<S>>() };
-        Some(unsafe { std::mem::transmute::<&mut S, &'cx mut S>(&mut payload.value) })
+        Some(unsafe { std::mem::transmute::<&mut S, &'js mut S>(&mut payload.value) })
     }
 }

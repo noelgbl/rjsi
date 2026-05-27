@@ -3,6 +3,10 @@ name = "rjsi-core"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+futures = ["dep:tokio", "dep:futures"]
+
 [dependencies]
 anyhow.workspace = true
 tracing.workspace = true
@@ -10,3 +14,5 @@ thiserror.workspace = true
 smallvec.workspace = true
 bytes.workspace = true
 once_cell.workspace = true
+tokio = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }

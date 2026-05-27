@@ -7,11 +7,11 @@ fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {
     r.unwrap_or_else(|_| panic!("{msg}"))
 }
 
-fn conformance_sum_args<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn conformance_sum_args<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     let mut acc = 0.0f64;
     for i in 0..args.len() {
         let v = args.get(i).ok_or_else(|| Error::type_err("missing arg"))?;
@@ -20,11 +20,11 @@ fn conformance_sum_args<'rt, E: Engine>(
     Ok(cx.number(acc))
 }
 
-fn conformance_greet<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    _args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn conformance_greet<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    _args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     cx.string("hello")
 }
 
@@ -471,12 +471,12 @@ where
     }
 
     impl<E: Engine> rjsi_core::RawHostFn<E> for InstallPrepared<E> {
-        fn call<'rt>(
+        fn call<'js>(
             &mut self,
-            cx: &mut Context<'rt, E>,
-            _this: Value<'rt, E>,
-            _args: Args<'rt, E>,
-        ) -> Result<Value<'rt, E>> {
+            cx: &mut Context<'js, E>,
+            _this: Value<'js, E>,
+            _args: Args<'js, E>,
+        ) -> Result<Value<'js, E>> {
             let global = cx.globals();
             let value = cx.number(7.0);
             global.set(cx, &self.key, value)?;

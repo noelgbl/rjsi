@@ -10,13 +10,13 @@ impl<E, F, R> IntoJsFunc<E, ()> for F
 where
     E: Engine,
     F: Fn() -> R + 'static,
-    R: for<'cx> ToJs<'cx, E>,
+    R: for<'js> ToJs<'js, E>,
 {
     fn param_requirements() -> ParamRequirement {
         ParamRequirement::none()
     }
 
-    fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+    fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
         let mut acc = params.access();
         let r = (self)();
         r.to_js(acc.ctx())
@@ -30,16 +30,16 @@ macro_rules! impl_into_js_func {
         where
             E: Engine,
             F: Fn($($A),+) -> R + 'static,
-            ($($A,)+): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            ($($A,)+): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)+) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)+) = <($($A,)+) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)+) = <($($A,)+) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let r = (self)($($A),+);
                 r.to_js(acc.ctx())
             }
@@ -50,16 +50,16 @@ macro_rules! impl_into_js_func {
         where
             E: Engine,
             F: FnMut($($A),+) -> R + 'static,
-            ($($A,)+): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            ($($A,)+): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)+) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)+) = <($($A,)+) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)+) = <($($A,)+) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let mut lock = self
                     .0
                     .try_borrow_mut()
@@ -74,16 +74,16 @@ macro_rules! impl_into_js_func {
         where
             E: Engine,
             F: FnOnce($($A),+) -> R + 'static,
-            ($($A,)+): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            ($($A,)+): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)+) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)+) = <($($A,)+) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)+) = <($($A,)+) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let f = self
                     .0
                     .take()
@@ -97,17 +97,17 @@ macro_rules! impl_into_js_func {
         impl<E, F, R, $($A,)+> IntoJsFunc<E, WithCx<($($A,)+)>> for F
         where
             E: Engine,
-            F: for<'cx> Fn(&mut Context<'cx, E>, $($A),+) -> R + 'static,
-            ($($A,)+): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            F: for<'js> Fn(&mut Context<'js, E>, $($A),+) -> R + 'static,
+            ($($A,)+): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)+) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)+) = <($($A,)+) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)+) = <($($A,)+) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let r = (self)(acc.ctx(), $($A),+);
                 r.to_js(acc.ctx())
             }
@@ -117,17 +117,17 @@ macro_rules! impl_into_js_func {
         impl<E, F, R, $($A,)+> IntoJsFunc<E, WithCx<($($A,)+)>> for MutFn<F>
         where
             E: Engine,
-            F: for<'cx> FnMut(&mut Context<'cx, E>, $($A),+) -> R + 'static,
-            ($($A,)+): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            F: for<'js> FnMut(&mut Context<'js, E>, $($A),+) -> R + 'static,
+            ($($A,)+): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)+) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)+) = <($($A,)+) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)+) = <($($A,)+) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let mut lock = self
                     .0
                     .try_borrow_mut()
@@ -142,14 +142,14 @@ macro_rules! impl_into_js_func {
 impl<E, F, R> IntoJsFunc<E, WithCx<()>> for F
 where
     E: Engine,
-    F: for<'cx> Fn(&mut Context<'cx, E>) -> R + 'static,
-    R: for<'cx> ToJs<'cx, E>,
+    F: for<'js> Fn(&mut Context<'js, E>) -> R + 'static,
+    R: for<'js> ToJs<'js, E>,
 {
     fn param_requirements() -> ParamRequirement {
         ParamRequirement::none()
     }
 
-    fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+    fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
         let mut acc = params.access();
         let r = (self)(acc.ctx());
         r.to_js(acc.ctx())
@@ -159,14 +159,14 @@ where
 impl<E, F, R> IntoJsFunc<E, WithCx<()>> for MutFn<F>
 where
     E: Engine,
-    F: for<'cx> FnMut(&mut Context<'cx, E>) -> R + 'static,
-    R: for<'cx> ToJs<'cx, E>,
+    F: for<'js> FnMut(&mut Context<'js, E>) -> R + 'static,
+    R: for<'js> ToJs<'js, E>,
 {
     fn param_requirements() -> ParamRequirement {
         ParamRequirement::none()
     }
 
-    fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+    fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
         let mut acc = params.access();
         let mut lock = self
             .0
@@ -196,7 +196,7 @@ where
         F::param_requirements()
     }
 
-    fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+    fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
         self.0.call(params)
     }
 }
@@ -210,16 +210,16 @@ macro_rules! impl_this_state_into_js_func {
             E: Engine + NativeStateSupport,
             S: NativeState,
             F: for<'s> Fn(&'s mut S $(, $A)*) -> R + 'static,
-            ($($A,)*): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            ($($A,)*): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)*) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)*) = <($($A,)*) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)*) = <($($A,)*) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let this = acc.take_this()?;
                 let mut obj = this
                     .as_object()
@@ -239,16 +239,16 @@ macro_rules! impl_this_state_into_js_func {
             E: Engine + NativeStateSupport,
             S: NativeState,
             F: for<'s> Fn(&'s S $(, $A)*) -> R + 'static,
-            ($($A,)*): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            ($($A,)*): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)*) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)*) = <($($A,)*) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)*) = <($($A,)*) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let this = acc.take_this()?;
                 let obj = this
                     .as_object()
@@ -267,17 +267,17 @@ macro_rules! impl_this_state_into_js_func {
         where
             E: Engine + NativeStateSupport,
             S: NativeState,
-            F: for<'cx, 's> Fn(&mut Context<'cx, E>, &'s mut S $(, $A)*) -> R + 'static,
-            ($($A,)*): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            F: for<'js, 's> Fn(&mut Context<'js, E>, &'s mut S $(, $A)*) -> R + 'static,
+            ($($A,)*): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)*) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)*) = <($($A,)*) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)*) = <($($A,)*) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let this = acc.take_this()?;
                 let mut obj = this
                     .as_object()
@@ -296,17 +296,17 @@ macro_rules! impl_this_state_into_js_func {
         where
             E: Engine + NativeStateSupport,
             S: NativeState,
-            F: for<'cx, 's> Fn(&mut Context<'cx, E>, &'s S $(, $A)*) -> R + 'static,
-            ($($A,)*): for<'cx> FromParams<'cx, E>,
-            R: for<'cx> ToJs<'cx, E>,
+            F: for<'js, 's> Fn(&mut Context<'js, E>, &'s S $(, $A)*) -> R + 'static,
+            ($($A,)*): for<'js> FromParams<'js, E>,
+            R: for<'js> ToJs<'js, E>,
         {
             fn param_requirements() -> ParamRequirement {
                 <($($A,)*) as FromParams<'static, E>>::param_requirements()
             }
 
-            fn call<'a, 'cx>(&self, params: Params<'a, 'cx, E>) -> Result<Value<'cx, E>> {
+            fn call<'a, 'js>(&self, params: Params<'a, 'js, E>) -> Result<Value<'js, E>> {
                 let mut acc = params.access();
-                let ($($A,)*) = <($($A,)*) as FromParams<'cx, E>>::from_params(&mut acc)?;
+                let ($($A,)*) = <($($A,)*) as FromParams<'js, E>>::from_params(&mut acc)?;
                 let this = acc.take_this()?;
                 let obj = this
                     .as_object()

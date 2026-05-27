@@ -1,27 +1,35 @@
+use std::marker::PhantomData;
+
 use crate::Engine;
+use crate::markers::Invariant;
 
 #[repr(transparent)]
-pub struct JsString<'cx, E: Engine> {
-    pub(crate) raw: E::String<'cx>,
+pub struct JsString<'js, E: Engine> {
+    pub(crate) raw: E::String<'js>,
+    _inv: PhantomData<Invariant<'js>>,
 }
 
-impl<'cx, E: Engine> Clone for JsString<'cx, E>
+impl<'js, E: Engine> Clone for JsString<'js, E>
 where
-    E::String<'cx>: Clone,
+    E::String<'js>: Clone,
 {
     fn clone(&self) -> Self {
         Self {
             raw: self.raw.clone(),
+            _inv: PhantomData,
         }
     }
 }
 
-impl<'cx, E: Engine> JsString<'cx, E> {
-    pub fn new(raw: E::String<'cx>) -> Self {
-        Self { raw }
+impl<'js, E: Engine> JsString<'js, E> {
+    pub fn new(raw: E::String<'js>) -> Self {
+        Self {
+            raw,
+            _inv: PhantomData,
+        }
     }
 
-    pub fn as_raw(&self) -> &E::String<'cx> {
+    pub fn as_raw(&self) -> &E::String<'js> {
         &self.raw
     }
 }

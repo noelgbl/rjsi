@@ -1,32 +1,40 @@
+use std::marker::PhantomData;
+
 use crate::function::Function;
+use crate::markers::Invariant;
 use crate::{Context, Engine, Error, Object, Result};
 
 #[repr(transparent)]
-pub struct Value<'cx, E: Engine> {
-    pub(crate) raw: E::Value<'cx>,
+pub struct Value<'js, E: Engine> {
+    pub(crate) raw: E::Value<'js>,
+    _inv: PhantomData<Invariant<'js>>,
 }
 
-impl<'cx, E: Engine> Clone for Value<'cx, E>
+impl<'js, E: Engine> Clone for Value<'js, E>
 where
-    E::Value<'cx>: Clone,
+    E::Value<'js>: Clone,
 {
     fn clone(&self) -> Self {
         Self {
             raw: self.raw.clone(),
+            _inv: PhantomData,
         }
     }
 }
 
-impl<'cx, E: Engine> Value<'cx, E> {
-    pub fn new(raw: E::Value<'cx>) -> Self {
-        Self { raw }
+impl<'js, E: Engine> Value<'js, E> {
+    pub fn new(raw: E::Value<'js>) -> Self {
+        Self {
+            raw,
+            _inv: PhantomData,
+        }
     }
 
-    pub fn into_raw(self) -> E::Value<'cx> {
+    pub fn into_raw(self) -> E::Value<'js> {
         self.raw
     }
 
-    pub fn as_raw(&self) -> &E::Value<'cx> {
+    pub fn as_raw(&self) -> &E::Value<'js> {
         &self.raw
     }
 
@@ -78,31 +86,31 @@ impl<'cx, E: Engine> Value<'cx, E> {
         E::value_as_bool(&self.raw)
     }
 
-    pub fn as_i32(&self, cx: &mut Context<'cx, E>) -> Option<i32> {
+    pub fn as_i32(&self, cx: &mut Context<'js, E>) -> Option<i32> {
         E::value_as_f64(&mut cx.raw, &self.raw).map(|n| n as i32)
     }
 
-    pub fn as_f64(&self, cx: &mut Context<'cx, E>) -> Option<f64> {
+    pub fn as_f64(&self, cx: &mut Context<'js, E>) -> Option<f64> {
         E::value_as_f64(&mut cx.raw, &self.raw)
     }
 
-    pub fn as_string(&self, cx: &mut Context<'cx, E>) -> Option<String> {
+    pub fn as_string(&self, cx: &mut Context<'js, E>) -> Option<String> {
         E::value_as_string(&mut cx.raw, &self.raw)
     }
 
-    pub fn to_bool(&self, cx: &mut Context<'cx, E>) -> bool {
+    pub fn to_bool(&self, cx: &mut Context<'js, E>) -> bool {
         E::value_to_bool(&mut cx.raw, &self.raw)
     }
 
-    pub fn to_i32(&self, cx: &mut Context<'cx, E>) -> Result<i32> {
+    pub fn to_i32(&self, cx: &mut Context<'js, E>) -> Result<i32> {
         E::value_to_f64(&mut cx.raw, &self.raw).map(|n| n as i32)
     }
 
-    pub fn to_f64(&self, cx: &mut Context<'cx, E>) -> Result<f64> {
+    pub fn to_f64(&self, cx: &mut Context<'js, E>) -> Result<f64> {
         E::value_to_f64(&mut cx.raw, &self.raw)
     }
 
-    pub fn to_string(&self, cx: &mut Context<'cx, E>) -> Result<String> {
+    pub fn to_string(&self, cx: &mut Context<'js, E>) -> Result<String> {
         E::value_to_string(&mut cx.raw, &self.raw)
     }
 
@@ -111,35 +119,35 @@ impl<'cx, E: Engine> Value<'cx, E> {
             .ok_or_else(|| Error::type_err("expected boolean"))
     }
 
-    pub fn try_as_i32(&self, cx: &mut Context<'cx, E>) -> Result<i32> {
+    pub fn try_as_i32(&self, cx: &mut Context<'js, E>) -> Result<i32> {
         self.as_i32(cx)
             .ok_or_else(|| Error::type_err("expected number"))
     }
 
-    pub fn try_as_f64(&self, cx: &mut Context<'cx, E>) -> Result<f64> {
+    pub fn try_as_f64(&self, cx: &mut Context<'js, E>) -> Result<f64> {
         self.as_f64(cx)
             .ok_or_else(|| Error::type_err("expected number"))
     }
 
-    pub fn try_as_string(&self, cx: &mut Context<'cx, E>) -> Result<String> {
+    pub fn try_as_string(&self, cx: &mut Context<'js, E>) -> Result<String> {
         self.as_string(cx)
             .ok_or_else(|| Error::type_err("expected string"))
     }
 
-    pub fn as_object(self) -> Option<Object<'cx, E>> {
+    pub fn as_object(self) -> Option<Object<'js, E>> {
         E::value_as_object(self.raw).map(Object::new)
     }
 
-    pub fn as_function(self) -> Option<Function<'cx, E>> {
+    pub fn as_function(self) -> Option<Function<'js, E>> {
         E::value_as_function(self.raw).map(Function::new)
     }
 
-    pub fn try_as_object(self) -> Result<Object<'cx, E>> {
+    pub fn try_as_object(self) -> Result<Object<'js, E>> {
         self.as_object()
             .ok_or_else(|| Error::type_err("expected object"))
     }
 
-    pub fn try_as_function(self) -> Result<Function<'cx, E>> {
+    pub fn try_as_function(self) -> Result<Function<'js, E>> {
         self.as_function()
             .ok_or_else(|| Error::type_err("expected function"))
     }

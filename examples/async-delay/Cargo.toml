@@ -1,0 +1,16 @@
+[package]
+name = "example-async-delay"
+version = "0.1.0"
+edition = "2024"
+
+# Pick one engine, e.g. V8: `cargo run --no-default-features --features v8`
+[features]
+default = ["quickjs"]
+quickjs = ["rjsi/default-runtime-quickjs"]
+v8 = ["rjsi/default-runtime-v8"]
+boa = ["rjsi/default-runtime-boa"]
+jsc = ["rjsi/default-runtime-jsc"]
+
+[dependencies]
+rjsi = { path = "../../crates/rjsi", features = ["futures", "console"] }
+tokio = { workspace = true, features = ["time"] }

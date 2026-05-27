@@ -69,43 +69,47 @@ impl<E: Engine> std::hash::Hash for PreparedKey<E> {
     }
 }
 
-pub enum PropertyKey<'cx, E: Engine> {
-    Str(&'cx str),
+/// A key used to address an object property.
+///
+/// Carrying a [`crate::Symbol`] wrapper rather than the raw `E::Symbol<'js>`
+/// keeps the enum invariant in `'js` — see [`crate::markers::Invariant`].
+pub enum PropertyKey<'js, E: Engine> {
+    Str(&'js str),
     Prepared(PreparedKey<E>),
-    Symbol(E::Symbol<'cx>),
+    Symbol(crate::Symbol<'js, E>),
     Index(u32),
 }
 
-pub trait IntoKey<'cx, E: Engine> {
-    fn into_key(self) -> PropertyKey<'cx, E>;
+pub trait IntoKey<'js, E: Engine> {
+    fn into_key(self) -> PropertyKey<'js, E>;
 }
 
-impl<'cx, E: Engine> IntoKey<'cx, E> for PropertyKey<'cx, E> {
-    fn into_key(self) -> PropertyKey<'cx, E> {
+impl<'js, E: Engine> IntoKey<'js, E> for PropertyKey<'js, E> {
+    fn into_key(self) -> PropertyKey<'js, E> {
         self
     }
 }
 
-impl<'cx, E: Engine> IntoKey<'cx, E> for &'cx str {
-    fn into_key(self) -> PropertyKey<'cx, E> {
+impl<'js, E: Engine> IntoKey<'js, E> for &'js str {
+    fn into_key(self) -> PropertyKey<'js, E> {
         PropertyKey::Str(self)
     }
 }
 
-impl<'cx, E: Engine> IntoKey<'cx, E> for u32 {
-    fn into_key(self) -> PropertyKey<'cx, E> {
+impl<'js, E: Engine> IntoKey<'js, E> for u32 {
+    fn into_key(self) -> PropertyKey<'js, E> {
         PropertyKey::Index(self)
     }
 }
 
-impl<'cx, E: Engine> IntoKey<'cx, E> for PreparedKey<E> {
-    fn into_key(self) -> PropertyKey<'cx, E> {
+impl<'js, E: Engine> IntoKey<'js, E> for PreparedKey<E> {
+    fn into_key(self) -> PropertyKey<'js, E> {
         PropertyKey::Prepared(self)
     }
 }
 
-impl<'cx, E: Engine> IntoKey<'cx, E> for &PreparedKey<E> {
-    fn into_key(self) -> PropertyKey<'cx, E> {
+impl<'js, E: Engine> IntoKey<'js, E> for &PreparedKey<E> {
+    fn into_key(self) -> PropertyKey<'js, E> {
         PropertyKey::Prepared(self.clone())
     }
 }

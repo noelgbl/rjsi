@@ -5,56 +5,56 @@ use std::io::{IsTerminal, Write, stderr, stdout};
 use rjsi_core::{Args, Context, Engine, Result, Value};
 use rjsi_logging::{FormatOptions, NEWLINE, build_formatted_string};
 
-pub fn log_fatal<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+pub fn log_fatal<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     write_log(stderr(), cx, args)?;
     Ok(cx.undefined())
 }
 
-pub fn log_error<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+pub fn log_error<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     write_log(stderr(), cx, args)?;
     Ok(cx.undefined())
 }
 
-fn log_warn<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn log_warn<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     write_log(stderr(), cx, args)?;
     Ok(cx.undefined())
 }
 
-fn log_debug<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn log_debug<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     write_log(stdout(), cx, args)?;
     Ok(cx.undefined())
 }
 
-fn log_trace<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn log_trace<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     write_log(stdout(), cx, args)?;
     Ok(cx.undefined())
 }
 
-fn log_assert<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn log_assert<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     let expression = args.get(0).and_then(|v| v.as_bool()).unwrap_or(true);
 
     if expression {
@@ -64,28 +64,28 @@ fn log_assert<'rt, E: Engine>(
     Ok(cx.undefined())
 }
 
-fn log<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn log<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     write_log(stdout(), cx, args)?;
     Ok(cx.undefined())
 }
 
-fn clear<'rt, E: Engine>(
-    cx: &mut Context<'rt, E>,
-    _this: Value<'rt, E>,
-    _args: Args<'rt, E>,
-) -> Result<Value<'rt, E>> {
+fn clear<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    _args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
     let _ = stdout().write_all(b"\x1b[1;1H\x1b[0J");
     Ok(cx.undefined())
 }
 
-fn write_log<'rt, E: Engine, T>(
+fn write_log<'js, E: Engine, T>(
     mut output: T,
-    ctx: &mut Context<'rt, E>,
-    args: Args<'rt, E>,
+    ctx: &mut Context<'js, E>,
+    args: Args<'js, E>,
 ) -> Result<()>
 where
     T: Write + IsTerminal,
@@ -104,7 +104,7 @@ where
     Ok(())
 }
 
-pub fn init<'cx, E: Engine>(ctx: &mut Context<'cx, E>) -> Result<()> {
+pub fn init<'js, E: Engine>(ctx: &mut Context<'js, E>) -> Result<()> {
     let globals = ctx.globals();
 
     let console = ctx.new_object()?;

@@ -2,25 +2,25 @@ use rjsi_core::{Engine, Error, PropertyKey, Result};
 
 pub struct V8Engine;
 
-pub struct V8Context<'rt> {
+pub struct V8Context<'js> {
     pub(crate) scope: *mut std::ffi::c_void,
     pub(crate) runtime: *mut crate::runtime::V8Runtime,
     pub(crate) pending_exception: Option<v8::Global<v8::Value>>,
-    pub(crate) _phantom: std::marker::PhantomData<&'rt mut ()>,
+    pub(crate) _phantom: std::marker::PhantomData<&'js mut ()>,
 }
 
 pub(crate) struct V8RuntimePtrSlot(pub *mut crate::runtime::V8Runtime);
 unsafe impl Send for V8RuntimePtrSlot {}
 unsafe impl Sync for V8RuntimePtrSlot {}
 
-pub struct V8Args<'cx> {
+pub struct V8Args<'js> {
     pub(crate) args: *mut std::ffi::c_void,
-    pub(crate) _phantom: std::marker::PhantomData<&'cx ()>,
+    pub(crate) _phantom: std::marker::PhantomData<&'js ()>,
 }
 
-impl<'cx> V8Args<'cx> {
-    fn inner(&self) -> &v8::FunctionCallbackArguments<'cx> {
-        unsafe { &*(self.args as *const v8::FunctionCallbackArguments<'cx>) }
+impl<'js> V8Args<'js> {
+    fn inner(&self) -> &v8::FunctionCallbackArguments<'js> {
+        unsafe { &*(self.args as *const v8::FunctionCallbackArguments<'js>) }
     }
 }
 
@@ -100,26 +100,26 @@ impl Engine for V8Engine {
     const ENGINE_NAME: &str = "V8";
 
     type Runtime = crate::runtime::V8Runtime;
-    type Context<'rt> = V8Context<'rt>;
-    type Value<'cx> = v8::Local<'cx, v8::Value>;
-    type Object<'cx> = v8::Local<'cx, v8::Object>;
-    type Function<'cx> = v8::Local<'cx, v8::Function>;
-    type String<'cx> = v8::Local<'cx, v8::String>;
-    type Symbol<'cx> = v8::Local<'cx, v8::Symbol>;
-    type Key<'cx> = v8::Local<'cx, v8::Name>;
+    type Context<'js> = V8Context<'js>;
+    type Value<'js> = v8::Local<'js, v8::Value>;
+    type Object<'js> = v8::Local<'js, v8::Object>;
+    type Function<'js> = v8::Local<'js, v8::Function>;
+    type String<'js> = v8::Local<'js, v8::String>;
+    type Symbol<'js> = v8::Local<'js, v8::Symbol>;
+    type Key<'js> = v8::Local<'js, v8::Name>;
     type PreparedKeyData = v8::Global<v8::Name>;
-    type RawArgs<'cx> = V8Args<'cx>;
+    type RawArgs<'js> = V8Args<'js>;
     type PersistentValue = v8::Global<v8::Value>;
 
-    fn enter<'rt>(_runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+    fn enter<'js>(_runtime: &'js mut Self::Runtime) -> Self::Context<'js> {
         unreachable!("Use Runtime::with_scope instead for V8")
     }
 
-    fn raw_args_len<'rt>(args: &Self::RawArgs<'rt>) -> usize {
+    fn raw_args_len<'js>(args: &Self::RawArgs<'js>) -> usize {
         args.inner().length() as usize
     }
 
-    fn raw_args_get<'rt>(args: &Self::RawArgs<'rt>, index: usize) -> Option<Self::Value<'rt>> {
+    fn raw_args_get<'js>(args: &Self::RawArgs<'js>, index: usize) -> Option<Self::Value<'js>> {
         let i = index as i32;
         if i < args.inner().length() {
             Some(unsafe { cast_local(args.inner().get(i)) })
@@ -128,11 +128,11 @@ impl Engine for V8Engine {
         }
     }
 
-    fn eval<'rt>(
-        cx: &mut Self::Context<'rt>,
+    fn eval<'js>(
+        cx: &mut Self::Context<'js>,
         src: &str,
         filename: Option<&str>,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         let scope = unsafe { get_scope(cx) };
         let code = v8::String::new(scope, src).unwrap();
 
@@ -181,30 +181,30 @@ impl Engine for V8Engine {
         }
     }
 
-    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
+    fn global_object<'js>(cx: &mut Self::Context<'js>) -> Self::Object<'js> {
         let scope = unsafe { get_scope(cx) };
         let context = scope.get_current_context();
         let global = context.global(scope);
         unsafe { cast_local(global) }
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
+    fn object_new<'js>(cx: &mut Self::Context<'js>) -> Result<Self::Object<'js>> {
         let scope = unsafe { get_scope(cx) };
         let obj = v8::Object::new(scope);
         Ok(unsafe { cast_local(obj) })
     }
 
-    fn object_get<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
-    ) -> Result<Self::Value<'rt>> {
+    fn object_get<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
+    ) -> Result<Self::Value<'js>> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
             PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
-            PropertyKey::Symbol(s) => s.into(),
+            PropertyKey::Symbol(s) => s.into_raw().into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
 
@@ -222,18 +222,18 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_set<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
-        val: Self::Value<'rt>,
+    fn object_set<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
+        val: Self::Value<'js>,
     ) -> Result<()> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
             PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
-            PropertyKey::Symbol(s) => s.into(),
+            PropertyKey::Symbol(s) => s.into_raw().into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
 
@@ -253,17 +253,17 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_has<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
+    fn object_has<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
             PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
-            PropertyKey::Symbol(s) => s.into(),
+            PropertyKey::Symbol(s) => s.into_raw().into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
 
@@ -281,17 +281,17 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_delete<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
+    fn object_delete<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         let scope = unsafe { get_scope(cx) };
 
         let key_val: v8::Local<'_, v8::Value> = match key {
             PropertyKey::Str(s) => v8::String::new(scope, s).unwrap().into(),
             PropertyKey::Prepared(k) => crate::runtime::prepared_key(cx, &k)?.into(),
-            PropertyKey::Symbol(s) => s.into(),
+            PropertyKey::Symbol(s) => s.into_raw().into(),
             PropertyKey::Index(i) => v8::Integer::new(scope, i as i32).into(),
         };
 
@@ -311,12 +311,12 @@ impl Engine for V8Engine {
         }
     }
 
-    fn function_call<'rt>(
-        cx: &mut Self::Context<'rt>,
-        func: &Self::Function<'rt>,
-        this: Self::Value<'rt>,
-        args: &[Self::Value<'rt>],
-    ) -> Result<Self::Value<'rt>> {
+    fn function_call<'js>(
+        cx: &mut Self::Context<'js>,
+        func: &Self::Function<'js>,
+        this: Self::Value<'js>,
+        args: &[Self::Value<'js>],
+    ) -> Result<Self::Value<'js>> {
         let scope = unsafe { get_scope(cx) };
         let try_catch_obj = v8::TryCatch::new(scope);
         let try_catch_pin = std::pin::pin!(try_catch_obj);
@@ -333,59 +333,59 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_is_undefined<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_undefined<'js>(val: &Self::Value<'js>) -> bool {
         val.is_undefined()
     }
-    fn value_is_null<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_null<'js>(val: &Self::Value<'js>) -> bool {
         val.is_null()
     }
-    fn value_is_boolean<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_boolean<'js>(val: &Self::Value<'js>) -> bool {
         val.is_boolean()
     }
-    fn value_is_number<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_number<'js>(val: &Self::Value<'js>) -> bool {
         val.is_number()
     }
-    fn value_is_string<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_string<'js>(val: &Self::Value<'js>) -> bool {
         val.is_string()
     }
-    fn value_is_object<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_object<'js>(val: &Self::Value<'js>) -> bool {
         val.is_object()
     }
-    fn value_is_function<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_function<'js>(val: &Self::Value<'js>) -> bool {
         val.is_function()
     }
-    fn value_is_array<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_array<'js>(val: &Self::Value<'js>) -> bool {
         val.is_array()
     }
-    fn value_is_symbol<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_symbol<'js>(val: &Self::Value<'js>) -> bool {
         val.is_symbol()
     }
-    fn value_is_bigint<'rt>(val: &Self::Value<'rt>) -> bool {
+    fn value_is_bigint<'js>(val: &Self::Value<'js>) -> bool {
         val.is_big_int()
     }
 
-    fn make_undefined<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_undefined<'js>(cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::undefined(scope).into()) }
     }
-    fn make_null<'rt>(cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_null<'js>(cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::null(scope).into()) }
     }
-    fn make_bool<'rt>(cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
+    fn make_bool<'js>(cx: &mut Self::Context<'js>, v: bool) -> Self::Value<'js> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::Boolean::new(scope, v).into()) }
     }
-    fn make_i32<'rt>(cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
+    fn make_i32<'js>(cx: &mut Self::Context<'js>, v: i32) -> Self::Value<'js> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::Integer::new(scope, v).into()) }
     }
-    fn make_f64<'rt>(cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
+    fn make_f64<'js>(cx: &mut Self::Context<'js>, v: f64) -> Self::Value<'js> {
         let scope = unsafe { get_scope(cx) };
         unsafe { cast_local(v8::Number::new(scope, v).into()) }
     }
 
-    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
+    fn make_string<'js>(cx: &mut Self::Context<'js>, s: &str) -> Result<Self::Value<'js>> {
         let scope = unsafe { get_scope(cx) };
         if let Some(v) = v8::String::new(scope, s) {
             Ok(unsafe { cast_local(v.into()) })
@@ -394,11 +394,11 @@ impl Engine for V8Engine {
         }
     }
 
-    fn make_function<'rt, F>(
-        cx: &mut Self::Context<'rt>,
+    fn make_function<'js, F>(
+        cx: &mut Self::Context<'js>,
         name: &str,
         func: F,
-    ) -> Result<Self::Function<'rt>>
+    ) -> Result<Self::Function<'js>>
     where
         F: rjsi_core::RawHostFn<Self> + 'static,
     {
@@ -420,7 +420,7 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_as_bool<'rt>(val: &Self::Value<'rt>) -> Option<bool> {
+    fn value_as_bool<'js>(val: &Self::Value<'js>) -> Option<bool> {
         if val.is_boolean() {
             Some(val.is_true())
         } else {
@@ -428,12 +428,12 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+    fn value_to_bool<'js>(cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> bool {
         let scope = unsafe { get_scope(cx) };
         val.boolean_value(&**scope)
     }
 
-    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
+    fn value_to_f64<'js>(cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> Result<f64> {
         let scope = unsafe { get_scope(cx) };
         if let Some(num) = val.to_number(&mut **scope) {
             Ok(num.value())
@@ -442,9 +442,9 @@ impl Engine for V8Engine {
         }
     }
 
-    fn value_to_string<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: &Self::Value<'rt>,
+    fn value_to_string<'js>(
+        cx: &mut Self::Context<'js>,
+        val: &Self::Value<'js>,
     ) -> Result<std::string::String> {
         let scope = unsafe { get_scope(cx) };
         if let Some(str) = val.to_string(&mut **scope) {
@@ -455,55 +455,55 @@ impl Engine for V8Engine {
         }
     }
 
-    fn object_to_value<'rt>(obj: Self::Object<'rt>) -> Self::Value<'rt> {
+    fn object_to_value<'js>(obj: Self::Object<'js>) -> Self::Value<'js> {
         obj.into()
     }
 
-    fn value_as_object<'rt>(val: Self::Value<'rt>) -> Option<Self::Object<'rt>> {
+    fn value_as_object<'js>(val: Self::Value<'js>) -> Option<Self::Object<'js>> {
         val.try_into().ok()
     }
 
-    fn function_to_value<'rt>(f: Self::Function<'rt>) -> Self::Value<'rt> {
+    fn function_to_value<'js>(f: Self::Function<'js>) -> Self::Value<'js> {
         f.into()
     }
 
-    fn value_as_function<'rt>(val: Self::Value<'rt>) -> Option<Self::Function<'rt>> {
+    fn value_as_function<'js>(val: Self::Value<'js>) -> Option<Self::Function<'js>> {
         val.try_into().ok()
     }
 
-    fn function_to_object<'rt>(f: Self::Function<'rt>) -> Self::Object<'rt> {
+    fn function_to_object<'js>(f: Self::Function<'js>) -> Self::Object<'js> {
         f.into()
     }
 
-    fn catch_exception<'rt>(cx: &mut Self::Context<'rt>) -> Option<Self::Value<'rt>> {
+    fn catch_exception<'js>(cx: &mut Self::Context<'js>) -> Option<Self::Value<'js>> {
         let global = cx.pending_exception.take()?;
         let scope = unsafe { get_scope(cx) };
         let local = v8::Local::new(&mut **scope, global);
         Some(unsafe { cast_local(local) })
     }
 
-    fn persist_value<'rt>(
-        cx: &mut Self::Context<'rt>,
-        val: Self::Value<'rt>,
+    fn persist_value<'js>(
+        cx: &mut Self::Context<'js>,
+        val: Self::Value<'js>,
     ) -> Self::PersistentValue {
         let scope = unsafe { get_scope(cx) };
         let isolate: &mut v8::Isolate = &mut **scope;
         v8::Global::new(isolate, val)
     }
 
-    fn restore_value<'rt>(
-        cx: &mut Self::Context<'rt>,
+    fn restore_value<'js>(
+        cx: &mut Self::Context<'js>,
         persisted: &Self::PersistentValue,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         let scope = unsafe { get_scope(cx) };
         Ok(unsafe { cast_local(v8::Local::new(&mut **scope, persisted)) })
     }
 }
 
 impl rjsi_core::capabilities::Promises for V8Engine {
-    fn promise_new<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-    ) -> Result<(Self::Object<'rt>, Self::Object<'rt>)> {
+    fn promise_new<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+    ) -> Result<(Self::Object<'js>, Self::Object<'js>)> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         if let Some(resolver) = v8::PromiseResolver::new(scope) {
@@ -518,10 +518,10 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         }
     }
 
-    fn promise_resolve<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::Object<'rt>,
-        value: Self::Value<'rt>,
+    fn promise_resolve<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        resolver: Self::Object<'js>,
+        value: Self::Value<'js>,
     ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
@@ -535,10 +535,10 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         }
     }
 
-    fn promise_reject<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-        resolver: Self::Object<'rt>,
-        reason: Self::Value<'rt>,
+    fn promise_reject<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        resolver: Self::Object<'js>,
+        reason: Self::Value<'js>,
     ) -> Result<()> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
@@ -552,9 +552,9 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         }
     }
 
-    fn promise_state<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-        promise: &Self::Object<'rt>,
+    fn promise_state<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        promise: &Self::Object<'js>,
     ) -> Result<rjsi_core::capabilities::PromiseState> {
         let _ = cx;
         let promise: v8::Local<v8::Promise> = v8::Local::<v8::Promise>::try_from(*promise)
@@ -566,10 +566,10 @@ impl rjsi_core::capabilities::Promises for V8Engine {
         })
     }
 
-    fn promise_result<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-        promise: &Self::Object<'rt>,
-    ) -> Result<Option<std::result::Result<Self::Value<'rt>, Self::Value<'rt>>>> {
+    fn promise_result<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        promise: &Self::Object<'js>,
+    ) -> Result<Option<std::result::Result<Self::Value<'js>, Self::Value<'js>>>> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let promise: v8::Local<v8::Promise> = v8::Local::<v8::Promise>::try_from(*promise)
@@ -589,14 +589,14 @@ impl rjsi_core::capabilities::Promises for V8Engine {
 }
 
 impl rjsi_core::capabilities::Microtasks for V8Engine {
-    fn queue_microtask<'rt>(cx: &mut rjsi_core::Context<'rt, Self>, task: Self::Function<'rt>) {
+    fn queue_microtask<'js>(cx: &mut rjsi_core::Context<'js, Self>, task: Self::Function<'js>) {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let isolate: &mut v8::Isolate = &mut **scope;
         isolate.enqueue_microtask(task);
     }
 
-    fn drain_microtasks<'rt>(cx: &mut rjsi_core::Context<'rt, Self>) {
+    fn drain_microtasks<'js>(cx: &mut rjsi_core::Context<'js, Self>) {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let isolate: &mut v8::Isolate = &mut **scope;
@@ -646,22 +646,22 @@ fn v8_typed_array_kind(
 }
 
 impl rjsi_core::capabilities::Buffers for V8Engine {
-    fn value_is_array_buffer<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_array_buffer<'js>(val: &Self::Value<'js>) -> bool {
         val.is_array_buffer()
     }
 
-    fn value_typed_array_kind<'cx>(
-        val: &Self::Value<'cx>,
+    fn value_typed_array_kind<'js>(
+        val: &Self::Value<'js>,
     ) -> Option<rjsi_core::capabilities::TypedArrayKind> {
         v8_typed_array_kind(val)
     }
 
-    unsafe fn array_buffer_adopt<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
+    unsafe fn array_buffer_adopt<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
         ptr: *mut u8,
         len: usize,
         owner: rjsi_core::capabilities::BufferOwner,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let owner_ptr = Box::into_raw(Box::new(owner)) as *mut std::ffi::c_void;
@@ -679,10 +679,10 @@ impl rjsi_core::capabilities::Buffers for V8Engine {
         Ok(unsafe { cast_local(obj) })
     }
 
-    fn array_buffer_alloc<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
+    fn array_buffer_alloc<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
         len: usize,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let ab = v8::ArrayBuffer::new(scope, len);
@@ -690,13 +690,13 @@ impl rjsi_core::capabilities::Buffers for V8Engine {
         Ok(unsafe { cast_local(obj) })
     }
 
-    fn typed_array_new<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
+    fn typed_array_new<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
         kind: rjsi_core::capabilities::TypedArrayKind,
-        buffer: Self::Object<'rt>,
+        buffer: Self::Object<'js>,
         byte_offset: usize,
         length: usize,
-    ) -> Result<Self::Object<'rt>> {
+    ) -> Result<Self::Object<'js>> {
         use rjsi_core::capabilities::TypedArrayKind;
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
@@ -725,18 +725,18 @@ impl rjsi_core::capabilities::Buffers for V8Engine {
         }
     }
 
-    fn array_buffer_byte_length<'cx>(
-        _cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn array_buffer_byte_length<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
     ) -> Result<usize> {
         let ab: v8::Local<v8::ArrayBuffer> = v8::Local::<v8::ArrayBuffer>::try_from(*obj)
             .map_err(|_| Error::type_err("array_buffer_byte_length: not an ArrayBuffer"))?;
         Ok(ab.byte_length())
     }
 
-    fn typed_array_info<'cx>(
-        _cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn typed_array_info<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
     ) -> Result<rjsi_core::capabilities::TypedArrayInfo> {
         let val: v8::Local<v8::Value> = (*obj).into();
         let kind = v8_typed_array_kind(&val)
@@ -754,10 +754,10 @@ impl rjsi_core::capabilities::Buffers for V8Engine {
         })
     }
 
-    fn typed_array_buffer<'rt>(
-        cx: &mut rjsi_core::Context<'rt, Self>,
-        obj: &Self::Object<'rt>,
-    ) -> Result<Self::Object<'rt>> {
+    fn typed_array_buffer<'js>(
+        cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
+    ) -> Result<Self::Object<'js>> {
         let v8_cx = rjsi_core::__cx::context_mut(cx);
         let scope = unsafe { get_scope(v8_cx) };
         let view: v8::Local<v8::ArrayBufferView> = v8::Local::<v8::ArrayBufferView>::try_from(*obj)
@@ -769,9 +769,9 @@ impl rjsi_core::capabilities::Buffers for V8Engine {
         Ok(unsafe { cast_local(obj) })
     }
 
-    fn array_buffer_copy_to<'cx>(
-        _cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn array_buffer_copy_to<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
         dst: &mut [u8],
     ) -> Result<()> {
         let ab: v8::Local<v8::ArrayBuffer> = v8::Local::<v8::ArrayBuffer>::try_from(*obj)
@@ -792,9 +792,9 @@ impl rjsi_core::capabilities::Buffers for V8Engine {
         Ok(())
     }
 
-    fn typed_array_copy_to<'cx>(
-        _cx: &mut rjsi_core::Context<'cx, Self>,
-        obj: &Self::Object<'cx>,
+    fn typed_array_copy_to<'js>(
+        _cx: &mut rjsi_core::Context<'js, Self>,
+        obj: &Self::Object<'js>,
         dst: &mut [u8],
     ) -> Result<()> {
         let view: v8::Local<v8::ArrayBufferView> = v8::Local::<v8::ArrayBufferView>::try_from(*obj)

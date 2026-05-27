@@ -15,16 +15,16 @@ pub const HERMES_HOST_FUNCTION_MAX_ARGS: usize = 32;
 
 pub struct HermesEngine;
 
-pub struct HermesArgs<'rt> {
-    pub(crate) argv: Vec<Value<'rt>>,
+pub struct HermesArgs<'js> {
+    pub(crate) argv: Vec<Value<'js>>,
 }
 
-pub struct HermesContext<'rt> {
-    pub(crate) inner: &'rt mut Runtime,
+pub struct HermesContext<'js> {
+    pub(crate) inner: &'js mut Runtime,
     pub(crate) runtime: *mut crate::runtime::HermesRuntime,
 }
 
-impl<'rt> Deref for HermesContext<'rt> {
+impl<'js> Deref for HermesContext<'js> {
     type Target = Runtime;
 
     fn deref(&self) -> &Self::Target {
@@ -32,7 +32,7 @@ impl<'rt> Deref for HermesContext<'rt> {
     }
 }
 
-impl<'rt> DerefMut for HermesContext<'rt> {
+impl<'js> DerefMut for HermesContext<'js> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner
     }
@@ -45,16 +45,16 @@ pub(crate) fn runtime_ffi_ptr(rt: &Runtime) -> *mut HermesRt {
 }
 
 #[repr(C)]
-struct RawHermesValue<'rt> {
+struct RawHermesValue<'js> {
     raw: HermesValue,
     rt: *mut HermesRt,
-    _m: PhantomData<&'rt ()>,
+    _m: PhantomData<&'js ()>,
 }
 
 #[inline]
-pub(crate) unsafe fn value_from_hermes_raw<'rt>(rt: *mut HermesRt, raw: HermesValue) -> Value<'rt> {
-    debug_assert_eq!(size_of::<RawHermesValue<'rt>>(), size_of::<Value<'rt>>());
-    debug_assert_eq!(align_of::<RawHermesValue<'rt>>(), align_of::<Value<'rt>>());
+pub(crate) unsafe fn value_from_hermes_raw<'js>(rt: *mut HermesRt, raw: HermesValue) -> Value<'js> {
+    debug_assert_eq!(size_of::<RawHermesValue<'js>>(), size_of::<Value<'js>>());
+    debug_assert_eq!(align_of::<RawHermesValue<'js>>(), align_of::<Value<'js>>());
     unsafe {
         transmute(RawHermesValue {
             raw,
@@ -65,19 +65,19 @@ pub(crate) unsafe fn value_from_hermes_raw<'rt>(rt: *mut HermesRt, raw: HermesVa
 }
 
 #[repr(C)]
-struct RawFunction<'rt> {
+struct RawFunction<'js> {
     pv: *mut c_void,
     rt: *mut HermesRt,
-    _m: PhantomData<&'rt ()>,
+    _m: PhantomData<&'js ()>,
 }
 
 #[inline]
-pub(crate) unsafe fn function_from_raw_parts<'rt>(
+pub(crate) unsafe fn function_from_raw_parts<'js>(
     pv: *mut c_void,
     rt: *mut HermesRt,
-) -> Function<'rt> {
-    debug_assert_eq!(size_of::<RawFunction<'rt>>(), size_of::<Function<'rt>>());
-    debug_assert_eq!(align_of::<RawFunction<'rt>>(), align_of::<Function<'rt>>());
+) -> Function<'js> {
+    debug_assert_eq!(size_of::<RawFunction<'js>>(), size_of::<Function<'js>>());
+    debug_assert_eq!(align_of::<RawFunction<'js>>(), align_of::<Function<'js>>());
     unsafe {
         transmute(RawFunction {
             pv,
@@ -100,11 +100,11 @@ pub(crate) unsafe fn clear_pending_js_value(rt: *mut HermesRt) -> HermesValue {
     unsafe { hermes__Runtime__GetAndClearError(rt) }
 }
 
-fn map_hermes<'rt, T>(res: rusty_hermes::Result<T>) -> Result<T> {
+fn map_hermes<'js, T>(res: rusty_hermes::Result<T>) -> Result<T> {
     res.map_err(Error::from_host)
 }
 
-fn map_hermes_value<'rt>(res: rusty_hermes::Result<Value<'_>>) -> Result<Value<'rt>> {
+fn map_hermes_value<'js>(res: rusty_hermes::Result<Value<'_>>) -> Result<Value<'js>> {
     match res {
         Ok(v) => Ok(unsafe { std::mem::transmute(v) }),
         Err(e) => Err(Error::from_host(e)),
@@ -115,18 +115,18 @@ impl Engine for HermesEngine {
     const ENGINE_NAME: &str = "Hermes";
 
     type Runtime = crate::runtime::HermesRuntime;
-    type Context<'rt> = HermesContext<'rt>;
-    type Value<'cx> = Value<'cx>;
-    type Object<'cx> = Object<'cx>;
-    type Function<'cx> = Function<'cx>;
-    type String<'cx> = JsString<'cx>;
-    type Symbol<'cx> = Symbol<'cx>;
-    type Key<'cx> = PropNameId<'cx>;
+    type Context<'js> = HermesContext<'js>;
+    type Value<'js> = Value<'js>;
+    type Object<'js> = Object<'js>;
+    type Function<'js> = Function<'js>;
+    type String<'js> = JsString<'js>;
+    type Symbol<'js> = Symbol<'js>;
+    type Key<'js> = PropNameId<'js>;
     type PreparedKeyData = crate::runtime::HermesPreparedKeyData;
-    type RawArgs<'cx> = HermesArgs<'cx>;
+    type RawArgs<'js> = HermesArgs<'js>;
     type PersistentValue = rusty_hermes::Value<'static>;
 
-    fn enter<'rt>(runtime: &'rt mut Self::Runtime) -> Self::Context<'rt> {
+    fn enter<'js>(runtime: &'js mut Self::Runtime) -> Self::Context<'js> {
         let runtime_ptr = runtime as *mut _;
         HermesContext {
             inner: &mut runtime.inner,
@@ -134,19 +134,19 @@ impl Engine for HermesEngine {
         }
     }
 
-    fn raw_args_len<'cx>(args: &Self::RawArgs<'cx>) -> usize {
+    fn raw_args_len<'js>(args: &Self::RawArgs<'js>) -> usize {
         args.argv.len()
     }
 
-    fn raw_args_get<'cx>(args: &Self::RawArgs<'cx>, index: usize) -> Option<Self::Value<'cx>> {
+    fn raw_args_get<'js>(args: &Self::RawArgs<'js>, index: usize) -> Option<Self::Value<'js>> {
         args.argv.get(index).map(|v| v.duplicate())
     }
 
-    fn eval<'rt>(
-        cx: &mut Self::Context<'rt>,
+    fn eval<'js>(
+        cx: &mut Self::Context<'js>,
         src: &str,
         filename: Option<&str>,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         let rt = runtime_ffi_ptr(cx.inner);
         let url = filename.unwrap_or("<eval>");
         let raw = unsafe {
@@ -169,20 +169,20 @@ impl Engine for HermesEngine {
         Ok(unsafe { value_from_hermes_raw(rt, raw) })
     }
 
-    fn global_object<'rt>(cx: &mut Self::Context<'rt>) -> Self::Object<'rt> {
+    fn global_object<'js>(cx: &mut Self::Context<'js>) -> Self::Object<'js> {
         unsafe { std::mem::transmute(cx.inner.global()) }
     }
 
-    fn object_new<'rt>(cx: &mut Self::Context<'rt>) -> Result<Self::Object<'rt>> {
+    fn object_new<'js>(cx: &mut Self::Context<'js>) -> Result<Self::Object<'js>> {
         let o = Object::new(cx.inner);
         Ok(unsafe { std::mem::transmute(o) })
     }
 
-    fn object_get<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
-    ) -> Result<Self::Value<'rt>> {
+    fn object_get<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
+    ) -> Result<Self::Value<'js>> {
         match key {
             PropertyKey::Str(s) => map_hermes_value(obj.get(s)),
             PropertyKey::Prepared(p) => {
@@ -190,7 +190,7 @@ impl Engine for HermesEngine {
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;
-                let p = PropNameId::from_symbol(rt, &sym);
+                let p = PropNameId::from_symbol(rt, sym.as_raw());
                 map_hermes_value(obj.get_with_propname(&p))
             }
             PropertyKey::Index(i) => {
@@ -200,11 +200,11 @@ impl Engine for HermesEngine {
         }
     }
 
-    fn object_set<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
-        val: Self::Value<'rt>,
+    fn object_set<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
+        val: Self::Value<'js>,
     ) -> Result<()> {
         match key {
             PropertyKey::Str(s) => map_hermes(obj.set(s, val)),
@@ -213,7 +213,7 @@ impl Engine for HermesEngine {
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;
-                let p = PropNameId::from_symbol(rt, &sym);
+                let p = PropNameId::from_symbol(rt, sym.as_raw());
                 map_hermes(obj.set_with_propname(&p, val))
             }
             PropertyKey::Index(i) => {
@@ -223,10 +223,10 @@ impl Engine for HermesEngine {
         }
     }
 
-    fn object_has<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
+    fn object_has<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         Ok(match key {
             PropertyKey::Str(s) => obj.has(s),
@@ -235,7 +235,7 @@ impl Engine for HermesEngine {
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;
-                let p = PropNameId::from_symbol(rt, &sym);
+                let p = PropNameId::from_symbol(rt, sym.as_raw());
                 obj.has_with_propname(&p)
             }
             PropertyKey::Index(i) => {
@@ -245,10 +245,10 @@ impl Engine for HermesEngine {
         })
     }
 
-    fn object_delete<'rt>(
-        cx: &mut Self::Context<'rt>,
-        obj: &Self::Object<'rt>,
-        key: PropertyKey<'rt, Self>,
+    fn object_delete<'js>(
+        cx: &mut Self::Context<'js>,
+        obj: &Self::Object<'js>,
+        key: PropertyKey<'js, Self>,
     ) -> Result<bool> {
         let _ = match key {
             PropertyKey::Str(s) => map_hermes(obj.delete(s)),
@@ -257,7 +257,7 @@ impl Engine for HermesEngine {
             }
             PropertyKey::Symbol(sym) => {
                 let rt: &Runtime = &*cx.inner;
-                let p = PropNameId::from_symbol(rt, &sym);
+                let p = PropNameId::from_symbol(rt, sym.as_raw());
                 map_hermes(obj.delete_with_propname(&p))
             }
             PropertyKey::Index(i) => {
@@ -268,85 +268,85 @@ impl Engine for HermesEngine {
         Ok(true)
     }
 
-    fn function_call<'rt>(
-        cx: &mut Self::Context<'rt>,
-        func: &Self::Function<'rt>,
-        this: Self::Value<'rt>,
-        args: &[Self::Value<'rt>],
-    ) -> Result<Self::Value<'rt>> {
+    fn function_call<'js>(
+        cx: &mut Self::Context<'js>,
+        func: &Self::Function<'js>,
+        this: Self::Value<'js>,
+        args: &[Self::Value<'js>],
+    ) -> Result<Self::Value<'js>> {
         let _ = cx;
         map_hermes_value(func.call_with_this(&this, args))
     }
 
-    fn value_is_undefined<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_undefined<'js>(val: &Self::Value<'js>) -> bool {
         val.is_undefined()
     }
 
-    fn value_is_null<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_null<'js>(val: &Self::Value<'js>) -> bool {
         val.is_null()
     }
 
-    fn value_is_boolean<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_boolean<'js>(val: &Self::Value<'js>) -> bool {
         val.is_boolean()
     }
 
-    fn value_is_number<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_number<'js>(val: &Self::Value<'js>) -> bool {
         val.is_number()
     }
 
-    fn value_is_string<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_string<'js>(val: &Self::Value<'js>) -> bool {
         val.is_string()
     }
 
-    fn value_is_object<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_object<'js>(val: &Self::Value<'js>) -> bool {
         val.is_object()
     }
 
-    fn value_is_function<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_function<'js>(val: &Self::Value<'js>) -> bool {
         val.duplicate().into_function().is_ok()
     }
 
-    fn value_is_array<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_array<'js>(val: &Self::Value<'js>) -> bool {
         val.duplicate().into_array().is_ok()
     }
 
-    fn value_is_symbol<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_symbol<'js>(val: &Self::Value<'js>) -> bool {
         val.is_symbol()
     }
 
-    fn value_is_bigint<'cx>(val: &Self::Value<'cx>) -> bool {
+    fn value_is_bigint<'js>(val: &Self::Value<'js>) -> bool {
         val.is_bigint()
     }
 
-    fn make_undefined<'rt>(_cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_undefined<'js>(_cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         Value::undefined()
     }
 
-    fn make_null<'rt>(_cx: &mut Self::Context<'rt>) -> Self::Value<'rt> {
+    fn make_null<'js>(_cx: &mut Self::Context<'js>) -> Self::Value<'js> {
         Value::null()
     }
 
-    fn make_bool<'rt>(_cx: &mut Self::Context<'rt>, v: bool) -> Self::Value<'rt> {
+    fn make_bool<'js>(_cx: &mut Self::Context<'js>, v: bool) -> Self::Value<'js> {
         Value::from_bool(v)
     }
 
-    fn make_i32<'rt>(_cx: &mut Self::Context<'rt>, v: i32) -> Self::Value<'rt> {
+    fn make_i32<'js>(_cx: &mut Self::Context<'js>, v: i32) -> Self::Value<'js> {
         Value::from_number(f64::from(v))
     }
 
-    fn make_f64<'rt>(_cx: &mut Self::Context<'rt>, v: f64) -> Self::Value<'rt> {
+    fn make_f64<'js>(_cx: &mut Self::Context<'js>, v: f64) -> Self::Value<'js> {
         Value::from_number(v)
     }
 
-    fn make_string<'rt>(cx: &mut Self::Context<'rt>, s: &str) -> Result<Self::Value<'rt>> {
+    fn make_string<'js>(cx: &mut Self::Context<'js>, s: &str) -> Result<Self::Value<'js>> {
         Ok(unsafe { std::mem::transmute(Value::from(JsString::new(cx.inner, s))) })
     }
 
-    fn make_function<'rt, F>(
-        cx: &mut Self::Context<'rt>,
+    fn make_function<'js, F>(
+        cx: &mut Self::Context<'js>,
         name: &str,
         func: F,
-    ) -> Result<Self::Function<'rt>>
+    ) -> Result<Self::Function<'js>>
     where
         F: RawHostFn<Self> + 'static,
     {
@@ -390,11 +390,11 @@ impl Engine for HermesEngine {
         Ok(unsafe { function_from_raw_parts(func_pv, rt_ptr) })
     }
 
-    fn value_as_bool<'cx>(val: &Self::Value<'cx>) -> Option<bool> {
+    fn value_as_bool<'js>(val: &Self::Value<'js>) -> Option<bool> {
         val.as_bool()
     }
 
-    fn value_to_bool<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> bool {
+    fn value_to_bool<'js>(cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> bool {
         let _ = cx;
         // Hermes exposes no native Boolean() coercion, best effort here
         if val.is_null() || val.is_undefined() {
@@ -418,50 +418,50 @@ impl Engine for HermesEngine {
         true
     }
 
-    fn value_to_f64<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<f64> {
+    fn value_to_f64<'js>(cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> Result<f64> {
         let _ = cx;
         val.as_number()
             .ok_or_else(|| Error::type_err("expected number"))
     }
 
-    fn value_to_string<'rt>(cx: &mut Self::Context<'rt>, val: &Self::Value<'rt>) -> Result<String> {
+    fn value_to_string<'js>(cx: &mut Self::Context<'js>, val: &Self::Value<'js>) -> Result<String> {
         let _ = cx;
         let js = map_hermes(val.duplicate().to_js_string())?;
         map_hermes(js.to_rust_string())
     }
 
-    fn object_to_value<'cx>(obj: Self::Object<'cx>) -> Self::Value<'cx> {
+    fn object_to_value<'js>(obj: Self::Object<'js>) -> Self::Value<'js> {
         Value::from(obj)
     }
 
-    fn value_as_object<'cx>(val: Self::Value<'cx>) -> Option<Self::Object<'cx>> {
+    fn value_as_object<'js>(val: Self::Value<'js>) -> Option<Self::Object<'js>> {
         val.into_object().ok()
     }
 
-    fn function_to_value<'cx>(f: Self::Function<'cx>) -> Self::Value<'cx> {
+    fn function_to_value<'js>(f: Self::Function<'js>) -> Self::Value<'js> {
         Value::from(f)
     }
 
-    fn value_as_function<'cx>(val: Self::Value<'cx>) -> Option<Self::Function<'cx>> {
+    fn value_as_function<'js>(val: Self::Value<'js>) -> Option<Self::Function<'js>> {
         val.into_function().ok()
     }
 
-    fn function_to_object<'cx>(f: Self::Function<'cx>) -> Self::Object<'cx> {
+    fn function_to_object<'js>(f: Self::Function<'js>) -> Self::Object<'js> {
         let v = Value::from(f);
         v.into_object().expect("callable is object")
     }
 
-    fn persist_value<'rt>(
-        _cx: &mut Self::Context<'rt>,
-        val: Self::Value<'rt>,
+    fn persist_value<'js>(
+        _cx: &mut Self::Context<'js>,
+        val: Self::Value<'js>,
     ) -> Self::PersistentValue {
         unsafe { std::mem::transmute(val) }
     }
 
-    fn restore_value<'rt>(
-        _cx: &mut Self::Context<'rt>,
+    fn restore_value<'js>(
+        _cx: &mut Self::Context<'js>,
         persisted: &Self::PersistentValue,
-    ) -> Result<Self::Value<'rt>> {
+    ) -> Result<Self::Value<'js>> {
         let v = persisted.duplicate();
         Ok(unsafe { std::mem::transmute(v) })
     }
