@@ -411,6 +411,10 @@ impl Engine for MockEngine {
     {
         todo!()
     }
+
+    fn throw<'js>(_cx: &mut Self::Context<'js>, _value: Self::Value<'js>) -> Error {
+        Error::Exception
+    }
 }
 
 impl NativeStateSupport for MockEngine {

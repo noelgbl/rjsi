@@ -339,6 +339,18 @@ impl Engine for BoaEngine {
     ) -> Result<Self::Value<'js>> {
         Ok(persisted.clone())
     }
+
+    fn catch_exception<'js>(cx: &mut Self::Context<'js>) -> Option<Self::Value<'js>> {
+        let err = PENDING_BOA_JS_ERROR.with(|slot| slot.borrow_mut().take())?;
+        err.into_opaque(cx.inner).ok()
+    }
+
+    fn throw<'js>(_cx: &mut Self::Context<'js>, value: Self::Value<'js>) -> Error {
+        PENDING_BOA_JS_ERROR.with(|slot| {
+            *slot.borrow_mut() = Some(boa_engine::JsError::from_opaque(value));
+        });
+        Error::Exception
+    }
 }
 
 impl rjsi_core::capabilities::Promises for BoaEngine {

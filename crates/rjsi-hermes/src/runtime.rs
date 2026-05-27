@@ -1,9 +1,9 @@
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
 
-use libhermes_sys::{HermesRt, hermes__PropNameID__Release};
+use hermes::{PropNameId, Runtime as HermesRtInner};
+use hermes_sys::{HermesRt, hermes__PropNameID__Release};
 use rjsi_core::{Context, MicrotaskDrainPolicy, PreparedKey, Result as RjsiResult, Runtime, Store};
-use rusty_hermes::{PropNameId, Runtime as HermesRtInner};
 
 use crate::engine::{HermesEngine, runtime_ffi_ptr};
 
@@ -59,14 +59,14 @@ pub struct HermesRuntime {
 }
 
 impl HermesRuntime {
-    pub fn new() -> Result<Self, rusty_hermes::Error> {
+    pub fn new() -> Result<Self, hermes::Error> {
         Ok(Self {
             store: Store::new(),
             inner: HermesRtInner::new()?,
         })
     }
 
-    pub fn with_config(config: rusty_hermes::RuntimeConfig) -> Result<Self, rusty_hermes::Error> {
+    pub fn with_config(config: hermes::RuntimeConfig) -> Result<Self, hermes::Error> {
         Ok(Self {
             store: Store::new(),
             inner: HermesRtInner::with_config(config)?,
@@ -137,7 +137,7 @@ pub(crate) fn prepared_key<'js>(
 }
 
 impl HermesRuntime {
-    pub fn raw_hermes_rt(&self) -> *mut libhermes_sys::HermesRt {
+    pub fn raw_hermes_rt(&self) -> *mut hermes_sys::HermesRt {
         runtime_ffi_ptr(&self.inner)
     }
 }

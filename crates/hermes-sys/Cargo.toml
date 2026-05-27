@@ -1,0 +1,9 @@
+[package]
+name = "hermes-sys"
+version.workspace = true
+edition.workspace = true
+links = "hermes"
+
+[build-dependencies]
+cmake = "0.1.58"
+cc = "1.2.62"

@@ -84,6 +84,10 @@ impl<'js, E: Engine> Context<'js, E> {
         E::catch_exception(&mut self.raw).map(crate::Value::new)
     }
 
+    pub fn throw(&mut self, value: Value<'js, E>) -> crate::Error {
+        E::throw(&mut self.raw, value.into_raw())
+    }
+
     /// Roots `value` until the returned [`PersistentValue`] is dropped.
     pub fn persist_value(&mut self, value: Value<'js, E>) -> PersistentValue<E> {
         PersistentValue::persist(self, value)

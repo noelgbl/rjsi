@@ -1,6 +1,6 @@
 use rjsi_core::capabilities::{Buffers, Float32Array, TypedArrayKind, Uint8Array};
 use rjsi_core::{
-    Args, Context, ContextBufferExt, ContextNativeStateExt, Engine, Error, NativeState, NativeStateSupport, PersistentValue, PreparedKey, Result, Runtime, Value
+    Args, CatchResultExt, CaughtError, Context, ContextBufferExt, ContextNativeStateExt, Engine, Error, NativeState, NativeStateSupport, PersistentValue, PreparedKey, Result, Runtime, Value
 };
 
 fn expect_js<T, E>(r: std::result::Result<T, E>, msg: &'static str) -> T {
@@ -367,6 +367,71 @@ where
     });
 }
 
+pub fn caught_error_object_classified_as_exception<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let caught = cx.eval("throw new Error('boom')").catch(cx);
+        match caught {
+            Err(CaughtError::Exception(ex)) => {
+                assert_eq!(ex.message(cx).as_deref(), Some("boom"));
+                assert_eq!(ex.name(cx).as_deref(), Some("Error"));
+            }
+            Err(other) => panic!("expected CaughtError::Exception, got {:?}", other),
+            Ok(_) => panic!("expected Err"),
+        }
+    });
+}
+
+pub fn caught_error_primitive_classified_as_value<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let caught = cx.eval("throw 42").catch(cx);
+        match caught {
+            Err(CaughtError::Value(v)) => {
+                let n = expect_js(v.to_f64(cx), "thrown number");
+                assert_eq!(n, 42.0);
+            }
+            Err(other) => panic!("expected CaughtError::Value, got {:?}", other),
+            Ok(_) => panic!("expected Err"),
+        }
+    });
+}
+
+fn throw_from_rust<'js, E: Engine>(
+    cx: &mut Context<'js, E>,
+    _this: Value<'js, E>,
+    _args: Args<'js, E>,
+) -> Result<Value<'js, E>> {
+    let msg = cx.string("from rust")?;
+    Err(cx.throw(msg))
+}
+
+pub fn throw_result_ext_round_trip<E, R>(runtime: &mut R)
+where
+    E: Engine,
+    R: Runtime<E>,
+{
+    runtime.with_scope(|cx| {
+        let thrower = cx
+            .raw_function("__rjsi_thrower", throw_from_rust::<E>)
+            .expect("raw_function");
+        cx.globals()
+            .set(cx, "__thrower", thrower.into_value())
+            .expect("set global");
+        let v = cx
+            .eval("(function(){ try { __thrower() } catch (e) { return e } return 'nope' })()")
+            .expect("catch in JS");
+        let s = expect_js(v.to_string(cx), "thrown string");
+        assert_eq!(s, "from rust");
+    });
+}
+
 pub fn json_parse_roundtrip<E, R>(runtime: &mut R)
 where
     E: Engine,
@@ -632,6 +697,9 @@ where
     strict_mode_this_undefined_when_calling_with_undefined(runtime);
     eval_syntax_error_surfaces(runtime);
     exception_value_is_accessible(runtime);
+    caught_error_object_classified_as_exception(runtime);
+    caught_error_primitive_classified_as_value(runtime);
+    throw_result_ext_round_trip(runtime);
     json_parse_roundtrip(runtime);
     array_spread_and_length(runtime);
     template_literal_basic(runtime);

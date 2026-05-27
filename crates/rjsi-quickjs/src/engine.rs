@@ -271,6 +271,11 @@ impl Engine for QuickJsEngine {
         if val.is_undefined() { None } else { Some(val) }
     }
 
+    fn throw<'js>(cx: &mut Self::Context<'js>, value: Self::Value<'js>) -> Error {
+        cx.qctx.throw(value);
+        Error::Exception
+    }
+
     fn make_function<'js, F>(
         cx: &mut Self::Context<'js>,
         name: &str,

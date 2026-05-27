@@ -1,0 +1,554 @@
+#![allow(non_upper_case_globals)]
+
+use std::os::raw::c_char;
+
+#[repr(C)]
+pub struct HermesRt {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+pub struct HermesPreparedJs {
+    _private: [u8; 0],
+}
+
+pub const HermesValueKind_Undefined: i32 = 0;
+pub const HermesValueKind_Null: i32 = 1;
+pub const HermesValueKind_Boolean: i32 = 2;
+pub const HermesValueKind_Number: i32 = 3;
+pub const HermesValueKind_Symbol: i32 = 4;
+pub const HermesValueKind_BigInt: i32 = 5;
+pub const HermesValueKind_String: i32 = 6;
+pub const HermesValueKind_Object: i32 = 7;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct HermesValue {
+    pub kind: i32,
+    pub data: HermesValueData,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub union HermesValueData {
+    pub boolean: bool,
+    pub number: f64,
+    pub pointer: *mut std::ffi::c_void,
+}
+
+#[repr(C)]
+pub struct HermesRuntimeConfig {
+    pub enable_eval: bool,
+    pub es6_proxy: bool,
+    pub intl: bool,
+    pub microtask_queue: bool,
+    pub enable_generator: bool,
+    pub enable_block_scoping: bool,
+    pub enable_hermes_internal: bool,
+    pub enable_hermes_internal_test_methods: bool,
+    pub max_num_registers: u32,
+    pub enable_jit: bool,
+    pub force_jit: bool,
+    pub jit_threshold: u32,
+    pub jit_memory_limit: u32,
+    pub enable_async_generators: bool,
+    pub bytecode_warmup_percent: u32,
+    pub randomize_memory_layout: bool,
+}
+
+pub type HermesFatalHandler = unsafe extern "C" fn(msg: *const u8, len: usize);
+
+pub type HermesHostFunctionCallback = unsafe extern "C" fn(
+    rt: *mut HermesRt,
+    this_val: *const HermesValue,
+    args: *const HermesValue,
+    arg_count: usize,
+    user_data: *mut std::ffi::c_void,
+) -> HermesValue;
+
+pub type HermesHostFunctionFinalizer = unsafe extern "C" fn(user_data: *mut std::ffi::c_void);
+
+pub type HermesHostObjectGetCallback = unsafe extern "C" fn(
+    rt: *mut HermesRt,
+    name: *const std::ffi::c_void,
+    user_data: *mut std::ffi::c_void,
+) -> HermesValue;
+
+pub type HermesHostObjectSetCallback = unsafe extern "C" fn(
+    rt: *mut HermesRt,
+    name: *const std::ffi::c_void,
+    value: *const HermesValue,
+    user_data: *mut std::ffi::c_void,
+);
+
+pub type HermesHostObjectGetPropertyNamesCallback =
+    unsafe extern "C" fn(
+        rt: *mut HermesRt,
+        out_count: *mut usize,
+        user_data: *mut std::ffi::c_void,
+    ) -> *mut *mut std::ffi::c_void;
+
+pub type HermesHostObjectFinalizer = unsafe extern "C" fn(user_data: *mut std::ffi::c_void);
+
+pub type HermesNativeStateFinalizer = unsafe extern "C" fn(data: *mut std::ffi::c_void);
+
+unsafe extern "C" {
+
+    pub fn hermes__Runtime__New() -> *mut HermesRt;
+    pub fn hermes__Runtime__NewWithConfig(cfg: *const HermesRuntimeConfig) -> *mut HermesRt;
+    pub fn hermes__Runtime__Delete(rt: *mut HermesRt);
+
+    pub fn hermes__Runtime__HasPendingError(rt: *const HermesRt) -> bool;
+    pub fn hermes__Runtime__GetAndClearError(rt: *mut HermesRt) -> HermesValue;
+
+    pub fn hermes__Runtime__GetAndClearErrorMessage(rt: *mut HermesRt) -> *const c_char;
+
+    pub fn hermes__Runtime__SetPendingErrorMessage(rt: *mut HermesRt, msg: *const u8, len: usize);
+
+    pub fn hermes__Runtime__SetPendingError(rt: *mut HermesRt, value: HermesValue);
+
+    pub fn hermes__Runtime__Global(rt: *mut HermesRt) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Runtime__Description(
+        rt: *mut HermesRt,
+        buf: *mut c_char,
+        buf_len: usize,
+    ) -> usize;
+
+    pub fn hermes__Runtime__IsInspectable(rt: *mut HermesRt) -> bool;
+
+    pub fn hermes__Runtime__EvaluateJavaScript(
+        rt: *mut HermesRt,
+        data: *const u8,
+        len: usize,
+        source_url: *const c_char,
+        source_url_len: usize,
+    ) -> HermesValue;
+
+    pub fn hermes__Runtime__DrainMicrotasks(rt: *mut HermesRt, max_hint: i32) -> i32;
+
+    pub fn hermes__Runtime__QueueMicrotask(
+        rt: *mut HermesRt,
+        func: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Runtime__CreateValueFromJsonUtf8(
+        rt: *mut HermesRt,
+        json: *const u8,
+        len: usize,
+    ) -> HermesValue;
+
+    pub fn hermes__Runtime__EvaluateJavaScriptWithSourceMap(
+        rt: *mut HermesRt,
+        data: *const u8,
+        len: usize,
+        source_map: *const u8,
+        source_map_len: usize,
+        source_url: *const c_char,
+        source_url_len: usize,
+    ) -> HermesValue;
+
+    pub fn hermes__Runtime__PrepareJavaScript(
+        rt: *mut HermesRt,
+        data: *const u8,
+        len: usize,
+        source_url: *const c_char,
+        source_url_len: usize,
+    ) -> *mut HermesPreparedJs;
+
+    pub fn hermes__Runtime__EvaluatePreparedJavaScript(
+        rt: *mut HermesRt,
+        prepared: *const HermesPreparedJs,
+    ) -> HermesValue;
+
+    pub fn hermes__PreparedJavaScript__Delete(prepared: *mut HermesPreparedJs);
+
+    pub fn hermes__Scope__New(rt: *mut HermesRt) -> *mut std::ffi::c_void;
+    pub fn hermes__Scope__Delete(scope: *mut std::ffi::c_void);
+
+    pub fn hermes__String__CreateFromUtf8(
+        rt: *mut HermesRt,
+        utf8: *const u8,
+        len: usize,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__String__CreateFromAscii(
+        rt: *mut HermesRt,
+        ascii: *const c_char,
+        len: usize,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__String__ToUtf8(
+        rt: *mut HermesRt,
+        str: *const std::ffi::c_void,
+        buf: *mut c_char,
+        buf_len: usize,
+    ) -> usize;
+
+    pub fn hermes__String__StrictEquals(
+        rt: *mut HermesRt,
+        a: *const std::ffi::c_void,
+        b: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__String__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__PropNameID__ForAscii(
+        rt: *mut HermesRt,
+        str: *const c_char,
+        len: usize,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__PropNameID__ForUtf8(
+        rt: *mut HermesRt,
+        utf8: *const u8,
+        len: usize,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__PropNameID__ForString(
+        rt: *mut HermesRt,
+        str: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__PropNameID__ForSymbol(
+        rt: *mut HermesRt,
+        sym: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__PropNameID__ToUtf8(
+        rt: *mut HermesRt,
+        pni: *const std::ffi::c_void,
+        buf: *mut c_char,
+        buf_len: usize,
+    ) -> usize;
+
+    pub fn hermes__PropNameID__Equals(
+        rt: *mut HermesRt,
+        a: *const std::ffi::c_void,
+        b: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__PropNameID__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__Object__New(rt: *mut HermesRt) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Object__GetProperty__String(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+    ) -> HermesValue;
+
+    pub fn hermes__Object__GetProperty__PropNameID(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+    ) -> HermesValue;
+
+    pub fn hermes__Object__SetProperty__String(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+        val: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Object__SetProperty__PropNameID(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+        val: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Object__HasProperty__String(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Object__HasProperty__PropNameID(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Object__GetPropertyNames(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Object__IsArray(rt: *mut HermesRt, obj: *const std::ffi::c_void) -> bool;
+
+    pub fn hermes__Object__IsFunction(rt: *mut HermesRt, obj: *const std::ffi::c_void) -> bool;
+
+    pub fn hermes__Object__IsArrayBuffer(rt: *mut HermesRt, obj: *const std::ffi::c_void) -> bool;
+
+    pub fn hermes__Object__StrictEquals(
+        rt: *mut HermesRt,
+        a: *const std::ffi::c_void,
+        b: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Object__InstanceOf(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        func: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Object__SetExternalMemoryPressure(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        amount: usize,
+    );
+
+    pub fn hermes__Object__HasNativeState(rt: *mut HermesRt, obj: *const std::ffi::c_void) -> bool;
+
+    pub fn hermes__Object__GetNativeState(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Object__SetNativeState(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        data: *mut std::ffi::c_void,
+        finalizer: HermesNativeStateFinalizer,
+    );
+
+    pub fn hermes__Object__CreateFromHostObject(
+        rt: *mut HermesRt,
+        get_cb: HermesHostObjectGetCallback,
+        set_cb: HermesHostObjectSetCallback,
+        get_names_cb: HermesHostObjectGetPropertyNamesCallback,
+        user_data: *mut std::ffi::c_void,
+        finalizer: HermesHostObjectFinalizer,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Object__GetHostObject(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Object__IsHostObject(rt: *mut HermesRt, obj: *const std::ffi::c_void) -> bool;
+
+    pub fn hermes__Object__DeleteProperty__String(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Object__DeleteProperty__PropNameID(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Object__DeleteProperty__Value(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Object__GetProperty__Value(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const HermesValue,
+    ) -> HermesValue;
+
+    pub fn hermes__Object__SetProperty__Value(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const HermesValue,
+        val: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Object__HasProperty__Value(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        name: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Object__CreateWithPrototype(
+        rt: *mut HermesRt,
+        prototype: *const HermesValue,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Object__SetPrototype(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+        prototype: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Object__GetPrototype(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+    ) -> HermesValue;
+
+    pub fn hermes__Object__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__Array__New(rt: *mut HermesRt, length: usize) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Array__Size(rt: *mut HermesRt, arr: *const std::ffi::c_void) -> usize;
+
+    pub fn hermes__Array__GetValueAtIndex(
+        rt: *mut HermesRt,
+        arr: *const std::ffi::c_void,
+        index: usize,
+    ) -> HermesValue;
+
+    pub fn hermes__Array__SetValueAtIndex(
+        rt: *mut HermesRt,
+        arr: *const std::ffi::c_void,
+        index: usize,
+        val: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Array__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__ArrayBuffer__New(rt: *mut HermesRt, size: usize) -> *mut std::ffi::c_void;
+
+    pub fn hermes__ArrayBuffer__Size(rt: *mut HermesRt, buf: *const std::ffi::c_void) -> usize;
+
+    pub fn hermes__ArrayBuffer__Data(rt: *mut HermesRt, buf: *const std::ffi::c_void) -> *mut u8;
+
+    pub fn hermes__Function__Call(
+        rt: *mut HermesRt,
+        func: *const std::ffi::c_void,
+        this_val: *const HermesValue,
+        args: *const HermesValue,
+        argc: usize,
+    ) -> HermesValue;
+
+    pub fn hermes__Function__CallAsConstructor(
+        rt: *mut HermesRt,
+        func: *const std::ffi::c_void,
+        args: *const HermesValue,
+        argc: usize,
+    ) -> HermesValue;
+
+    pub fn hermes__Function__CreateFromHostFunction(
+        rt: *mut HermesRt,
+        name: *const std::ffi::c_void,
+        param_count: u32,
+        callback: HermesHostFunctionCallback,
+        user_data: *mut std::ffi::c_void,
+        finalizer: HermesHostFunctionFinalizer,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Function__IsHostFunction(
+        rt: *mut HermesRt,
+        func: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Function__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__Value__Release(val: *mut HermesValue);
+
+    pub fn hermes__Value__StrictEquals(
+        rt: *mut HermesRt,
+        a: *const HermesValue,
+        b: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Value__ToString(
+        rt: *mut HermesRt,
+        val: *const HermesValue,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Value__Clone(rt: *mut HermesRt, val: *const HermesValue) -> HermesValue;
+
+    pub fn hermes__Symbol__ToString(
+        rt: *mut HermesRt,
+        sym: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__Symbol__StrictEquals(
+        rt: *mut HermesRt,
+        a: *const std::ffi::c_void,
+        b: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__Symbol__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__BigInt__FromInt64(rt: *mut HermesRt, val: i64) -> *mut std::ffi::c_void;
+
+    pub fn hermes__BigInt__FromUint64(rt: *mut HermesRt, val: u64) -> *mut std::ffi::c_void;
+
+    pub fn hermes__BigInt__IsInt64(rt: *mut HermesRt, bi: *const std::ffi::c_void) -> bool;
+
+    pub fn hermes__BigInt__IsUint64(rt: *mut HermesRt, bi: *const std::ffi::c_void) -> bool;
+
+    pub fn hermes__BigInt__Truncate(rt: *mut HermesRt, bi: *const std::ffi::c_void) -> u64;
+
+    pub fn hermes__BigInt__GetInt64(rt: *mut HermesRt, bi: *const std::ffi::c_void) -> i64;
+
+    pub fn hermes__BigInt__ToString(
+        rt: *mut HermesRt,
+        bi: *const std::ffi::c_void,
+        radix: i32,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__BigInt__StrictEquals(
+        rt: *mut HermesRt,
+        a: *const std::ffi::c_void,
+        b: *const std::ffi::c_void,
+    ) -> bool;
+
+    pub fn hermes__BigInt__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__WeakObject__Create(
+        rt: *mut HermesRt,
+        obj: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn hermes__WeakObject__Lock(rt: *mut HermesRt, wo: *const std::ffi::c_void) -> HermesValue;
+
+    pub fn hermes__WeakObject__Release(pv: *mut std::ffi::c_void);
+
+    pub fn hermes__IsHermesBytecode(data: *const u8, len: usize) -> bool;
+    pub fn hermes__GetBytecodeVersion() -> u32;
+    pub fn hermes__PrefetchHermesBytecode(data: *const u8, len: usize);
+    pub fn hermes__HermesBytecodeSanityCheck(data: *const u8, len: usize) -> bool;
+
+    pub fn hermes__Runtime__WatchTimeLimit(rt: *mut HermesRt, timeout_ms: u32);
+    pub fn hermes__Runtime__UnwatchTimeLimit(rt: *mut HermesRt);
+    pub fn hermes__Runtime__AsyncTriggerTimeout(rt: *mut HermesRt);
+
+    pub fn hermes__EnableSamplingProfiler();
+    pub fn hermes__DisableSamplingProfiler();
+    pub fn hermes__DumpSampledTraceToFile(filename: *const c_char);
+
+    pub fn hermes__SetFatalHandler(handler: HermesFatalHandler);
+
+    pub fn hermes__GetBytecodeEpilogue(
+        data: *const u8,
+        len: usize,
+        out_epilogue_len: *mut usize,
+    ) -> *const u8;
+
+    pub fn hermes__IsCodeCoverageProfilerEnabled() -> bool;
+    pub fn hermes__EnableCodeCoverageProfiler();
+    pub fn hermes__DisableCodeCoverageProfiler();
+
+    pub fn hermes__Runtime__RegisterForProfiling(rt: *mut HermesRt);
+    pub fn hermes__Runtime__UnregisterForProfiling(rt: *mut HermesRt);
+
+    pub fn hermes__Runtime__LoadSegment(
+        rt: *mut HermesRt,
+        data: *const u8,
+        len: usize,
+        context: *const HermesValue,
+    ) -> bool;
+
+    pub fn hermes__Object__GetUniqueID(rt: *mut HermesRt, obj: *const std::ffi::c_void) -> u64;
+
+    pub fn hermes__String__GetUniqueID(rt: *mut HermesRt, str: *const std::ffi::c_void) -> u64;
+
+    pub fn hermes__Symbol__GetUniqueID(rt: *mut HermesRt, sym: *const std::ffi::c_void) -> u64;
+
+    pub fn hermes__BigInt__GetUniqueID(rt: *mut HermesRt, bi: *const std::ffi::c_void) -> u64;
+
+    pub fn hermes__PropNameID__GetUniqueID(rt: *mut HermesRt, pni: *const std::ffi::c_void) -> u64;
+
+    pub fn hermes__Value__GetUniqueID(rt: *mut HermesRt, val: *const HermesValue) -> u64;
+
+    pub fn hermes__Runtime__ResetTimezoneCache(rt: *mut HermesRt);
+}

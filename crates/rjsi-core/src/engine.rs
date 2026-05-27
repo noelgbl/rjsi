@@ -1,4 +1,4 @@
-use crate::{PropertyKey, Result};
+use crate::{Error, PropertyKey, Result};
 
 pub trait Engine: Sized + 'static {
     type Runtime: crate::Runtime<Self>;
@@ -144,4 +144,6 @@ pub trait Engine: Sized + 'static {
         let _ = cx;
         None
     }
+
+    fn throw<'js>(cx: &mut Self::Context<'js>, value: Self::Value<'js>) -> Error;
 }

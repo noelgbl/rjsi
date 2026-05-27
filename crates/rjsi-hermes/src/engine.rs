@@ -5,11 +5,11 @@ use std::mem::{align_of, size_of, transmute};
 use std::ops::{Deref, DerefMut};
 use std::ptr::read;
 
-use libhermes_sys::{
-    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__EvaluateJavaScript, hermes__Runtime__GetAndClearError, hermes__Runtime__GetAndClearErrorMessage, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
+use hermes::{Function, JsString, Object, PropNameId, Runtime, Symbol, Value};
+use hermes_sys::{
+    HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__EvaluateJavaScript, hermes__Runtime__GetAndClearError, hermes__Runtime__GetAndClearErrorMessage, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingError, hermes__Runtime__SetPendingErrorMessage
 };
 use rjsi_core::{Engine, Error, PropertyKey, RawHostFn, Result};
-use rusty_hermes::{Function, JsString, Object, PropNameId, Runtime, Symbol, Value};
 
 pub const HERMES_HOST_FUNCTION_MAX_ARGS: usize = 32;
 
@@ -100,11 +100,11 @@ pub(crate) unsafe fn clear_pending_js_value(rt: *mut HermesRt) -> HermesValue {
     unsafe { hermes__Runtime__GetAndClearError(rt) }
 }
 
-fn map_hermes<'js, T>(res: rusty_hermes::Result<T>) -> Result<T> {
+fn map_hermes<'js, T>(res: hermes::Result<T>) -> Result<T> {
     res.map_err(Error::from_host)
 }
 
-fn map_hermes_value<'js>(res: rusty_hermes::Result<Value<'_>>) -> Result<Value<'js>> {
+fn map_hermes_value<'js>(res: hermes::Result<Value<'_>>) -> Result<Value<'js>> {
     match res {
         Ok(v) => Ok(unsafe { std::mem::transmute(v) }),
         Err(e) => Err(Error::from_host(e)),
@@ -124,7 +124,7 @@ impl Engine for HermesEngine {
     type Key<'js> = PropNameId<'js>;
     type PreparedKeyData = crate::runtime::HermesPreparedKeyData;
     type RawArgs<'js> = HermesArgs<'js>;
-    type PersistentValue = rusty_hermes::Value<'static>;
+    type PersistentValue = hermes::Value<'static>;
 
     fn enter<'js>(runtime: &'js mut Self::Runtime) -> Self::Context<'js> {
         let runtime_ptr = runtime as *mut _;
@@ -469,6 +469,26 @@ impl Engine for HermesEngine {
         let v = persisted.duplicate();
         Ok(unsafe { std::mem::transmute(v) })
     }
+
+    fn catch_exception<'js>(cx: &mut Self::Context<'js>) -> Option<Self::Value<'js>> {
+        let rt = runtime_ffi_ptr(cx.inner);
+        unsafe {
+            if !hermes__Runtime__HasPendingError(rt) {
+                return None;
+            }
+            clear_pending_error_message(rt);
+            let hv = hermes__Runtime__GetAndClearError(rt);
+            Some(value_from_hermes_raw(rt, hv))
+        }
+    }
+
+    fn throw<'js>(cx: &mut Self::Context<'js>, value: Self::Value<'js>) -> Error {
+        let rt = runtime_ffi_ptr(cx.inner);
+        unsafe {
+            hermes__Runtime__SetPendingError(rt, value.into_raw());
+        }
+        Error::Exception
+    }
 }
 
 unsafe extern "C" fn host_fn_finalizer(user_data: *mut c_void) {
@@ -514,10 +534,11 @@ unsafe extern "C" fn host_trampoline(
 
         match res {
             Ok(v) => v.into_raw().into_raw(),
+            Err(rjsi_core::Error::Exception) => hermes::__private::undefined_value(),
             Err(e) => {
                 let msg = e.to_string();
                 hermes__Runtime__SetPendingErrorMessage(rt, msg.as_ptr(), msg.len());
-                rusty_hermes::__private::undefined_value()
+                hermes::__private::undefined_value()
             }
         }
     }

@@ -7,6 +7,7 @@ mod context;
 mod convert;
 mod engine;
 mod error;
+mod exception;
 pub mod function;
 #[cfg(feature = "futures")]
 pub mod futures;
@@ -30,7 +31,8 @@ pub use context::{
 };
 pub use convert::{FromJs, ToJs};
 pub use engine::Engine;
-pub use error::{Error, Result};
+pub use error::{CatchResultExt, CaughtError, CaughtResult, Error, Result, ThrowResultExt};
+pub use exception::JsException;
 pub use function::{
     Exhaustive, Flat, FromParam, FromParams, Func, Function, IntoJsFunc, MutFn, OnceFn, Opt, ParamRequirement, Params, ParamsAccessor, Rest, This, ThisState, ThisStateMut, WithCx
 };

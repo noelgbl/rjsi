@@ -803,6 +803,11 @@ impl Engine for JscEngine {
         unsafe { javascriptcore_sys::JSValueUnprotect(cx.ctx, exc) };
         Some(JscValue::new(cx.ctx, exc))
     }
+
+    fn throw<'js>(cx: &mut Self::Context<'js>, value: Self::Value<'js>) -> Error {
+        store_exception(cx, value.val);
+        Error::Exception
+    }
 }
 
 #[allow(unsafe_op_in_unsafe_fn)]

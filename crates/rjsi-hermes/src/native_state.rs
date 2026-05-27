@@ -1,10 +1,10 @@
 use std::ffi::c_void;
 use std::mem;
 
+use hermes::Object as HermesObject;
 use rjsi_core::{
     __cx, Context, NativeState, NativeStateSupport, Object, Result, TaggedNativeState, tagged_native_state_type_id
 };
-use rusty_hermes::Object as HermesObject;
 
 use crate::engine::HermesEngine;
 

@@ -2,11 +2,11 @@ use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::mem;
 
-use libhermes_sys::{
+use hermes::{Object as HermesObject, Runtime, Value};
+use hermes_sys::{
     HermesRt, HermesValue, hermes__Function__CreateFromHostFunction, hermes__Function__Release, hermes__PropNameID__ForUtf8, hermes__PropNameID__Release, hermes__Runtime__HasPendingError, hermes__Runtime__SetPendingErrorMessage
 };
 use rjsi_core::{__cx, ClassSupport, Context, Error, Function, JsClass, Object, Result};
-use rusty_hermes::{Object as HermesObject, Runtime, Value};
 
 use crate::engine::{
     HERMES_HOST_FUNCTION_MAX_ARGS, HermesArgs, HermesContext, HermesEngine, clear_pending_error_message, clear_pending_js_value, function_from_raw_parts, runtime_ffi_ptr, value_from_hermes_raw
@@ -81,20 +81,20 @@ unsafe extern "C" fn class_ctor_trampoline<C: JsClass<HermesEngine> + 'static>(
                         drop(instance);
                         let msg = e.to_string();
                         hermes__Runtime__SetPendingErrorMessage(rt, msg.as_ptr(), msg.len());
-                        rusty_hermes::__private::undefined_value()
+                        hermes::__private::undefined_value()
                     }
                 }
             }
             Err(e) => {
                 let msg = e.to_string();
                 hermes__Runtime__SetPendingErrorMessage(rt, msg.as_ptr(), msg.len());
-                rusty_hermes::__private::undefined_value()
+                hermes::__private::undefined_value()
             }
         }
     }
 }
 
-fn map_hermes<'js, T>(res: rusty_hermes::Result<T>) -> Result<T> {
+fn map_hermes<'js, T>(res: hermes::Result<T>) -> Result<T> {
     res.map_err(Error::from_host)
 }
 

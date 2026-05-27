@@ -482,6 +482,13 @@ impl Engine for V8Engine {
         Some(unsafe { cast_local(local) })
     }
 
+    fn throw<'js>(cx: &mut Self::Context<'js>, value: Self::Value<'js>) -> Error {
+        let scope = unsafe { get_scope(cx) };
+        let isolate: &mut v8::Isolate = &mut **scope;
+        cx.pending_exception = Some(v8::Global::new(isolate, value));
+        Error::Exception
+    }
+
     fn persist_value<'js>(
         cx: &mut Self::Context<'js>,
         val: Self::Value<'js>,

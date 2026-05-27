@@ -299,9 +299,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.2.61"
+version = "1.2.62"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d16d90359e986641506914ba71350897565610e87ce0ad9e6f28569db3dd5c6d"
+checksum = "a1dce859f0832a7d088c4f1119888ab94ef4b5d6795d1ce05afb7fe159d79f98"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -981,6 +981,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "hermes"
+version = "0.1.0"
+dependencies = [
+ "hermes-sys",
+]
+
+[[package]]
+name = "hermes-sys"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "cmake",
+]
+
+[[package]]
 name = "home"
 version = "0.5.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1214,15 +1229,6 @@ name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
-
-[[package]]
-name = "libhermes-sys"
-version = "0.4.0"
-source = "git+https://github.com/rust-hermes/rusty_hermes?rev=c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1#c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1"
-dependencies = [
- "cc",
- "cmake",
-]
 
 [[package]]
 name = "libloading"
@@ -1778,11 +1784,11 @@ name = "rjsi-hermes"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "hermes",
+ "hermes-sys",
  "libc",
- "libhermes-sys",
  "rjsi-conformance",
  "rjsi-core",
- "rusty_hermes",
 ]
 
 [[package]]
@@ -1925,25 +1931,6 @@ name = "rustversion"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
-
-[[package]]
-name = "rusty_hermes"
-version = "0.3.0"
-source = "git+https://github.com/rust-hermes/rusty_hermes?rev=c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1#c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1"
-dependencies = [
- "libhermes-sys",
- "rusty_hermes_macros",
-]
-
-[[package]]
-name = "rusty_hermes_macros"
-version = "0.1.0"
-source = "git+https://github.com/rust-hermes/rusty_hermes?rev=c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1#c2b1c34cca2ec0e3a58b2518fce7d16f8c5e6bd1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "ryu-js"

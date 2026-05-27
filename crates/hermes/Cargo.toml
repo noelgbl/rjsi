@@ -1,0 +1,7 @@
+[package]
+name = "hermes"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+hermes-sys = { path = "../hermes-sys" }

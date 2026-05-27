@@ -76,6 +76,21 @@ fn exception_value_is_accessible() {
 }
 
 #[test]
+fn caught_error_object_classified_as_exception() {
+    conformance::caught_error_object_classified_as_exception(&mut rt());
+}
+
+#[test]
+fn caught_error_primitive_classified_as_value() {
+    conformance::caught_error_primitive_classified_as_value(&mut rt());
+}
+
+#[test]
+fn throw_result_ext_round_trip() {
+    conformance::throw_result_ext_round_trip(&mut rt());
+}
+
+#[test]
 fn buffers_conformance() {
     conformance::buffer_capabilities_runs_all(&mut rt());
 }
